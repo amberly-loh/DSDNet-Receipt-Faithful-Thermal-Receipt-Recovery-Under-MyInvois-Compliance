@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+opencv-python-headless
+Pillow
+numpy
+scikit-image
+scikit-learn
+torch
+torchvision
+pytesseract
+paddlepaddle
+paddleocr
+jiwer
+matplotlib
+pandas
