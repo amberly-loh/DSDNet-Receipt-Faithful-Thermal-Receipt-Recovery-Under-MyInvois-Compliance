@@ -12,3 +12,4 @@ Raw receipt images remain in the local dataset folder. Outputs under `artifacts/
 
 Run the PowerShell scripts in `scripts/` in order: `run_readiness.ps1`, `run_pilot.ps1`, then `run_baselines.ps1`.
 
+Formal OCR and DSDNet work must use the isolated Chapter 4 environment described in `CHAPTER4_ENVIRONMENT.md`. The pipeline refuses to treat the currently installed PaddleOCR 3.7.0 as the required PaddleOCR 2.7 and PP-OCRv3 configuration.
