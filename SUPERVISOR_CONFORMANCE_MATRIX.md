@@ -12,7 +12,7 @@
 | Baseline C perceptual | Implemented | Image metrics complete; OCR metrics gated |
 | Shared OCR configuration | Isolated Python 3.10 environment uses PaddleOCR 2.7.0.3, PaddlePaddle 2.5.2, English PP-OCRv3 and recorded OpenCV 4.8 override | Smoke test PASS; package-metadata and Python patch deviations recorded |
 | CER, WER, field accuracy, runtime, failed OCR count | Fixed-OCR development run covers 10 training sources × 3 severities × 4 methods | Development gate PASS; formal untouched-test run remains |
-| Adapted eight-stage DSDNet | Pinned commit, grayscale input, eight stages, four maxout branches, retained stage and pre-pooling responses | Structural 16×16 CPU smoke test PASS; training/checkpoint absent |
+| Adapted eight-stage DSDNet | Pinned commit, grayscale input, eight stages, four maxout branches, retained stage and pre-pooling responses; Chapter 4 training lock encoded | Structural 16×16 CPU smoke test PASS; training preflight is blocked on a CUDA-enabled PyTorch/device |
 | Evidence-support proxy, AUC and Trace-F1 | Operational synthetic target defined from controlled masks | Must begin only after DSDNet restoration is validated |
 | Calibration and routing experiment | Chapter 4 decision sequence preserved | Must follow support validation; test data cannot select parameters |
 | Natural receipt evaluation | 646 local files inventoried | Robustness-only role; no pixel-ground-truth claims |
