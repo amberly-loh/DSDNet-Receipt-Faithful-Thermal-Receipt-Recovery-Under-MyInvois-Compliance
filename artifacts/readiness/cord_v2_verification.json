@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "rows": 1000,
+  "unique_sources": 1000,
+  "official_split_counts": {
+    "test": 100,
+    "train": 800,
+    "validation": 100
+  },
+  "project_partition_counts": {
+    "test": 150,
+    "train": 700,
+    "validation": 150
+  },
+  "hashes_checked": 1000,
+  "errors": []
+}

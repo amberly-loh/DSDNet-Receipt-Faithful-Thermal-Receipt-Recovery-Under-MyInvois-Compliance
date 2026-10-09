@@ -1,0 +1,43 @@
+{
+  "sources": 1000,
+  "full_text_references": 1000,
+  "total_amount_mapped": 972,
+  "transaction_date_automatically_mapped": 0,
+  "receipt_invoice_number_automatically_mapped": 0,
+  "manual_review_required": [
+    "transaction_date",
+    "receipt_invoice_number"
+  ],
+  "valid_line_category_counts": {
+    "menu.nm": 2573,
+    "menu.price": 2559,
+    "menu.cnt": 2333,
+    "total.total_price": 978,
+    "menu.unitprice": 738,
+    "sub_total.subtotal_price": 674,
+    "total.cashprice": 659,
+    "total.changeprice": 622,
+    "sub_total.tax_price": 454,
+    "menu.sub.nm": 404,
+    "total.menuqty_cnt": 288,
+    "menu.sub.cnt": 191,
+    "menu.sub.price": 157,
+    "total.creditcardprice": 156,
+    "sub_total.etc": 127,
+    "sub_total.service_price": 123,
+    "menu.discountprice": 111,
+    "menu.num": 109,
+    "sub_total.discount_price": 81,
+    "total.menutype_cnt": 53,
+    "total.emoneyprice": 53,
+    "total.total_etc": 35,
+    "menu.sub.unitprice": 14,
+    "menu.etc": 9,
+    "menu.itemsubtotal": 7,
+    "menu.vatyn": 3,
+    "sub_total.othersvc_price": 2,
+    "void_menu.nm": 1,
+    "void_menu.price": 1
+  },
+  "interpretation": "Full-text OCR and total amount can be evaluated after validation. Date and receipt/invoice number require manual source-grounded annotation; absent fields are ineligible, not OCR failures."
+}

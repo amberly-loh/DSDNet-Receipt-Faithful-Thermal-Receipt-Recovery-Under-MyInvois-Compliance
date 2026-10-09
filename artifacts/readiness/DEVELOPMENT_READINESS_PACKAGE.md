@@ -2,7 +2,17 @@
 
 ## Current status
 
-The project has completed the first executable readiness pass for dataset inventory, provisional source grouping, deterministic partitioning, synthetic degradation, leakage checking, and image-processing Baselines A to C. These outputs are development evidence only. They are not yet formal Chapter 5 evidence because consent, source grouping, clean-reference eligibility, merchant/template family, language, and field annotations still require confirmation.
+The project has completed the first executable readiness pass for dataset inventory, deterministic partitioning, synthetic degradation, leakage checking, image-processing Baselines A to C, and the exact Chapter 4 OCR smoke test. CORD-v2 now provides 1,000 licensed external controlled sources; the self-collected Malaysian set remains a separate natural-robustness corpus. Formal Chapter 5 claims remain gated by target-field annotation review and complete protocol runs.
+
+## External controlled corpus
+
+- Dataset: CORD-v2, CC BY 4.0, 1,000 independent receipt images.
+- Publisher partition recorded: 800 train, 100 validation, 100 test.
+- Chapter 3 project partition assigned before degradation: 700 train, 150 validation, 150 test using seed 56.
+- Controlled variants generated: 3,000 (1,000 light, 1,000 moderate, 1,000 severe).
+- Each variant retains its source ID, project partition, deterministic seed, parameters, clean reference, degraded image, removal mask, observable-trace mask, foreground mask, support target, and output hash.
+- CORD is Indonesian/Latin-script external controlled data and is not Malaysian natural-domain evidence.
+- Full-text OCR references are present for all 1,000 sources; 972 total-amount values map directly. Transaction date and receipt/invoice number require manual source-grounded verification.
 
 ## Dataset manifest and quantity report
 
@@ -44,27 +54,32 @@ The 30 pilot variants produced 120 method records. Overall pilot means were:
 
 These values demonstrate that the runner and metrics operate consistently; they do not establish a research result because the source candidates and annotations have not passed the formal data gate.
 
+The fixed-OCR development gate subsequently evaluated ten project-training CORD sources at all three severities (30 variants and 120 method records). It completed with zero OCR failures and persisted CER, WER, PSNR, SSIM, total-amount exact accuracy, preprocessing time, and OCR time. This satisfies the supervisor's operational gate for beginning DSDNet adaptation, but it is not untouched-test evidence and covers only the total-amount target field.
+
+## DSDNet adaptation readiness
+
+The pinned DSDNet architecture now has a thin receipt adapter with one-channel input, eight stages, four maxout branches, Gaussian-kernel construction from the recorded blur parameter, retained stage states, and retained tensors entering the inherited maxout pools. A reduced 16×16 CPU structural test passed at commit `8a2822e44ea1e00970ed429a8230e4116034e2f9`. The earlier 64×64 CPU attempt exceeded the execution window, confirming that training should use a CUDA-enabled environment or another recorded device. Random-weight smoke output is not restoration evidence.
+
 ## Repository and environment record
 
 - Official DSDNet source: `setsunil/DSDNet`.
 - Recorded DSDNet commit: `8a2822e44ea1e00970ed429a8230e4116034e2f9`.
-- Current inspected machine: Windows 11, Python 3.12.14, NVIDIA GeForce RTX 3050 Laptop GPU with 4096 MiB, driver 566.07.
+- Current inspected machine: Windows 11, NVIDIA GeForce RTX 3050 Laptop GPU with 4096 MiB, driver 566.07.
 - Available baseline packages include NumPy 2.3.5 and OpenCV.
-- Currently installed OCR environment: PaddleOCR 3.7.0 with PaddlePaddle 3.3.1. This environment is not the formal OCR configuration.
-- Required fixed OCR configuration from Chapter 4: PaddleOCR 2.7.0 with English PP-OCRv3 detection and recognition.
-- PyTorch is not installed in this runtime.
+- General runtime: Python 3.12 with PaddleOCR 3.7.0; it is not accepted for formal evidence.
+- Isolated Chapter 4 runtime: Python 3.10.11, PaddleOCR 2.7.0.3, PaddlePaddle 2.5.2, English PP-OCRv3 detection and recognition, OpenCV 4.8.1, and PyTorch 2.1.2 CPU build.
+- OCR smoke test: PASS on a real CORD validation receipt (12 recognized lines).
+- Recorded deviations: Python 3.10.11 rather than nominal 3.10.13; PaddleOCR's package metadata requests OpenCV <=4.6 although Chapter 4 records 4.8.1. The operational import/OCR test passed after the documented override.
 
 This machine record is not assumed to be the final training environment. Every device used for a run must generate its own environment and provenance record.
 
 ## Current gates and risks
 
-1. The ten formal clean controlled sources have not been confirmed.
-2. Consent or usage permission is not yet recorded per local image.
-3. Canonical OCR text and field annotations are absent.
-4. The installed PaddleOCR 3.7.0 environment differs from the Chapter 4 PaddleOCR 2.7.0 and PP-OCRv3 configuration.
-5. The Chapter 4 OCR environment must be created and pass a smoke test before OCR outcomes are reported as formal evidence.
-6. DSDNet training must not begin until the Baseline A to C OCR comparison is operational.
-7. The current machine has 4 GB VRAM, so the planned batch size and training resolution must be tested rather than assumed.
+1. CORD target-field mappings for transaction date and receipt/invoice number still require manual review.
+2. Consent or usage permission is not yet recorded per self-collected local image.
+3. Baselines A to C require an exact-environment OCR development run before DSDNet adaptation begins.
+4. Full formal baseline results must not be inferred from the smoke test.
+5. The current machine has 4 GB VRAM and the installed PyTorch build is CPU-only; final training-device provenance must be recorded on the selected device.
 
 ## Required work before the next supervision meeting
 

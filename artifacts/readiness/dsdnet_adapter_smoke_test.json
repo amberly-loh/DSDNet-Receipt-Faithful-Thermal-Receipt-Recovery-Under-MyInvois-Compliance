@@ -1,0 +1,32 @@
+{
+  "status": "PASS",
+  "source_commit": "8a2822e44ea1e00970ed429a8230e4116034e2f9",
+  "input_shape": [
+    1,
+    1,
+    16,
+    16
+  ],
+  "output_shape": [
+    1,
+    1,
+    16,
+    16
+  ],
+  "stage_states": 8,
+  "branch_stages": 8,
+  "prior_branch_channels_stage_1": [
+    1,
+    196,
+    16,
+    16
+  ],
+  "data_branch_channels_stage_1": [
+    1,
+    192,
+    16,
+    16
+  ],
+  "device": "cpu",
+  "interpretation": "Reduced-size CPU structural smoke test only; random weights are not restoration evidence."
+}

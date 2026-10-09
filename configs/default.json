@@ -24,7 +24,7 @@
   },
   "ocr": {
     "engine": "PaddleOCR",
-    "required_version": "2.7.0",
+    "required_version": "2.7.0.3",
     "ocr_version": "PP-OCRv3",
     "strict_version": true,
     "language": "en",
