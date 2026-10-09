@@ -1,0 +1,185 @@
+{
+  "all_identical": false,
+  "checks": [
+    {
+      "identical": false,
+      "severity": "light",
+      "source_id": "SRC-0085",
+      "variant_id": "V01"
+    },
+    {
+      "identical": false,
+      "severity": "moderate",
+      "source_id": "SRC-0085",
+      "variant_id": "V02"
+    },
+    {
+      "identical": false,
+      "severity": "severe",
+      "source_id": "SRC-0085",
+      "variant_id": "V03"
+    },
+    {
+      "identical": false,
+      "severity": "light",
+      "source_id": "SRC-0417",
+      "variant_id": "V01"
+    },
+    {
+      "identical": false,
+      "severity": "moderate",
+      "source_id": "SRC-0417",
+      "variant_id": "V02"
+    },
+    {
+      "identical": false,
+      "severity": "severe",
+      "source_id": "SRC-0417",
+      "variant_id": "V03"
+    },
+    {
+      "identical": false,
+      "severity": "light",
+      "source_id": "SRC-0400",
+      "variant_id": "V01"
+    },
+    {
+      "identical": false,
+      "severity": "moderate",
+      "source_id": "SRC-0400",
+      "variant_id": "V02"
+    },
+    {
+      "identical": false,
+      "severity": "severe",
+      "source_id": "SRC-0400",
+      "variant_id": "V03"
+    },
+    {
+      "identical": false,
+      "severity": "light",
+      "source_id": "SRC-0480",
+      "variant_id": "V01"
+    },
+    {
+      "identical": false,
+      "severity": "moderate",
+      "source_id": "SRC-0480",
+      "variant_id": "V02"
+    },
+    {
+      "identical": false,
+      "severity": "severe",
+      "source_id": "SRC-0480",
+      "variant_id": "V03"
+    },
+    {
+      "identical": false,
+      "severity": "light",
+      "source_id": "SRC-0349",
+      "variant_id": "V01"
+    },
+    {
+      "identical": false,
+      "severity": "moderate",
+      "source_id": "SRC-0349",
+      "variant_id": "V02"
+    },
+    {
+      "identical": false,
+      "severity": "severe",
+      "source_id": "SRC-0349",
+      "variant_id": "V03"
+    },
+    {
+      "identical": false,
+      "severity": "light",
+      "source_id": "SRC-0418",
+      "variant_id": "V01"
+    },
+    {
+      "identical": false,
+      "severity": "moderate",
+      "source_id": "SRC-0418",
+      "variant_id": "V02"
+    },
+    {
+      "identical": false,
+      "severity": "severe",
+      "source_id": "SRC-0418",
+      "variant_id": "V03"
+    },
+    {
+      "identical": false,
+      "severity": "light",
+      "source_id": "SRC-0478",
+      "variant_id": "V01"
+    },
+    {
+      "identical": false,
+      "severity": "moderate",
+      "source_id": "SRC-0478",
+      "variant_id": "V02"
+    },
+    {
+      "identical": false,
+      "severity": "severe",
+      "source_id": "SRC-0478",
+      "variant_id": "V03"
+    },
+    {
+      "identical": false,
+      "severity": "light",
+      "source_id": "SRC-0411",
+      "variant_id": "V01"
+    },
+    {
+      "identical": false,
+      "severity": "moderate",
+      "source_id": "SRC-0411",
+      "variant_id": "V02"
+    },
+    {
+      "identical": false,
+      "severity": "severe",
+      "source_id": "SRC-0411",
+      "variant_id": "V03"
+    },
+    {
+      "identical": false,
+      "severity": "light",
+      "source_id": "SRC-0449",
+      "variant_id": "V01"
+    },
+    {
+      "identical": false,
+      "severity": "moderate",
+      "source_id": "SRC-0449",
+      "variant_id": "V02"
+    },
+    {
+      "identical": false,
+      "severity": "severe",
+      "source_id": "SRC-0449",
+      "variant_id": "V03"
+    },
+    {
+      "identical": false,
+      "severity": "light",
+      "source_id": "SRC-0189",
+      "variant_id": "V01"
+    },
+    {
+      "identical": false,
+      "severity": "moderate",
+      "source_id": "SRC-0189",
+      "variant_id": "V02"
+    },
+    {
+      "identical": false,
+      "severity": "severe",
+      "source_id": "SRC-0189",
+      "variant_id": "V03"
+    }
+  ]
+}

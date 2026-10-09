@@ -1,0 +1,29 @@
+{
+  "confirmed_clean_receipt_sources": 0,
+  "development_pilot_source_candidates": 10,
+  "development_pilot_variants": {
+    "light": 10,
+    "moderate": 10,
+    "severe": 10,
+    "total": 30
+  },
+  "local_image_files": 646,
+  "naturally_collected_images_pending_review": 646,
+  "provisional_independent_source_groups": 573,
+  "provisional_source_groups_by_partition": {
+    "train": 389,
+    "validation": 99,
+    "test": 85
+  },
+  "merchant_template_families_confirmed": 0,
+  "canonical_fields_verified": 0,
+  "high_risk_fields_verified": 0,
+  "formal_evidence_status": "not ready",
+  "blocking_reasons": [
+    "clean-source eligibility not confirmed",
+    "consent or usage permission not recorded per source",
+    "canonical text and field annotations absent",
+    "fixed OCR environment not established"
+  ]
+}
+

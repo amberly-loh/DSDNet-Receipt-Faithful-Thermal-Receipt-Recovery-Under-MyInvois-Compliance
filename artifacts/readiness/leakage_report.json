@@ -1,0 +1,12 @@
+{
+  "exact_duplicate_partition_violations": {},
+  "independent_source_groups": 573,
+  "note": "Source grouping and consent remain provisional until manual confirmation.",
+  "source_group_partition_violations": {},
+  "source_groups_by_partition": {
+    "test": 85,
+    "train": 389,
+    "validation": 99
+  },
+  "status": "PASS"
+}

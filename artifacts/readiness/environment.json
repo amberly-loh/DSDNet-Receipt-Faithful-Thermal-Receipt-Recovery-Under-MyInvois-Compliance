@@ -1,0 +1,18 @@
+{
+  "base_seed": 56,
+  "configuration_file": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\configs\\default.json",
+  "cuda_driver_report": "NVIDIA GeForce RTX 3050 Laptop GPU, 4096 MiB, 566.07",
+  "dsdnet_commit": "8a2822e44ea1e00970ed429a8230e4116034e2f9",
+  "dsdnet_source": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\vendor\\DSDNet",
+  "expected_dsdnet_commit": "8a2822e44ea1e00970ed429a8230e4116034e2f9",
+  "formal_run_ready": false,
+  "packages": {
+    "numpy": "2.3.5",
+    "opencv-python": "5.0.0.93",
+    "paddleocr": "3.7.0",
+    "paddlepaddle": "3.3.1",
+    "torch": null
+  },
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]"
+}

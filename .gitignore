@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+artifacts/baseline_outputs/
+artifacts/pilot_degradation/*/
+vendor/
+
