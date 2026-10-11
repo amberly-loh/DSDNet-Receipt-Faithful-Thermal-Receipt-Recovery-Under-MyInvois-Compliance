@@ -1,0 +1,21 @@
+{
+  "status": "FAIL_INSUFFICIENT_GPU_MEMORY",
+  "date": "2026-10-11",
+  "device": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "device_memory_gib": 4.0,
+  "torch": "2.1.2+cu118",
+  "cuda_runtime": "11.8",
+  "configuration": {
+    "input_channels": 1,
+    "stages": 8,
+    "maxout_branches": 4,
+    "crop": "128x128",
+    "batch_size": 1,
+    "mixed_precision": false,
+    "gradient_clipping": false,
+    "optimizer": "AdamW"
+  },
+  "failure_point": "AdamW optimizer step after a successful forward and backward pass",
+  "error": "CUDA out of memory while requesting an additional 84 MiB; the eight-stage computation allocated substantially more than the 4 GiB device capacity.",
+  "interpretation": "The exact Chapter 4 training configuration is not feasible on this 4 GiB GPU. Reducing stages, channels, resolution or enabling mixed precision would change the recorded protocol. The formal run must use a higher-memory CUDA device and record its actual provenance."
+}

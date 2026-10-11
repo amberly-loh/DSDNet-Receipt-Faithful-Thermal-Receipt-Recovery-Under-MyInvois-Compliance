@@ -58,7 +58,7 @@ class DSDNetReceiptAdapter(nn.Module):
         self.stages = stages
         self.branches = branches
 
-    def forward(self, observed: torch.Tensor, kernel: torch.Tensor) -> dict[str, Any]:
+    def forward(self, observed: torch.Tensor, kernel: torch.Tensor, retain_diagnostics: bool = True) -> dict[str, Any]:
         net = self.network
         x = self.arch.fft_deconv(observed, kernel)
         stage_states = []
@@ -88,6 +88,7 @@ class DSDNetReceiptAdapter(nn.Module):
                 x = net.i[index](x, observed, v, z, kernel, mp, md, mn, ui, uj)
                 ui = ui + prior_input - v
                 uj = uj + data_input - z
-            stage_states.append(x)
-            branch_responses.append({"prior": prior_branches, "data": data_branches})
+            if retain_diagnostics:
+                stage_states.append(x)
+                branch_responses.append({"prior": prior_branches, "data": data_branches})
         return {"restored": x, "stage_states": stage_states, "branch_responses": branch_responses}
