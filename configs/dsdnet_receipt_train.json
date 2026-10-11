@@ -1,9 +1,9 @@
 {
   "config_version": "chapter4-training-lock-v1",
   "seed": 56,
-  "dataset_manifest": "../../FYP datasets/External/CORD-v2/cord_v2_manifest.csv",
+  "dataset_manifest": "../artifacts/readiness/dataset_manifest.csv",
   "generation_manifest": "../artifacts/controlled_degradation/generation_manifest.jsonl",
-  "partitions": {"train_sources": 700, "validation_sources": 150, "test_sources": 150},
+  "partitions": {"train_sources": 389, "validation_sources": 99, "test_sources": 85},
   "network": {
     "source_commit": "8a2822e44ea1e00970ed429a8230e4116034e2f9",
     "input_channels": 1,
