@@ -14,6 +14,7 @@ from dsdnet_receipt.config import load_config
 from dsdnet_receipt.fields import extract_fields, route_fields
 from dsdnet_receipt.preprocessing import preprocess
 from dsdnet_receipt.restoration import make_evidence_preserving_view, make_readability_view
+from dsdnet_receipt.ocr import deduplicate_lines
 from dsdnet_receipt.web_app import accounting_line_items
 
 
@@ -74,6 +75,7 @@ def saved_run_checks(config: dict) -> dict:
         for field in audit.get("fields", []):
             if field.get("decision") != "Human decision required": row["issues"].append(f"unsafe decision for {field.get('name')}")
         lines = audit.get("ocr_lines", [])
+        row["ocr_duplicate_lines_removed"] = len(lines) - len(deduplicate_lines(lines))
         row["line_item_candidates"] = len(accounting_line_items(lines))
         input_image = cv2.imread(str(root / "input.png"), cv2.IMREAD_GRAYSCALE)
         recovery = cv2.imread(str(root / "ocr_input.png"), cv2.IMREAD_GRAYSCALE)

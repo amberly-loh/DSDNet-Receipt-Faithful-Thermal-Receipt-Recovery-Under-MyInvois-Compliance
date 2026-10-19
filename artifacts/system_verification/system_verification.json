@@ -275,7 +275,7 @@
     }
   },
   "saved_natural_runs": {
-    "runs_checked": 13,
+    "runs_checked": 14,
     "current_failed_runs": 0,
     "legacy_runs": 9,
     "records": [
@@ -345,27 +345,40 @@
       {
         "run_id": "USER-20261019-145844-5c33e9",
         "issues": [],
+        "ocr_duplicate_lines_removed": 0,
         "line_item_candidates": 0,
         "status": "PASS"
       },
       {
         "run_id": "USER-20261019-190816-6dfb3e",
         "issues": [],
+        "ocr_duplicate_lines_removed": 0,
         "line_item_candidates": 0,
         "status": "PASS"
       },
       {
         "run_id": "USER-20261019-191035-0bb097",
         "issues": [],
+        "ocr_duplicate_lines_removed": 0,
         "line_item_candidates": 0,
         "status": "PASS"
       },
       {
         "run_id": "USER-20261019-192401-6ef645",
         "issues": [],
+        "ocr_duplicate_lines_removed": 11,
         "line_item_candidates": 5,
         "dark_stroke_preservation": 1.0,
         "nonwhite_display_fraction": 0.029348958333333335,
+        "status": "PASS"
+      },
+      {
+        "run_id": "USER-20261019-221447-6776b7",
+        "issues": [],
+        "ocr_duplicate_lines_removed": 8,
+        "line_item_candidates": 0,
+        "dark_stroke_preservation": 1.0,
+        "nonwhite_display_fraction": 0.03710984848484848,
         "status": "PASS"
       }
     ]

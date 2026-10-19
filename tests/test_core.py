@@ -8,6 +8,8 @@ from dsdnet_receipt.degradation import degrade, variant_seed
 from dsdnet_receipt.metrics import cer, psnr, ssim, wer
 from dsdnet_receipt.fields import extract_fields, route_fields
 from dsdnet_receipt.preprocessing import preprocess
+from dsdnet_receipt.ocr import OCRResult, PaddleOCRAdapter, deduplicate_lines
+from dsdnet_receipt.restoration import make_evidence_preserving_view
 
 
 def test_seed_is_stable() -> None:
@@ -118,3 +120,44 @@ def test_empty_and_unsupported_images_are_rejected() -> None:
         try: preprocess(image, config)
         except ValueError: pass
         else: raise AssertionError("Unsupported image should be rejected")
+
+
+def test_multiview_ocr_merges_shifted_duplicate_but_keeps_repeated_value(monkeypatch) -> None:
+    adapter = object.__new__(PaddleOCRAdapter)
+    adapter.version = "2.7.0.3"
+    outputs = iter([
+        OCRResult("44300 HULU YAM LAMA\n130.00", [
+            {"text":"44300 HULU YAM LAMA", "confidence":.95, "box":[[356,125],[650,125],[650,145],[356,145]]},
+            {"text":"130.00", "confidence":.98, "box":[[1000,648],[1080,648],[1080,668],[1000,668]]},
+        ], adapter.version, "ok"),
+        OCRResult("44300 HULU YAM LAMA\n130.00", [
+            {"text":"44300 HULU YAM LAMA", "confidence":.99, "box":[[356,127],[652,127],[652,147],[356,147]]},
+            {"text":"130.00", "confidence":.96, "box":[[1002,1262],[1082,1262],[1082,1282],[1002,1282]]},
+        ], adapter.version, "ok"),
+    ])
+    monkeypatch.setattr(adapter, "run", lambda image: next(outputs))
+    result = adapter.run_views([("original", np.zeros((2,2),np.uint8)), ("clean", np.zeros((2,2),np.uint8))])
+    assert [line["text"] for line in result.lines].count("44300 HULU YAM LAMA") == 1
+    assert [line["text"] for line in result.lines].count("130.00") == 2
+    assert next(line for line in result.lines if line["text"] == "44300 HULU YAM LAMA")["confidence"] == .99
+
+
+def test_persisted_ocr_deduplication_handles_rounding_boundary() -> None:
+    lines = [
+        {"text":"44300 HULU YAM LAMA, SELANGOR DARUL EHSAN.","confidence":.952,"box":[[356,125],[900,125],[900,145],[356,145]]},
+        {"text":"44300 HULU YAM LAMA, SELANGOR DARUL EHSAN.","confidence":.995,"box":[[356,127],[902,127],[902,147],[356,147]]},
+    ]
+    result = deduplicate_lines(lines)
+    assert len(result) == 1 and result[0]["confidence"] == .995
+
+
+def test_reading_view_suppresses_light_texture_without_erasing_dark_ink() -> None:
+    readable = np.full((80, 160), 255, np.uint8)
+    readable[10:12, 10:150] = 180  # light fold/texture outside OCR localisation
+    readable[30:34, 20:80] = 105   # unrecognised handwriting/signature
+    readable[50:54, 25:130] = 165  # faint OCR-localised printed text
+    lines = [{"text":"TOTAL 102.50", "box":[[20,46],[135,46],[135,58],[20,58]], "confidence":.95}]
+    output = make_evidence_preserving_view(readable, lines)
+    assert np.all(output[10:12, 10:150] == 255)
+    assert np.all(output[30:34, 20:80] <= readable[30:34, 20:80])
+    assert np.mean(output[50:54, 25:130]) <= np.mean(readable[50:54, 25:130])

@@ -250,11 +250,33 @@ async function openReceipt(id) {
     $('runtimeStatus').textContent = `${Number(currentReceipt.runtime_seconds).toFixed(2)} seconds`; $('recordId').textContent = currentReceipt.public_id;
     const missing = ['merchant','transaction_date','receipt_number','total_amount'].filter(key => !currentReceipt[key]);
     $('readingMessage').textContent = missing.length ? `We could not confidently read ${missing.length} important ${missing.length === 1 ? 'detail' : 'details'}. Enter them manually before marking this receipt as reviewed.` : 'All key details were found. Compare them with the original before marking this receipt as reviewed.';
-    const lines = currentReceipt.audit?.ocr_lines || [];
+    const lines = dedupeOcrLines(currentReceipt.audit?.ocr_lines || []);
     $('ocrTable').innerHTML = lines.length ? `<table><thead><tr><th>#</th><th>Recognised text</th><th>Confidence</th></tr></thead><tbody>${lines.map((line, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(line.text)}</td><td>${line.confidence == null ? '—' : `${(Number(line.confidence) * 100).toFixed(1)}%`}</td></tr>`).join('')}</tbody></table>` : '<p class="empty-copy">No text was recognised. Enter the receipt details manually.</p>';
     $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`; $('ocrDownload').href = `/api/receipts/${encodeURIComponent(id)}/ocr.xlsx`;
     $('compareSlider').value = 50; updateComparison(50); route('detail');
   } catch (error) { toast(error.message, true); }
+}
+
+function dedupeOcrLines(lines) {
+  const kept = [];
+  const normalise = value => String(value || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  const bounds = line => {
+    const box = line?.box;
+    if (!Array.isArray(box) || !box.length) return null;
+    const xs = box.map(point => Number(point?.[0])), ys = box.map(point => Number(point?.[1]));
+    return xs.every(Number.isFinite) && ys.every(Number.isFinite) ? [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] : null;
+  };
+  const samePlace = (a, b) => {
+    const x = bounds(a), y = bounds(b); if (!x || !y) return !x && !y;
+    const aw = Math.max(x[2]-x[0],1), ah = Math.max(x[3]-x[1],1), bw = Math.max(y[2]-y[0],1), bh = Math.max(y[3]-y[1],1);
+    return Math.abs((x[0]+x[2]-y[0]-y[2])/2) <= Math.max(12,.18*Math.max(aw,bw)) && Math.abs((x[1]+x[3]-y[1]-y[3])/2) <= Math.max(8,.45*Math.max(ah,bh));
+  };
+  for (const line of lines) {
+    const text = normalise(line.text); if (!text) continue;
+    const index = kept.findIndex(old => normalise(old.text) === text && samePlace(old,line));
+    if (index < 0) kept.push(line); else if (Number(line.confidence || 0) > Number(kept[index].confidence || 0)) kept[index] = line;
+  }
+  return kept;
 }
 
 function updateComparison(value) { $('restoredWrap').style.clipPath = `inset(0 ${100 - value}% 0 0)`; $('compareLine').style.left = `${value}%`; }

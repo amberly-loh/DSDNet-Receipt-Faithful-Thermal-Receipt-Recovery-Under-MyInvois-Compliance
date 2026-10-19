@@ -13,6 +13,7 @@ import threading
 import time
 import unicodedata
 import uuid
+from copy import copy
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -29,7 +30,7 @@ from openpyxl import Workbook
 from .config import load_config, write_json
 from .fields import extract_fields, route_fields
 from .images import write_image
-from .ocr import PaddleOCRAdapter
+from .ocr import PaddleOCRAdapter, deduplicate_lines
 from .preprocessing import preprocess
 from .restoration import RestorationEngine
 from .storage import ReceiptStore, utc_now
@@ -349,6 +350,8 @@ def create_app(
     @require_auth
     def receipt_detail(receipt_id: str):
         receipt = store.get_receipt(current_user()["id"], receipt_id)
+        if receipt and receipt.get("audit", {}).get("ocr_lines"):
+            receipt["audit"]["ocr_lines"] = deduplicate_lines(receipt["audit"]["ocr_lines"])
         if receipt: store.log_event(current_user()["id"], "receipt.view", "receipt", receipt_id)
         return jsonify(receipt) if receipt else (jsonify({"error": "Receipt not found."}), 404)
 
@@ -405,7 +408,7 @@ def create_app(
         output = io.StringIO(); writer = csv.writer(output)
         writer.writerow(["receipt_id", "created_at", "status", "merchant", "transaction_date", "receipt_number", "total_amount", "tags", "notes"])
         for row in rows:
-            writer.writerow([row["public_id"], row["created_at"], row["status"], row.get("merchant"), row.get("transaction_date"), row.get("receipt_number"), row.get("total_amount"), ", ".join(row["tags"]), row.get("notes")])
+            writer.writerow([safe_excel_value(value) for value in [row["public_id"], row["created_at"], row["status"], row.get("merchant"), row.get("transaction_date"), row.get("receipt_number"), row.get("total_amount"), ", ".join(row["tags"]), row.get("notes")]])
         data = io.BytesIO(output.getvalue().encode("utf-8-sig"))
         return send_file(data, mimetype="text/csv", as_attachment=True, download_name="receipt-history.csv")
 
@@ -417,8 +420,9 @@ def create_app(
         headers = ["Receipt ID", "Processed at", "Review status", "Merchant", "Transaction date", "Receipt number", "Total amount", "Tags", "Notes", "Restoration status", "Support status", "Retention until"]
         sheet.append(headers)
         for row in rows:
-            sheet.append([row["public_id"], row["created_at"], row["status"], row.get("merchant"), row.get("transaction_date"), row.get("receipt_number"), row.get("total_amount"), ", ".join(row["tags"]), row.get("notes"), row.get("restoration_status"), row.get("support_status"), row.get("retention_until")])
-        for cell in sheet[1]: cell.font = cell.font.copy(bold=True)
+            sheet.append([safe_excel_value(value) for value in [row["public_id"], row["created_at"], row["status"], row.get("merchant"), row.get("transaction_date"), row.get("receipt_number"), row.get("total_amount"), ", ".join(row["tags"]), row.get("notes"), row.get("restoration_status"), row.get("support_status"), row.get("retention_until")]])
+        for cell in sheet[1]:
+            font = copy(cell.font); font.bold = True; cell.font = font
         sheet.freeze_panes = "A2"; sheet.auto_filter.ref = sheet.dimensions
         for column in sheet.columns:
             width = min(42, max(12, max(len(str(cell.value or "")) for cell in column) + 2)); sheet.column_dimensions[column[0].column_letter].width = width
@@ -440,9 +444,9 @@ def create_app(
     def export_ocr(receipt_id: str):
         receipt = store.get_receipt(current_user()["id"], receipt_id)
         if not receipt: return jsonify({"error": "Receipt not found."}), 404
-        lines = receipt["audit"].get("ocr_lines", [])
+        lines = deduplicate_lines(receipt["audit"].get("ocr_lines", []))
         workbook = Workbook(); summary = workbook.active; summary.title = "Receipt Summary"
-        summary.append(["Receipt audit and accounting record"]); summary["A1"].font = summary["A1"].font.copy(bold=True, size=14)
+        summary.append(["Receipt audit and accounting record"]); title_font = copy(summary["A1"].font); title_font.bold = True; title_font.size = 14; summary["A1"].font = title_font
         summary.append([])
         summary_rows = [
             ("Merchant", receipt.get("merchant")), ("Transaction date", receipt.get("transaction_date")),
@@ -453,13 +457,15 @@ def create_app(
         ]
         for label, value in summary_rows: summary.append([label, safe_excel_value(value or "Not confirmed")])
         summary.column_dimensions["A"].width = 28; summary.column_dimensions["B"].width = 72
-        for cell in summary[3:]: cell[0].font = cell[0].font.copy(bold=True)
+        for row in summary.iter_rows(min_row=3, max_row=summary.max_row, min_col=1, max_col=1):
+            font = copy(row[0].font); font.bold = True; row[0].font = font
 
         items = workbook.create_sheet("Line Items")
         items.append(["Item", "Description", "Quantity", "Unit", "Unit price (RM)", "Discount", "Amount (RM)", "Review note"])
         for row in accounting_line_items(lines): items.append([safe_excel_value(value) for value in row])
         if items.max_row == 1: items.append([None, "No line items were extracted reliably", None, None, None, None, None, "Check the receipt image"])
-        for cell in items[1]: cell.font = cell.font.copy(bold=True)
+        for cell in items[1]:
+            font = copy(cell.font); font.bold = True; cell.font = font
         items.freeze_panes = "A2"; items.auto_filter.ref = items.dimensions
         for column, width in {"A":10,"B":42,"C":12,"D":12,"E":18,"F":14,"G":16,"H":25}.items(): items.column_dimensions[column].width = width
 
@@ -469,7 +475,8 @@ def create_app(
         for index, line in enumerate(lines, 1):
             confidence = line.get("confidence")
             evidence.append([index, safe_excel_value(line.get("text", "")), round(float(confidence) * 100, 1) if confidence is not None else None, friendly_views.get(line.get("source_view"), "Receipt image")])
-        for cell in evidence[1]: cell.font = cell.font.copy(bold=True)
+        for cell in evidence[1]:
+            font = copy(cell.font); font.bold = True; cell.font = font
         evidence.freeze_panes = "A2"; evidence.auto_filter.ref = evidence.dimensions
         evidence.column_dimensions["A"].width = 15; evidence.column_dimensions["B"].width = 72
         evidence.column_dimensions["C"].width = 18; evidence.column_dimensions["D"].width = 24
@@ -491,7 +498,8 @@ def create_app(
             ("Digital signature and submission identifiers", None, "Created only by the authorised MyInvois workflow"),
         ]
         for row in coverage_rows: coverage.append([safe_excel_value(value) for value in row])
-        for cell in coverage[2]: cell.font = cell.font.copy(bold=True)
+        for cell in coverage[2]:
+            font = copy(cell.font); font.bold = True; cell.font = font
         coverage.freeze_panes = "A3"; coverage.column_dimensions["A"].width = 48; coverage.column_dimensions["B"].width = 55; coverage.column_dimensions["C"].width = 42
         output = io.BytesIO(); workbook.save(output); output.seek(0)
         store.log_event(current_user()["id"], "receipt.export_ocr_xlsx", "receipt", receipt_id)

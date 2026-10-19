@@ -95,29 +95,43 @@ class PaddleOCRAdapter:
 
     def run_views(self, views: list[tuple[str, np.ndarray]]) -> OCRResult:
         """Run the fixed OCR configuration on faithful views and merge duplicates."""
-        merged: dict[str, dict[str, Any]] = {}
+        merged: list[dict[str, Any]] = []
         errors: list[str] = []
         for view_name, image in views:
             result = self.run(image)
             if result.error:
                 errors.append(f"{view_name}: {result.error}")
             for line in result.lines:
-                normalized = "".join(ch.lower() for ch in str(line.get("text", "")) if ch.isalnum())
+                normalized = _normalise_text(line.get("text"))
                 if not normalized:
                     continue
                 candidate = dict(line)
                 candidate["source_view"] = view_name
-                cy, cx = _line_position(candidate.get("box"))
-                # Preserve the same value when it occurs in different receipt
-                # columns (for example unit price and line amount), while
-                # merging repeated readings of the same physical text line.
-                key = f"{normalized}:{round(cx / 24)}:{round(cy / 12)}"
-                old = merged.get(key)
-                if old is None or float(candidate.get("confidence") or 0) > float(old.get("confidence") or 0):
-                    merged[key] = candidate
-        lines = sorted(merged.values(), key=lambda item: _line_position(item.get("box")))
+                duplicate_index = next(
+                    (index for index, old in enumerate(merged)
+                     if _normalise_text(old.get("text")) == normalized
+                     and _same_physical_line(old.get("box"), candidate.get("box"))),
+                    None,
+                )
+                if duplicate_index is None:
+                    merged.append(candidate)
+                elif float(candidate.get("confidence") or 0) > float(merged[duplicate_index].get("confidence") or 0):
+                    merged[duplicate_index] = candidate
+        lines = sorted(merged, key=lambda item: _line_position(item.get("box")))
         return OCRResult("\n".join(str(line["text"]) for line in lines), lines, self.version,
                          "ok" if lines else "failed", "; ".join(errors) if errors and not lines else None)
+
+
+def deduplicate_lines(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deduplicate previously persisted or externally supplied OCR records."""
+    merged: list[dict[str, Any]] = []
+    for line in lines:
+        normalized = _normalise_text(line.get("text"))
+        if not normalized: continue
+        index = next((i for i, old in enumerate(merged) if _normalise_text(old.get("text")) == normalized and _same_physical_line(old.get("box"), line.get("box"))), None)
+        if index is None: merged.append(line)
+        elif float(line.get("confidence") or 0) > float(merged[index].get("confidence") or 0): merged[index] = line
+    return sorted(merged, key=lambda item: _line_position(item.get("box")))
 
 
 def _line_position(box: Any) -> tuple[float, float]:
@@ -125,3 +139,30 @@ def _line_position(box: Any) -> tuple[float, float]:
         return (min(float(point[1]) for point in box), min(float(point[0]) for point in box))
     except (TypeError, ValueError, IndexError):
         return (float("inf"), float("inf"))
+
+
+def _normalise_text(value: Any) -> str:
+    return "".join(ch.lower() for ch in str(value or "") if ch.isalnum())
+
+
+def _box_bounds(box: Any) -> tuple[float, float, float, float] | None:
+    try:
+        xs = [float(point[0]) for point in box]
+        ys = [float(point[1]) for point in box]
+        if not xs or not ys: return None
+        return min(xs), min(ys), max(xs), max(ys)
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def _same_physical_line(first: Any, second: Any) -> bool:
+    """Match the same OCR line across views without merging repeated values."""
+    a, b = _box_bounds(first), _box_bounds(second)
+    if a is None or b is None:
+        return first is None and second is None
+    ax, ay, ar, ab = a; bx, by, br, bb = b
+    aw, ah = max(ar - ax, 1.0), max(ab - ay, 1.0)
+    bw, bh = max(br - bx, 1.0), max(bb - by, 1.0)
+    centre_dx = abs((ax + ar) / 2 - (bx + br) / 2)
+    centre_dy = abs((ay + ab) / 2 - (by + bb) / 2)
+    return centre_dx <= max(12.0, .18 * max(aw, bw)) and centre_dy <= max(8.0, .45 * max(ah, bh))
