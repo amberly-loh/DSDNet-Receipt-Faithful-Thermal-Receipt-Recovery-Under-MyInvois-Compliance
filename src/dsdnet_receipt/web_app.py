@@ -387,7 +387,7 @@ def create_app(
         image = cv2.imdecode(raw, cv2.IMREAD_COLOR)
         if image is None: raise ValueError(f"{upload.filename}: unreadable receipt image")
         started = time.perf_counter(); processed, preprocessing_record = preprocess(image, config)
-        from .restoration import clean_empty_rows, make_readability_view
+        from .restoration import make_readability_view
         with inference_lock:
             restoration = restoration_engine.run(processed)
             readability = make_readability_view(processed, restoration.image)
@@ -396,13 +396,12 @@ def create_app(
                 ("source_preserving_recovery", restoration.image),
                 ("readability_view", readability),
             ])
-            display_readability = clean_empty_rows(readability, ocr.lines)
         fields = route_fields(extract_fields(ocr.text, ocr.lines), support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
         run_id = f"USER-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         audit_root = Path(config["artifacts_root"]) / "user_runs" / run_id
         input_path, restored_path, diagnostic_path = audit_root / "input.png", audit_root / "restored.png", audit_root / "diagnostic.png"
-        display_restoration = display_readability
+        display_restoration = readability
         write_image(input_path, processed); write_image(restored_path, display_restoration)
         write_image(audit_root / "ocr_input.png", restoration.image)
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)

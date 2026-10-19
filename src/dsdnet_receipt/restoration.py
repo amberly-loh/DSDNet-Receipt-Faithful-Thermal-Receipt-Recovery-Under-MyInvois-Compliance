@@ -138,33 +138,8 @@ def make_readability_view(source: np.ndarray, restored: np.ndarray) -> np.ndarra
     background = cv2.GaussianBlur(base, (0, 0), 31)
     flattened = cv2.divide(base, np.maximum(background, 1), scale=245)
     readable = cv2.fastNlMeansDenoising(flattened, None, h=7, templateWindowSize=7, searchWindowSize=21)
-    readable[readable > 224] = 255
+    # Light paper grain and fold shading are mapped to clean paper. Dark ink,
+    # including handwriting and signatures, is retained whether OCR finds it
+    # or not.
+    readable[readable > 190] = 255
     return readable
-
-
-def clean_empty_rows(image: np.ndarray, ocr_lines: list[dict[str, Any]], padding: int = 12) -> np.ndarray:
-    """Whiten rows with no OCR-localised content in the user reading copy.
-
-    This is applied only after OCR. The original and model outputs remain
-    unchanged audit artefacts, while the reading copy becomes easier to scan.
-    """
-    cleaned = np.full_like(image, 255)
-    height = image.shape[0]
-    protected = np.zeros(height, dtype=bool)
-    for line in ocr_lines:
-        try:
-            ys = [float(point[1]) for point in line.get("box", [])]
-            y1 = max(0, int(min(ys)) - padding)
-            y2 = min(height, int(max(ys)) + padding + 1)
-            protected[y1:y2] = True
-        except (TypeError, ValueError):
-            continue
-    # Join nearby content rows so tables remain visually coherent, while
-    # genuinely unused receipt regions become plain white.
-    gap = 28
-    indices = np.flatnonzero(protected)
-    for left, right in zip(indices[:-1], indices[1:]):
-        if right - left <= gap:
-            protected[left:right + 1] = True
-    cleaned[protected, :] = image[protected, :]
-    return cleaned
