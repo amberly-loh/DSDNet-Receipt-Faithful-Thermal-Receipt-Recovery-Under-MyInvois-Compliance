@@ -14,6 +14,10 @@ class RestorationResult:
     status: str
     error: str | None
     checkpoint: str | None
+    stage_count: int = 0
+    diagnostic_map: np.ndarray | None = None
+    diagnostics: dict[str, Any] | None = None
+    model_output: np.ndarray | None = None
 
 
 class RestorationEngine:
@@ -80,6 +84,7 @@ class RestorationEngine:
             window = np.outer(window_1d, window_1d)
             accumulated = np.zeros_like(padded, dtype=np.float32)
             weights = np.zeros_like(padded, dtype=np.float32)
+            diagnostic_accumulated = np.zeros_like(padded, dtype=np.float32)
             positions = [(top, left) for top in tops for left in lefts]
             batch_size = max(1, int(self.config["dsdnet"].get("tile_batch_size", 1)))
             with torch.inference_mode():
@@ -91,10 +96,21 @@ class RestorationEngine:
                     ])
                     observed = torch.from_numpy(tiles).unsqueeze(1).to(device)
                     batch_kernel = kernel.expand(len(batch_positions), -1, -1)
-                    restored_batch = model(observed, batch_kernel, retain_diagnostics=False)["restored"]
+                    output = model(observed, batch_kernel, retain_diagnostics=True, summarize_diagnostics=True)
+                    restored_batch = output["restored"]
+                    stages = output["stage_states"]
+                    summaries = output["diagnostic_summaries"]
+                    stage_change = (stages[-1] - stages[-2]).abs().squeeze(1)
+                    branch_disagreement = torch.stack([
+                        item["prior_disagreement"].squeeze(1) + item["data_disagreement"].squeeze(1)
+                        for item in summaries
+                    ]).mean(dim=0)
+                    diagnostic_batch = torch.exp(-4.0 * stage_change - 2.0 * branch_disagreement)
                     restored_batch = restored_batch.detach().clamp(0, 1).squeeze(1).cpu().numpy()
-                    for restored_tile, (top, left) in zip(restored_batch, batch_positions):
+                    diagnostic_batch = diagnostic_batch.detach().clamp(0, 1).cpu().numpy()
+                    for restored_tile, diagnostic_tile, (top, left) in zip(restored_batch, diagnostic_batch, batch_positions):
                         accumulated[top : top + tile_size, left : left + tile_size] += restored_tile * window
+                        diagnostic_accumulated[top : top + tile_size, left : left + tile_size] += diagnostic_tile * window
                         weights[top : top + tile_size, left : left + tile_size] += window
             restored = (accumulated / np.maximum(weights, 1e-8))[:height, :width]
             blend_alpha = float(self.config["dsdnet"].get("restoration_blend_alpha", 1.0))
@@ -103,7 +119,10 @@ class RestorationEngine:
             # Validation-selected source-preserving residual fusion.  Keeping
             # this explicit in configuration makes the deployed inference
             # path auditable and prevents an unrecorded post-test adjustment.
+            model_output = (restored * 255.0).round().astype(np.uint8)
             restored = blend_alpha * restored + (1.0 - blend_alpha) * source
-            return RestorationResult((restored * 255.0).round().astype(np.uint8), True, "ok", None, str(checkpoint))
+            diagnostic = (diagnostic_accumulated / np.maximum(weights, 1e-8))[:height, :width]
+            diagnostic_u8 = (diagnostic * 255.0).round().astype(np.uint8)
+            return RestorationResult((restored * 255.0).round().astype(np.uint8), True, "ok", None, str(checkpoint), int(self.config["dsdnet"]["stages"]), diagnostic_u8, {"mode": "stage-stability-and-branch-agreement", "formal_source_support": False, "mean": float(diagnostic.mean()), "display_output": "raw_x8", "ocr_input": f"source_preserving_fusion_alpha_{blend_alpha:.2f}"}, model_output)
         except Exception as error:
             return RestorationResult(image.copy(), False, "restoration_failed", f"{type(error).__name__}: {error}", str(checkpoint))

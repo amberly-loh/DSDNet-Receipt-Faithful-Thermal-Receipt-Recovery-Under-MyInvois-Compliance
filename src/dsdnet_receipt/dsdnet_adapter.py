@@ -74,11 +74,13 @@ class DSDNetReceiptAdapter(nn.Module):
         kernel: torch.Tensor,
         retain_diagnostics: bool = True,
         gradient_checkpointing: bool = False,
+        summarize_diagnostics: bool = False,
     ) -> dict[str, Any]:
         net = self.network
         x = self.arch.fft_deconv(observed, kernel)
         stage_states = []
         branch_responses = []
+        diagnostic_summaries = []
         ui = torch.zeros_like(net.p[0].conv(x))
         initial_residual = observed - self.arch.bconv(x, kernel, net.d[0].padding_mode)
         uj = torch.zeros_like(net.d[0].conv(initial_residual))
@@ -125,5 +127,11 @@ class DSDNetReceiptAdapter(nn.Module):
                 x, ui, uj = stage_output[:3]
             if retain_diagnostics:
                 stage_states.append(x)
-                branch_responses.append({"prior": stage_output[3:5], "data": stage_output[5:7]})
-        return {"restored": x, "stage_states": stage_states, "branch_responses": branch_responses}
+                if summarize_diagnostics:
+                    diagnostic_summaries.append({
+                        "prior_disagreement": (stage_output[3] - stage_output[4]).abs().mean(dim=1, keepdim=True),
+                        "data_disagreement": (stage_output[5] - stage_output[6]).abs().mean(dim=1, keepdim=True),
+                    })
+                else:
+                    branch_responses.append({"prior": stage_output[3:5], "data": stage_output[5:7]})
+        return {"restored": x, "stage_states": stage_states, "branch_responses": branch_responses, "diagnostic_summaries": diagnostic_summaries}

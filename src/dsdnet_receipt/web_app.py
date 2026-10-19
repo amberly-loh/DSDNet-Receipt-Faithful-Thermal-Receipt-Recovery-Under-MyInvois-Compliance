@@ -317,10 +317,13 @@ def create_app(
     @require_auth
     def receipt_image(receipt_id: str, kind: str):
         receipt = store.get_receipt(current_user()["id"], receipt_id)
-        if not receipt or kind not in {"original", "restored"}:
+        if not receipt or kind not in {"original", "restored", "diagnostic"}:
             return jsonify({"error": "Image not found."}), 404
         store.log_event(current_user()["id"], "receipt.image_view", "receipt", receipt_id, details={"kind": kind})
-        return send_file(receipt["input_path"] if kind == "original" else receipt["restored_path"], mimetype="image/png", conditional=True)
+        path = receipt["input_path"] if kind == "original" else receipt["restored_path"]
+        if kind == "diagnostic": path = str(Path(receipt["restored_path"]).with_name("diagnostic.png"))
+        if not Path(path).is_file(): return jsonify({"error": "Image not found."}), 404
+        return send_file(path, mimetype="image/png", conditional=True)
 
     @app.get("/api/export.csv")
     @require_auth
@@ -363,7 +366,7 @@ def create_app(
     def process_receipt(upload, user):
         raw_bytes = upload.read()
         raw = np.frombuffer(raw_bytes, dtype=np.uint8)
-        image = cv2.imdecode(raw, cv2.IMREAD_GRAYSCALE)
+        image = cv2.imdecode(raw, cv2.IMREAD_COLOR)
         if image is None: raise ValueError(f"{upload.filename}: unreadable receipt image")
         started = time.perf_counter(); processed, preprocessing_record = preprocess(image, config)
         with inference_lock:
@@ -372,10 +375,13 @@ def create_app(
         field_map = {field.name: field.value for field in fields}
         run_id = f"USER-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         audit_root = Path(config["artifacts_root"]) / "user_runs" / run_id
-        input_path, restored_path = audit_root / "input.png", audit_root / "restored.png"
-        write_image(input_path, processed); write_image(restored_path, restoration.image)
+        input_path, restored_path, diagnostic_path = audit_root / "input.png", audit_root / "restored.png", audit_root / "diagnostic.png"
+        display_restoration = restoration.model_output if restoration.model_output is not None else restoration.image
+        write_image(input_path, processed); write_image(restored_path, display_restoration)
+        if restoration.model_output is not None: write_image(audit_root / "ocr_input.png", restoration.image)
+        if restoration.diagnostic_map is not None: write_image(diagnostic_path, restoration.diagnostic_map)
         runtime = time.perf_counter() - started
-        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "support_status": "unavailable", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
+        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": "raw_eight_stage_x8", "ocr_input_image": "validation_selected_source_preserving_fusion", "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
         write_json(audit_root / "audit.json", audit)
         now = utc_now(); retention_days = int(config.get("app", {}).get("retention_days", 2555))
         retention_until = (datetime.now(timezone.utc) + timedelta(days=retention_days)).date().isoformat()
@@ -385,11 +391,11 @@ def create_app(
             "transaction_date": field_map.get("transaction_date"), "receipt_number": field_map.get("receipt_invoice_number"),
             "total_amount": field_map.get("total_amount"), "tags": "[]", "notes": "", "ocr_text": ocr.text,
             "audit_json": json.dumps(audit), "input_path": str(input_path), "restored_path": str(restored_path),
-            "runtime_seconds": runtime, "restoration_status": restoration.status, "support_status": "unavailable",
+            "runtime_seconds": runtime, "restoration_status": restoration.status, "support_status": "unavailable_for_natural_source",
             "retention_until": retention_until, "content_sha256": audit["content_sha256"],
         })
         store.log_event(user["id"], "receipt.process", "receipt", run_id, details={"source_name": upload.filename, "restoration_status": restoration.status})
-        return {"run_id": run_id, "receipt": record, "original": _data_url(processed), "restored": _data_url(restoration.image), "ocr_text": ocr.text, "fields": [field.as_dict() for field in fields], "restoration_status": restoration.status, "support_status": "unavailable", "runtime_seconds": runtime, "audit": audit}
+        return {"run_id": run_id, "receipt": record, "original": _data_url(processed), "restored": _data_url(display_restoration), "diagnostic": _data_url(restoration.diagnostic_map) if restoration.diagnostic_map is not None else None, "ocr_text": ocr.text, "fields": [field.as_dict() for field in fields], "restoration_status": restoration.status, "support_status": "unavailable_for_natural_source", "runtime_seconds": runtime, "audit": audit}
 
     @app.post("/api/analyze")
     @require_auth

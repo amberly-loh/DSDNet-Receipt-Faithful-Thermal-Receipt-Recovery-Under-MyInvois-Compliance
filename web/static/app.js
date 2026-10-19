@@ -39,7 +39,9 @@ function showWorkspace() {
   $('avatar').textContent = user.name.trim().charAt(0).toUpperCase();
   $('welcomeName').textContent = `Ready to recover a receipt, ${user.name.split(' ')[0]}?`;
   $('adminNav').classList.toggle('hidden', user.role !== 'admin');
-  route(location.hash.slice(1) || 'overview', false);
+  const requested = location.hash.slice(1) || 'overview';
+  const lastReceipt = sessionStorage.getItem('lastReceiptId');
+  if (requested === 'detail' && lastReceipt) openReceipt(lastReceipt); else route(requested, false);
 }
 
 function setAuthMode(mode) {
@@ -237,6 +239,7 @@ $('analyseButton').onclick = async () => {
 async function openReceipt(id) {
   try {
     currentReceipt = await api(`/api/receipts/${encodeURIComponent(id)}`);
+    sessionStorage.setItem('lastReceiptId', id);
     $('detailTitle').textContent = currentReceipt.merchant || currentReceipt.source_name;
     $('detailMeta').textContent = `${formatDate(currentReceipt.created_at)} · ${currentReceipt.public_id}`;
     $('detailStatus').textContent = statusLabel(currentReceipt.status); $('detailStatus').className = `status-pill ${currentReceipt.status}`;
@@ -246,6 +249,10 @@ async function openReceipt(id) {
     $('reviewStatus').value = currentReceipt.status; $('tagsField').value = currentReceipt.tags.join(', '); $('notesField').value = currentReceipt.notes || '';
     $('restorationStatus').textContent = currentReceipt.restoration_status; $('supportStatus').textContent = currentReceipt.support_status;
     $('runtimeStatus').textContent = `${Number(currentReceipt.runtime_seconds).toFixed(2)} seconds`; $('recordId').textContent = currentReceipt.public_id;
+    const preprocessing = currentReceipt.audit?.preprocessing || {}; const orientation = preprocessing.orientation_correction || {};
+    $('orientationStatus').textContent = `${orientation.coarse_rotation_degrees || 0}° coarse, ${Number(orientation.deskew_degrees || 0).toFixed(1)}° deskew`;
+    $('stageStatus').textContent = `${currentReceipt.audit?.restoration_stages || 0} / 8`;
+    $('diagnosticImage').src = currentReceipt.diagnostic_url;
     $('ocrText').textContent = currentReceipt.ocr_text || 'No text was recognised.'; $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`;
     $('compareSlider').value = 50; updateComparison(50); route('detail');
   } catch (error) { toast(error.message, true); }

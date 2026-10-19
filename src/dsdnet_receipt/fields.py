@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, asdict
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 
@@ -24,21 +26,54 @@ class FieldRecord:
     support_status: str
     decision: str
     reason: str
+    retained_pixels: int = 0
+    rule_status: str = "not_evaluated"
+    box: Any = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
+def _matching_lines(lines: list[dict[str, Any]], tokens: list[str]) -> list[dict[str, Any]]:
+    lowered = [token.lower() for token in tokens if token]
+    return [line for line in lines if any(token in str(line.get("text", "")).lower() for token in lowered)]
+
+
 def _mean_confidence(lines: list[dict[str, Any]], tokens: list[str]) -> float | None:
     selected = []
-    lowered = [token.lower() for token in tokens if token]
-    for line in lines:
-        text = str(line.get("text", "")).lower()
-        if any(token in text for token in lowered):
-            value = line.get("confidence")
-            if value is not None:
-                selected.append(float(value))
+    for line in _matching_lines(lines, tokens):
+        value = line.get("confidence")
+        if value is not None: selected.append(float(value))
     return sum(selected) / len(selected) if selected else None
+
+
+def _box_for(lines: list[dict[str, Any]], tokens: list[str]) -> Any:
+    matches = _matching_lines(lines, tokens)
+    return matches[0].get("box") if matches else None
+
+
+def _box_pixels(box: Any) -> int:
+    try:
+        points = box if len(box) == 4 and isinstance(box[0], (list, tuple)) else [[box[0], box[1]], [box[2], box[1]], [box[2], box[3]], [box[0], box[3]]]
+        xs, ys = [float(point[0]) for point in points], [float(point[1]) for point in points]
+        return max(0, int((max(xs) - min(xs)) * (max(ys) - min(ys))))
+    except (TypeError, ValueError, IndexError):
+        return 0
+
+
+def _rule_passes(name: str, value: str | None) -> bool:
+    if not value: return False
+    try:
+        if name == "transaction_date":
+            for pattern in ("%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y", "%Y/%m/%d", "%Y-%m-%d"):
+                try: datetime.strptime(value, pattern); return True
+                except ValueError: continue
+            return False
+        if name == "total_amount": return Decimal(value) >= 0
+        if name == "receipt_invoice_number": return 4 <= len(value) <= 64 and bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9/-]+", value))
+    except (InvalidOperation, ValueError):
+        return False
+    return False
 
 
 def extract_fields(text: str, lines: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -52,9 +87,9 @@ def extract_fields(text: str, lines: list[dict[str, Any]]) -> dict[str, dict[str
         amounts = [match.group(1).replace(",", "") for match in MONEY_PATTERN.finditer(text)]
         total = amounts[-1] if amounts else None
     return {
-        "transaction_date": {"value": date, "confidence": _mean_confidence(lines, [date or "date"])},
-        "receipt_invoice_number": {"value": receipt_number, "confidence": _mean_confidence(lines, [receipt_number or "receipt", "invoice", "document"])},
-        "total_amount": {"value": total, "confidence": _mean_confidence(lines, [total or "total"])},
+        "transaction_date": {"value": date, "confidence": _mean_confidence(lines, [date or "date"]), "box": _box_for(lines, [date or "date"])},
+        "receipt_invoice_number": {"value": receipt_number, "confidence": _mean_confidence(lines, [receipt_number or "receipt", "invoice", "document"]), "box": _box_for(lines, [receipt_number or "receipt", "invoice", "document"])},
+        "total_amount": {"value": total, "confidence": _mean_confidence(lines, [total or "total"]), "box": _box_for(lines, [total or "total"])},
     }
 
 
@@ -67,8 +102,10 @@ def route_fields(
     for name, payload in extracted.items():
         value = payload.get("value")
         confidence = payload.get("confidence")
-        localization_valid = bool(value)
-        rule_passed = bool(value)
+        box = payload.get("box")
+        retained_pixels = _box_pixels(box)
+        localization_valid = bool(value) and retained_pixels >= 20
+        rule_passed = _rule_passes(name, value)
         if not model_available:
             reason = "Trained DSDNet checkpoint unavailable."
         elif not support_available:
@@ -89,6 +126,9 @@ def route_fields(
                 support_status="available" if support_available else "unavailable",
                 decision="Human decision required",
                 reason=reason,
+                retained_pixels=retained_pixels,
+                rule_status="passed" if rule_passed else "failed",
+                box=box,
             )
         )
     return records

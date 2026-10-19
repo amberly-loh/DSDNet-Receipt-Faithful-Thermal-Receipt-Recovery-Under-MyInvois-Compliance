@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import numpy as np
+import cv2
 
 from dsdnet_receipt.baselines import otsu, perceptual_filter, sauvola
 from dsdnet_receipt.degradation import degrade, variant_seed
 from dsdnet_receipt.metrics import cer, psnr, ssim, wer
 from dsdnet_receipt.fields import extract_fields, route_fields
+from dsdnet_receipt.preprocessing import preprocess
 
 
 def test_seed_is_stable() -> None:
@@ -70,3 +72,13 @@ def test_natural_receipt_never_auto_accepts_without_support() -> None:
     decisions = route_fields(extracted, support_available=False, model_available=True)
     assert all(item.decision == "Human decision required" for item in decisions)
     assert all(item.support_status == "unavailable" for item in decisions)
+
+
+def test_preprocessing_corrects_quarter_turn_receipt() -> None:
+    receipt = np.full((600, 300), 245, dtype=np.uint8)
+    for y in range(80, 540, 35):
+        cv2.line(receipt, (35, y), (265, y), 20, 3)
+    sideways = cv2.rotate(receipt, cv2.ROTATE_90_CLOCKWISE)
+    processed, record = preprocess(sideways, {"preprocessing": {"max_long_edge": 1600, "boundary_detection": False, "orientation_correction": True}})
+    assert record["orientation_correction"]["coarse_rotation_degrees"] == 90
+    assert processed.shape[0] > processed.shape[1]
