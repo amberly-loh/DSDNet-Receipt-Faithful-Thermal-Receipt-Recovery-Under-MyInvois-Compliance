@@ -363,6 +363,20 @@ def create_app(
         data = io.BytesIO(json.dumps(receipt["audit"], indent=2).encode("utf-8"))
         return send_file(data, mimetype="application/json", as_attachment=True, download_name=f"{receipt_id}-audit.json")
 
+    @app.get("/api/receipts/<receipt_id>/ocr.csv")
+    @require_auth
+    def export_ocr(receipt_id: str):
+        receipt = store.get_receipt(current_user()["id"], receipt_id)
+        if not receipt: return jsonify({"error": "Receipt not found."}), 404
+        output = io.StringIO(); writer = csv.writer(output)
+        writer.writerow(["reading_order", "text", "confidence_percent", "image_view"])
+        for index, line in enumerate(receipt["audit"].get("ocr_lines", []), 1):
+            confidence = line.get("confidence")
+            writer.writerow([index, line.get("text", ""), round(float(confidence) * 100, 1) if confidence is not None else "", line.get("source_view", "")])
+        store.log_event(current_user()["id"], "receipt.export_ocr", "receipt", receipt_id)
+        data = io.BytesIO(output.getvalue().encode("utf-8-sig"))
+        return send_file(data, mimetype="text/csv", as_attachment=True, download_name=f"{receipt_id}-recognised-text.csv")
+
     def process_receipt(upload, user):
         raw_bytes = upload.read()
         raw = np.frombuffer(raw_bytes, dtype=np.uint8)

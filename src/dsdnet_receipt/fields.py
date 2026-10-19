@@ -80,9 +80,12 @@ def _rule_passes(name: str, value: str | None) -> bool:
 def extract_fields(text: str, lines: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     date = next((match.group(0) for pattern in DATE_PATTERNS if (match := pattern.search(text))), None)
     number_match = NUMBER_PATTERN.search(text)
-    receipt_number = number_match.group(1) if number_match else None
+    receipt_number = _spatial_invoice_number(lines) or (number_match.group(1) if number_match else None)
+    spatial_total = _spatial_total(lines)
     total_match = TOTAL_PATTERN.search(text)
-    if total_match:
+    if spatial_total:
+        total = spatial_total
+    elif total_match:
         total = total_match.group(1).replace(",", "")
     else:
         amounts = [match.group(1).replace(",", "") for match in MONEY_PATTERN.finditer(text)]
@@ -94,6 +97,57 @@ def extract_fields(text: str, lines: list[dict[str, Any]]) -> dict[str, dict[str
         "receipt_invoice_number": {"value": receipt_number, "confidence": _mean_confidence(lines, [receipt_number or "receipt", "invoice", "document"]), "box": _box_for(lines, [receipt_number or "receipt", "invoice", "document"])},
         "total_amount": {"value": total, "confidence": _mean_confidence(lines, [total or "total"]), "box": _box_for(lines, [total or "total"])},
     }
+
+
+def _bounds(box: Any) -> tuple[float, float, float, float] | None:
+    try:
+        xs = [float(point[0]) for point in box]
+        ys = [float(point[1]) for point in box]
+        return min(xs), min(ys), max(xs), max(ys)
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def _spatial_total(lines: list[dict[str, Any]]) -> str | None:
+    labels = [line for line in lines if re.search(r"(?i)\b(?:net\s+amt|grand\s+total|total\s+payable|total\s+amt|total)\b", str(line.get("text", "")))]
+    candidates: list[tuple[float, str]] = []
+    for label in labels:
+        label_box = _bounds(label.get("box"))
+        if not label_box:
+            continue
+        _, ly1, lx2, ly2 = label_box
+        lcy = (ly1 + ly2) / 2
+        for line in lines:
+            value_box = _bounds(line.get("box"))
+            match = re.fullmatch(r"\s*(?:RM\s*)?([0-9][0-9,]*\.\d{2})\s*", str(line.get("text", "")), re.I)
+            if not value_box or not match:
+                continue
+            vx1, vy1, _, vy2 = value_box
+            vcy = (vy1 + vy2) / 2
+            if abs(vcy - lcy) <= 55 and vx1 >= lx2 - 20:
+                candidates.append((abs(vcy - lcy) + max(0, vx1 - lx2) / 20, match.group(1).replace(",", "")))
+    return min(candidates, default=(0, None), key=lambda item: item[0])[1]
+
+
+def _spatial_invoice_number(lines: list[dict[str, Any]]) -> str | None:
+    labels = [line for line in lines if re.fullmatch(r"(?i)\s*(?:invoice\s*)?(?:no|no\.|number|#)\s*", str(line.get("text", "")))]
+    candidates: list[tuple[float, str]] = []
+    for label in labels:
+        label_box = _bounds(label.get("box"))
+        if not label_box:
+            continue
+        _, ly1, lx2, ly2 = label_box
+        lcy = (ly1 + ly2) / 2
+        for line in lines:
+            value_box = _bounds(line.get("box"))
+            if not value_box:
+                continue
+            vx1, vy1, _, vy2 = value_box
+            vcy = (vy1 + vy2) / 2
+            value = str(line.get("text", "")).strip(" :#-")
+            if abs(vcy - lcy) <= 45 and vx1 >= lx2 and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 /-]{2,}", value) and any(ch.isdigit() for ch in value):
+                candidates.append((abs(vcy - lcy) + (vx1 - lx2) / 20, re.sub(r"\s+", "", value)))
+    return min(candidates, default=(0, None), key=lambda item: item[0])[1]
 
 
 def _merchant_candidate(lines: list[dict[str, Any]]) -> str | None:

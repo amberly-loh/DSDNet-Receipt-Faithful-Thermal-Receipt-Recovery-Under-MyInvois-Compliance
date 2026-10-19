@@ -250,7 +250,9 @@ async function openReceipt(id) {
     $('runtimeStatus').textContent = `${Number(currentReceipt.runtime_seconds).toFixed(2)} seconds`; $('recordId').textContent = currentReceipt.public_id;
     const missing = ['merchant','transaction_date','receipt_number','total_amount'].filter(key => !currentReceipt[key]);
     $('readingMessage').textContent = missing.length ? `We could not confidently read ${missing.length} important ${missing.length === 1 ? 'detail' : 'details'}. Enter them manually before marking this receipt as reviewed.` : 'All key details were found. Compare them with the original before marking this receipt as reviewed.';
-    $('ocrText').textContent = currentReceipt.ocr_text || 'No text was recognised.'; $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`;
+    const lines = currentReceipt.audit?.ocr_lines || [];
+    $('ocrTable').innerHTML = lines.length ? `<table><thead><tr><th>#</th><th>Recognised text</th><th>Confidence</th></tr></thead><tbody>${lines.map((line, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(line.text)}</td><td>${line.confidence == null ? '—' : `${(Number(line.confidence) * 100).toFixed(1)}%`}</td></tr>`).join('')}</tbody></table>` : '<p class="empty-copy">No text was recognised. Enter the receipt details manually.</p>';
+    $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`; $('ocrDownload').href = `/api/receipts/${encodeURIComponent(id)}/ocr.csv`;
     $('compareSlider').value = 50; updateComparison(50); route('detail');
   } catch (error) { toast(error.message, true); }
 }

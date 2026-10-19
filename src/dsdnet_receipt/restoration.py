@@ -133,7 +133,10 @@ def make_readability_view(source: np.ndarray, restored: np.ndarray) -> np.ndarra
     import cv2
 
     base = restored.astype(np.uint8)
-    denoised = cv2.fastNlMeansDenoising(base, None, h=5, templateWindowSize=7, searchWindowSize=21)
-    local_contrast = cv2.createCLAHE(clipLimit=1.35, tileGridSize=(12, 12)).apply(denoised)
-    readable = cv2.addWeighted(denoised, 0.62, local_contrast, 0.38, 0)
-    return cv2.bilateralFilter(readable, 5, 18, 18)
+    # Estimate slowly varying paper illumination and divide it away. This
+    # whitens empty paper without inventing strokes or replacing OCR text.
+    background = cv2.GaussianBlur(base, (0, 0), 31)
+    flattened = cv2.divide(base, np.maximum(background, 1), scale=245)
+    readable = cv2.fastNlMeansDenoising(flattened, None, h=7, templateWindowSize=7, searchWindowSize=21)
+    readable[readable > 224] = 255
+    return readable
