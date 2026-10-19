@@ -78,6 +78,56 @@ def _data_url(image: np.ndarray) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(encoded).decode("ascii")
 
 
+def status_label_for_export(status: str | None) -> str:
+    return {"needs_review": "Needs review", "reviewed": "Reviewed", "archived": "Archived"}.get(status or "", status or "Unknown")
+
+
+def _ocr_center(line: dict) -> tuple[float, float]:
+    try:
+        points = line.get("box", [])
+        return sum(float(p[0]) for p in points) / len(points), sum(float(p[1]) for p in points) / len(points)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return 0.0, 0.0
+
+
+def accounting_line_items(lines: list[dict]) -> list[list]:
+    """Build conservative accounting rows from OCR geometry without inventing values."""
+    headers: dict[str, tuple[float, float]] = {}
+    terms = {"item": "ITEM", "description": "DESCRIPTION", "quantity": "QUANTITY", "unit_price": "UNIT PRICE", "discount": "DISC", "amount": "AMOUNT"}
+    for key, term in terms.items():
+        match = next((line for line in lines if term in str(line.get("text", "")).upper()), None)
+        if match: headers[key] = _ocr_center(match)
+    if not all(key in headers for key in ("item", "description", "quantity")):
+        return []
+    header_y = headers["description"][1]
+    total_ys = [_ocr_center(line)[1] for line in lines if re.search(r"(?i)total\s*(?:payable|amount|amt)?", str(line.get("text", "")))]
+    total_y = min((y for y in total_ys if y > header_y), default=float("inf"))
+    descriptions = []
+    for line in lines:
+        text = str(line.get("text", "")).strip(); x, y = _ocr_center(line)
+        if header_y + 18 < y < total_y - 18 and headers["item"][0] + 20 < x < headers["quantity"][0] - 35 and any(ch.isalpha() for ch in text):
+            if not re.search(r"(?i)notes?|bank|cheque|receipt\s+by|signature|customer\s+sign", text):
+                existing = next((item for item in descriptions if abs(_ocr_center(item)[1] - y) <= 10), None)
+                if existing is None: descriptions.append(line)
+                elif float(line.get("confidence") or 0) > float(existing.get("confidence") or 0): descriptions[descriptions.index(existing)] = line
+    rows = []
+    for description in descriptions:
+        _, row_y = _ocr_center(description)
+        nearby = [line for line in lines if line is not description and abs(_ocr_center(line)[1] - row_y) <= 20]
+        values = {"item": None, "quantity": None, "unit": None, "unit_price": None, "discount": None, "amount": None}
+        for line in nearby:
+            text = str(line.get("text", "")).strip(); x, _ = _ocr_center(line)
+            if re.fullmatch(r"\d+", text) and x < headers["description"][0]: values["item"] = text
+            elif re.fullmatch(r"\d+(?:\.\d{1,3})?", text):
+                columns = [(key, pos[0]) for key, pos in headers.items() if key in {"quantity", "unit_price", "discount", "amount"}]
+                if columns: values[min(columns, key=lambda pair: abs(pair[1] - x))[0]] = text
+            elif x > headers["quantity"][0] and x < headers.get("unit_price", (float("inf"), 0))[0]: values["unit"] = text
+        missing = [label for key, label in (("quantity", "quantity"), ("unit_price", "unit price"), ("amount", "amount")) if not values[key]]
+        note = "Verify " + ", ".join(missing) if missing else "Check against receipt before posting"
+        rows.append([values["item"], description.get("text"), values["quantity"], values["unit"], values["unit_price"], values["discount"], values["amount"], note])
+    return rows
+
+
 def _secret_key(root: Path) -> bytes:
     path = root / "artifacts" / "app_data" / ".session_key"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -368,18 +418,42 @@ def create_app(
     def export_ocr(receipt_id: str):
         receipt = store.get_receipt(current_user()["id"], receipt_id)
         if not receipt: return jsonify({"error": "Receipt not found."}), 404
-        workbook = Workbook(); sheet = workbook.active; sheet.title = "Recognised text"
-        sheet.append(["Reading order", "Recognised text", "Confidence (%)", "Image view"])
-        for index, line in enumerate(receipt["audit"].get("ocr_lines", []), 1):
+        lines = receipt["audit"].get("ocr_lines", [])
+        workbook = Workbook(); summary = workbook.active; summary.title = "Receipt Summary"
+        summary.append(["Receipt audit and accounting record"]); summary["A1"].font = summary["A1"].font.copy(bold=True, size=14)
+        summary.append([])
+        summary_rows = [
+            ("Merchant", receipt.get("merchant")), ("Transaction date", receipt.get("transaction_date")),
+            ("Invoice / receipt number", receipt.get("receipt_number")), ("Total amount (RM)", receipt.get("total_amount")),
+            ("Review status", status_label_for_export(receipt.get("status"))), ("Record ID", receipt.get("public_id")),
+            ("Source file", receipt.get("source_name")), ("Processed at", receipt.get("created_at")),
+            ("Reviewer notes", receipt.get("notes")), ("Tags", ", ".join(receipt.get("tags", []))),
+        ]
+        for label, value in summary_rows: summary.append([label, value or "Not confirmed"])
+        summary.column_dimensions["A"].width = 28; summary.column_dimensions["B"].width = 72
+        for cell in summary[3:]: cell[0].font = cell[0].font.copy(bold=True)
+
+        items = workbook.create_sheet("Line Items")
+        items.append(["Item", "Description", "Quantity", "Unit", "Unit price (RM)", "Discount", "Amount (RM)", "Review note"])
+        for row in accounting_line_items(lines): items.append(row)
+        if items.max_row == 1: items.append([None, "No line items were extracted reliably", None, None, None, None, None, "Check the receipt image"])
+        for cell in items[1]: cell.font = cell.font.copy(bold=True)
+        items.freeze_panes = "A2"; items.auto_filter.ref = items.dimensions
+        for column, width in {"A":10,"B":42,"C":12,"D":12,"E":18,"F":14,"G":16,"H":25}.items(): items.column_dimensions[column].width = width
+
+        evidence = workbook.create_sheet("OCR Evidence")
+        evidence.append(["Reading order", "Recognised text", "Confidence (%)", "Evidence source"])
+        friendly_views = {"rectified_input":"Original receipt", "source_preserving_recovery":"Recovered receipt", "readability_view":"Clean reading copy"}
+        for index, line in enumerate(lines, 1):
             confidence = line.get("confidence")
-            sheet.append([index, line.get("text", ""), round(float(confidence) * 100, 1) if confidence is not None else None, line.get("source_view", "")])
-        for cell in sheet[1]: cell.font = cell.font.copy(bold=True)
-        sheet.freeze_panes = "A2"; sheet.auto_filter.ref = sheet.dimensions
-        sheet.column_dimensions["A"].width = 15; sheet.column_dimensions["B"].width = 72
-        sheet.column_dimensions["C"].width = 18; sheet.column_dimensions["D"].width = 28
+            evidence.append([index, line.get("text", ""), round(float(confidence) * 100, 1) if confidence is not None else None, friendly_views.get(line.get("source_view"), "Receipt image")])
+        for cell in evidence[1]: cell.font = cell.font.copy(bold=True)
+        evidence.freeze_panes = "A2"; evidence.auto_filter.ref = evidence.dimensions
+        evidence.column_dimensions["A"].width = 15; evidence.column_dimensions["B"].width = 72
+        evidence.column_dimensions["C"].width = 18; evidence.column_dimensions["D"].width = 24
         output = io.BytesIO(); workbook.save(output); output.seek(0)
         store.log_event(current_user()["id"], "receipt.export_ocr_xlsx", "receipt", receipt_id)
-        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=f"{receipt_id}-recognised-text.xlsx")
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=f"{receipt_id}-audit-accounting.xlsx")
 
     def process_receipt(upload, user):
         raw_bytes = upload.read()

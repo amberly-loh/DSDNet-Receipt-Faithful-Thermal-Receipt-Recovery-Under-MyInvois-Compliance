@@ -102,11 +102,16 @@ class PaddleOCRAdapter:
             if result.error:
                 errors.append(f"{view_name}: {result.error}")
             for line in result.lines:
-                key = "".join(ch.lower() for ch in str(line.get("text", "")) if ch.isalnum())
-                if not key:
+                normalized = "".join(ch.lower() for ch in str(line.get("text", "")) if ch.isalnum())
+                if not normalized:
                     continue
                 candidate = dict(line)
                 candidate["source_view"] = view_name
+                cy, cx = _line_position(candidate.get("box"))
+                # Preserve the same value when it occurs in different receipt
+                # columns (for example unit price and line amount), while
+                # merging repeated readings of the same physical text line.
+                key = f"{normalized}:{round(cx / 24)}:{round(cy / 12)}"
                 old = merged.get(key)
                 if old is None or float(candidate.get("confidence") or 0) > float(old.get("confidence") or 0):
                     merged[key] = candidate
