@@ -1,15 +1,17 @@
 {
   "config_version": "chapter4-training-lock-v1",
   "seed": 56,
-  "dataset_manifest": "../artifacts/readiness/dataset_manifest.csv",
-  "generation_manifest": "../artifacts/controlled_degradation/generation_manifest.jsonl",
-  "partitions": {"train_sources": 389, "validation_sources": 99, "test_sources": 85},
+  "dataset_manifest": "../../FYP datasets/External/SROIE-Malaysia/sroie_protocol_manifest.csv",
+  "generation_manifest": "../artifacts/controlled_degradation_sroie/generation_manifest.jsonl",
+  "partitions": {"train_sources": 691, "validation_sources": 148, "test_sources": 148},
   "network": {
     "source_commit": "8a2822e44ea1e00970ed429a8230e4116034e2f9",
     "input_channels": 1,
     "output_channels": 1,
     "stages": 8,
     "maxout_branches": 4,
+    "prior_channels": 16,
+    "data_channels": 16,
     "cgnet_each_stage": true,
     "padding_mode": "replicate",
     "dropout_rate": 0.0
@@ -25,6 +27,7 @@
     "random_horizontal_flip": true,
     "random_rotations_degrees": [0, 90, 180, 270],
     "mixed_precision": false,
+    "gradient_checkpointing": false,
     "gradient_clipping": false,
     "checkpoint_interval": 5000,
     "validation_interval": 5000

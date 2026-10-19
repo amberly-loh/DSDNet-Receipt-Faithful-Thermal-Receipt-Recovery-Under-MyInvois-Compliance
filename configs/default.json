@@ -1,6 +1,11 @@
 {
   "project_name": "DSDNet-Receipt",
   "base_seed": 56,
+  "app": {
+    "retention_days": 2555,
+    "max_bulk_files": 25,
+    "storage_mode": "local_sqlite"
+  },
   "dataset_root": "../../FYP datasets/Real life",
   "artifacts_root": "../artifacts",
   "manifest": {
@@ -37,6 +42,12 @@
     "source_commit": "8a2822e44ea1e00970ed429a8230e4116034e2f9",
     "stages": 8,
     "maxout_branches": 4,
-    "checkpoint": null
+    "prior_channels": 16,
+    "data_channels": 16,
+    "tile_size": 128,
+    "tile_overlap": 32,
+    "tile_batch_size": 2,
+    "restoration_blend_alpha": 0.25,
+    "checkpoint": "../artifacts/training_development/checkpoint_0009000.pt"
   }
 }

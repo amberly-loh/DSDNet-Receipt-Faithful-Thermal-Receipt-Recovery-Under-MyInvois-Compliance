@@ -1,0 +1,50 @@
+{
+  "partition": "validation only",
+  "formal_test_evidence": false,
+  "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_development\\checkpoint_0005000.pt",
+  "checkpoint_iteration": 5000,
+  "manifest": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\generation_manifest_611_sources.jsonl",
+  "crop_size": 128,
+  "methods": {
+    "A_direct": {
+      "sources": 86,
+      "variants": 258,
+      "mean_psnr": Infinity,
+      "mean_ssim": 0.6353268789011135,
+      "mean_l1": 0.05287420386183783,
+      "mean_validation_objective": 0.12580882808161514
+    },
+    "B_otsu": {
+      "sources": 86,
+      "variants": 258,
+      "mean_psnr": Infinity,
+      "mean_ssim": 0.5198093181743763,
+      "mean_l1": 0.15881712809578774,
+      "mean_validation_objective": 0.2548552644609125
+    },
+    "B_sauvola": {
+      "sources": 86,
+      "variants": 258,
+      "mean_psnr": Infinity,
+      "mean_ssim": 0.7766949467620959,
+      "mean_l1": 0.08705372808189411,
+      "mean_validation_objective": 0.13171473872947492
+    },
+    "C_perceptual": {
+      "sources": 86,
+      "variants": 258,
+      "mean_psnr": Infinity,
+      "mean_ssim": 0.7429068955839551,
+      "mean_l1": 0.055832540497879134,
+      "mean_validation_objective": 0.10725116138108812
+    },
+    "Proposed_DSDNet_Receipt": {
+      "sources": 86,
+      "variants": 258,
+      "mean_psnr": 23.546851541170728,
+      "mean_ssim": 0.8732292367658551,
+      "mean_l1": 0.03935842875635412,
+      "mean_validation_objective": 0.0647125814031831
+    }
+  }
+}

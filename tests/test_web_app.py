@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from dsdnet_receipt.storage import utc_now
+from dsdnet_receipt.web_app import create_app
+
+
+def csrf(client) -> str:
+    return client.get("/api/auth").get_json()["csrf_token"]
+
+
+def test_account_and_owned_receipt_workflow(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    client = app.test_client()
+
+    token = csrf(client)
+    response = client.post(
+        "/api/register",
+        json={"name": "Test User", "email": "test@valid-domain.my", "password": "long-test-password-1", "policy_accepted": True},
+        headers={"X-CSRF-Token": token},
+    )
+    assert response.status_code == 201
+    token = response.get_json()["csrf_token"]
+    user = response.get_json()["user"]
+
+    source = tmp_path / "original.png"
+    restored = tmp_path / "restored.png"
+    source.write_bytes(b"test image")
+    restored.write_bytes(b"test image")
+    now = utc_now()
+    store = app.extensions["receipt_store"]
+    store.create_receipt(
+        {
+            "public_id": "USER-TEST-001",
+            "user_id": user["id"],
+            "source_name": "receipt.png",
+            "created_at": now,
+            "updated_at": now,
+            "status": "needs_review",
+            "merchant": None,
+            "transaction_date": "2026-10-19",
+            "receipt_number": "R-101",
+            "total_amount": "12.50",
+            "tags": "[]",
+            "notes": "",
+            "ocr_text": "TOTAL RM 12.50",
+            "audit_json": json.dumps({"run_id": "USER-TEST-001"}),
+            "input_path": str(source),
+            "restored_path": str(restored),
+            "runtime_seconds": 0.1,
+            "restoration_status": "ok",
+            "support_status": "unavailable",
+        }
+    )
+
+    assert client.get("/api/dashboard").get_json()["stats"]["total"] == 1
+    update = client.patch(
+        "/api/receipts/USER-TEST-001",
+        json={"merchant": "Local Shop", "status": "reviewed", "tags": ["claim"]},
+        headers={"X-CSRF-Token": token},
+    )
+    assert update.status_code == 200
+    assert update.get_json()["merchant"] == "Local Shop"
+    assert update.get_json()["status"] == "reviewed"
+    assert client.get("/api/export.csv").status_code == 200
+
+    assert client.post("/api/logout", headers={"X-CSRF-Token": token}).status_code == 200
+    assert client.get("/api/dashboard").status_code == 401
+
+
+def test_mutation_requires_csrf(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    client = app.test_client()
+    csrf(client)
+    response = client.post(
+        "/api/register",
+        json={"name": "Test User", "email": "test@valid-domain.my", "password": "long-test-password-1", "policy_accepted": True},
+    )
+    assert response.status_code == 403
+
+
+def test_registration_returns_field_specific_errors(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    client = app.test_client()
+    response = client.post(
+        "/api/register",
+        json={"name": "A", "email": "fake@invalid.t", "password": "short", "policy_accepted": False},
+        headers={"X-CSRF-Token": csrf(client)},
+    )
+    assert response.status_code == 400
+    assert set(response.get_json()["fields"]) == {"name", "email", "password", "policy"}

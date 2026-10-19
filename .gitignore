@@ -7,3 +7,24 @@ artifacts/baseline_outputs/
 artifacts/pilot_degradation/*/
 artifacts/controlled_degradation/
 vendor/
+
+# Local authentication, confidential receipts, and runtime state
+.env
+.env.*
+!.env.example
+artifacts/app_data/
+artifacts/user_runs/
+artifacts/*.log
+artifacts/*stdout*.log
+artifacts/*stderr*.log
+artifacts/app_smoke_response.json
+artifacts/training_development/*.log
+artifacts/training_development/process_id.txt
+artifacts/training_development/resume_process_id.txt
+artifacts/validation_restoration/*.log
+
+# Generated payloads and model binaries
+artifacts/controlled_degradation_sroie/
+artifacts/corpus_generation/
+artifacts/training_development/*.pt
+artifacts/training_feasibility/

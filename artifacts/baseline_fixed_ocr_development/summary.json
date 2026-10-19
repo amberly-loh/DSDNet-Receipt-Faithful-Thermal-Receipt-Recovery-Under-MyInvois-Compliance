@@ -1,52 +1,52 @@
 {
   "status": "PASS",
-  "scope": "development gate only: first 10 project-training sources, all three severities",
+  "scope": "development gate only: first 5 project-training sources, all three severities",
   "formal_test_evidence": false,
   "field_accuracy_scope": "total_amount only; date and receipt/invoice number await manual annotation",
   "methods": {
     "A_direct": {
-      "records": 30,
-      "mean_psnr": 24.80229911313658,
-      "mean_ssim": 0.5485788518803337,
-      "mean_cer": 0.4676545453490427,
-      "mean_wer": 0.7302282800398743,
-      "total_field_accuracy": 0.7666666666666667,
+      "records": 15,
+      "mean_psnr": 19.795630152927565,
+      "mean_ssim": 0.6297397688063017,
+      "mean_cer": 0.5897257092596064,
+      "mean_wer": 0.8391776299154008,
+      "total_field_accuracy": 0.8666666666666667,
       "failed_ocr_count": 0,
-      "mean_processing_seconds": 0.0002881533330461631,
-      "mean_ocr_seconds": 1.7466829199993905
+      "mean_processing_seconds": 0.00014783999455782274,
+      "mean_ocr_seconds": 5.66087579332719
     },
     "B_otsu": {
-      "records": 30,
-      "mean_psnr": 8.39922703134631,
-      "mean_ssim": 0.42625226694090895,
-      "mean_cer": 0.7957654184579515,
-      "mean_wer": 0.9127098765432099,
+      "records": 15,
+      "mean_psnr": 10.8979320811806,
+      "mean_ssim": 0.4777264888936437,
+      "mean_cer": 0.6939660931830576,
+      "mean_wer": 0.9106682963067576,
       "total_field_accuracy": 0.3333333333333333,
       "failed_ocr_count": 0,
-      "mean_processing_seconds": 0.0006165033334885569,
-      "mean_ocr_seconds": 1.1024628633342217
+      "mean_processing_seconds": 0.0006348666715590904,
+      "mean_ocr_seconds": 4.587604646666053
     },
     "B_sauvola": {
-      "records": 30,
-      "mean_psnr": 6.747755549249182,
-      "mean_ssim": 0.5070812265655898,
-      "mean_cer": 0.6737726355939458,
-      "mean_wer": 0.8781503719039953,
-      "total_field_accuracy": 0.4,
+      "records": 15,
+      "mean_psnr": 15.884866105354574,
+      "mean_ssim": 0.754174192494622,
+      "mean_cer": 0.8132789188720523,
+      "mean_wer": 0.962030177628284,
+      "total_field_accuracy": 0.13333333333333333,
       "failed_ocr_count": 0,
-      "mean_processing_seconds": 0.016457556666864548,
-      "mean_ocr_seconds": 1.4868192833341405
+      "mean_processing_seconds": 0.013738746667513624,
+      "mean_ocr_seconds": 5.164923446662336
     },
     "C_perceptual": {
-      "records": 30,
-      "mean_psnr": 20.359912262159856,
-      "mean_ssim": 0.5803128728334755,
-      "mean_cer": 0.441334595911016,
-      "mean_wer": 0.7110444751169388,
-      "total_field_accuracy": 0.8333333333333334,
+      "records": 15,
+      "mean_psnr": 19.086387921571426,
+      "mean_ssim": 0.7112662582062439,
+      "mean_cer": 0.5808637649051466,
+      "mean_wer": 0.8475387734787068,
+      "total_field_accuracy": 0.7333333333333333,
       "failed_ocr_count": 0,
-      "mean_processing_seconds": 0.007273173331729292,
-      "mean_ocr_seconds": 1.8737908800006455
+      "mean_processing_seconds": 0.006158840004354715,
+      "mean_ocr_seconds": 164.82347783333972
     }
   }
 }

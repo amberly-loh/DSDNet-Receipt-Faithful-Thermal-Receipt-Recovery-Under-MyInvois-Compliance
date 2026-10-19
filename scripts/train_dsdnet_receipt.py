@@ -60,7 +60,9 @@ def crop_and_augment(clean: np.ndarray, degraded: np.ndarray, size: int, rng: ra
 def main() -> None:
     parser = argparse.ArgumentParser(description="Resumable Chapter 4 DSDNet receipt trainer")
     parser.add_argument("--config", default=str(REPO / "configs" / "dsdnet_receipt_train.json"))
-    parser.add_argument("--feasibility", action="store_true", help="Run one non-formal 128x128 optimisation step")
+    parser.add_argument("--feasibility", action="store_true", help="Run one non-formal optimisation step using the configured crop")
+    parser.add_argument("--development-iterations", type=int, help="Run a non-formal development budget without changing the locked formal total")
+    parser.add_argument("--development-checkpoint-interval", type=int, default=500)
     parser.add_argument("--resume", type=Path)
     args = parser.parse_args()
     train_config_path = Path(args.config).resolve()
@@ -76,13 +78,23 @@ def main() -> None:
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     device = torch.device("cuda:0")
-    model = DSDNetReceiptAdapter(protocol["dsdnet"]["source_path"], stages=8, branches=4).to(device)
+    network = locked["network"]
+    model = DSDNetReceiptAdapter(
+        protocol["dsdnet"]["source_path"],
+        stages=int(network["stages"]),
+        branches=int(network["maxout_branches"]),
+        prior_channels=int(network["prior_channels"]),
+        data_channels=int(network["data_channels"]),
+    ).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=locked["optimizer"]["learning_rate"],
         betas=(locked["optimizer"]["beta1"], locked["optimizer"]["beta2"]),
         eps=locked["optimizer"]["epsilon"], weight_decay=locked["optimizer"]["weight_decay"],
     )
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=locked["schedule"]["t_max_iterations"], eta_min=locked["schedule"]["eta_min"])
+    use_amp = bool(locked["training"].get("mixed_precision", False))
+    use_checkpointing = bool(locked["training"].get("gradient_checkpointing", False))
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
     start = 0
     if args.resume:
         state = torch.load(args.resume, map_location=device)
@@ -93,8 +105,9 @@ def main() -> None:
     generation_manifest = (train_config_path.parent / locked["generation_manifest"]).resolve()
     records = [json.loads(line) for line in generation_manifest.read_text(encoding="utf-8").splitlines() if line]
     records = [record for record in records if record["project_partition"] == "train"]
-    total = 1 if args.feasibility else int(locked["training"]["total_iterations"])
-    output = REPO / "artifacts" / ("training_feasibility" if args.feasibility else "training")
+    total = 1 if args.feasibility else (args.development_iterations or int(locked["training"]["total_iterations"]))
+    run_kind = "training_feasibility" if args.feasibility else ("training_development" if args.development_iterations else "training")
+    output = REPO / "artifacts" / run_kind
     output.mkdir(parents=True, exist_ok=True)
     log_path = output / "training_log.jsonl"
     crop = int(locked["training"]["crop_height"])
@@ -109,12 +122,22 @@ def main() -> None:
         kernel = gaussian_kernel(float(record["parameters"]["blur_sigma"])).to(device)
         optimizer.zero_grad(set_to_none=True)
         started = time.perf_counter()
-        restored = model(observed, kernel, retain_diagnostics=False)["restored"]
-        l1 = F.l1_loss(restored, target)
-        structural = ssim_loss(restored, target)
-        loss = l1 + float(locked["objective"]["ssim_coefficient"]) * structural
-        loss.backward()
-        optimizer.step()
+        with torch.cuda.amp.autocast(enabled=use_amp):
+            restored = model(
+                observed,
+                kernel,
+                retain_diagnostics=False,
+                gradient_checkpointing=use_checkpointing,
+            )["restored"]
+            l1 = F.l1_loss(restored, target)
+            structural = ssim_loss(restored, target)
+            loss = l1 + float(locked["objective"]["ssim_coefficient"]) * structural
+        scaler.scale(loss).backward()
+        if locked["training"].get("gradient_clipping", False):
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), float(locked["training"]["gradient_clip_norm"]))
+        scaler.step(optimizer)
+        scaler.update()
         scheduler.step()
         row = {
             "iteration": iteration + 1,
@@ -126,14 +149,26 @@ def main() -> None:
             "lr": optimizer.param_groups[0]["lr"],
             "seconds": time.perf_counter() - started,
             "peak_cuda_memory_bytes": torch.cuda.max_memory_allocated(device),
+            "mixed_precision": use_amp,
+            "gradient_checkpointing": use_checkpointing,
         }
         with log_path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row) + "\n")
         print(json.dumps(row), flush=True)
-        checkpoint_interval = int(locked["training"]["checkpoint_interval"])
-        if args.feasibility or (iteration + 1) % checkpoint_interval == 0:
+        checkpoint_interval = args.development_checkpoint_interval if args.development_iterations else int(locked["training"]["checkpoint_interval"])
+        if args.feasibility or (iteration + 1) % checkpoint_interval == 0 or iteration + 1 == total:
             checkpoint = output / f"checkpoint_{iteration + 1:07d}.pt"
-            torch.save({"iteration": iteration + 1, "model": model.state_dict(), "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(), "config_sha256": sha256(train_config_path)}, checkpoint)
+            payload = {
+                "iteration": iteration + 1,
+                "model": model.state_dict(),
+                "config_sha256": sha256(train_config_path),
+                "run_kind": "non-formal development" if args.development_iterations or args.feasibility else "formal candidate",
+                "locked_total_iterations": int(locked["training"]["total_iterations"]),
+            }
+            if iteration + 1 == total or not args.development_iterations:
+                payload["optimizer"] = optimizer.state_dict()
+                payload["scheduler"] = scheduler.state_dict()
+            torch.save(payload, checkpoint)
             (output / f"checkpoint_{iteration + 1:07d}.sha256").write_text(sha256(checkpoint), encoding="ascii")
 
 

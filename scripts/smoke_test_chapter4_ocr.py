@@ -14,11 +14,11 @@ from dsdnet_receipt.config import load_config  # noqa: E402
 from dsdnet_receipt.images import read_gray  # noqa: E402
 from dsdnet_receipt.ocr import PaddleOCRAdapter  # noqa: E402
 
-DATASET = REPO.parent / "FYP datasets" / "External" / "CORD-v2"
+DATASET = REPO.parent / "FYP datasets" / "External" / "SROIE-Malaysia"
 
 def main() -> None:
     config, _ = load_config(REPO / "configs" / "default.json")
-    sample = sorted((DATASET / "images" / "validation").glob("*"))[0]
+    sample = sorted((DATASET / "images" / "test").glob("*"))[0]
     image = read_gray(sample)
     result = PaddleOCRAdapter(config).run(image)
     report = {

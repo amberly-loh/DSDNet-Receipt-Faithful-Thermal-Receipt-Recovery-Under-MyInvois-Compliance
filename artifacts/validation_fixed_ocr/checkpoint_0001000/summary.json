@@ -1,0 +1,69 @@
+{
+  "partition": "validation only",
+  "formal_test_evidence": false,
+  "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_development\\checkpoint_0001000.pt",
+  "sources": 5,
+  "field_accuracy_scope": "transaction date, total amount, and receipt/invoice number when annotated",
+  "methods": {
+    "A_direct": {
+      "sources": 5,
+      "variants": 15,
+      "mean_psnr": 20.20908006652922,
+      "mean_ssim": 0.7170979184930865,
+      "mean_cer": 0.6490262397652184,
+      "mean_wer": 0.9029493090142235,
+      "field_accuracy": 0.6333333333333333,
+      "failed_ocr_count": 0,
+      "mean_processing_seconds": 0.0002806666462371747,
+      "mean_ocr_seconds": 10.403553493359746
+    },
+    "B_otsu": {
+      "sources": 5,
+      "variants": 15,
+      "mean_psnr": 11.053212048665698,
+      "mean_ssim": 0.5431268862288288,
+      "mean_cer": 0.7729088292785241,
+      "mean_wer": 0.9284203880064613,
+      "field_accuracy": 0.3333333333333333,
+      "failed_ocr_count": 0,
+      "mean_processing_seconds": 0.0020372733551387986,
+      "mean_ocr_seconds": 6.528563626669348
+    },
+    "B_sauvola": {
+      "sources": 5,
+      "variants": 15,
+      "mean_psnr": 18.596983741280347,
+      "mean_ssim": 0.8676907180754301,
+      "mean_cer": 0.8446984868680895,
+      "mean_wer": 0.9607591392964508,
+      "field_accuracy": 0.2,
+      "failed_ocr_count": 0,
+      "mean_processing_seconds": 0.02991191999365886,
+      "mean_ocr_seconds": 7.323772053335172
+    },
+    "C_perceptual": {
+      "sources": 5,
+      "variants": 15,
+      "mean_psnr": 19.76193996729149,
+      "mean_ssim": 0.7984514956052562,
+      "mean_cer": 0.6657331481801522,
+      "mean_wer": 0.9225504526181183,
+      "field_accuracy": 0.5333333333333333,
+      "failed_ocr_count": 0,
+      "mean_processing_seconds": 0.010276639997027815,
+      "mean_ocr_seconds": 8.27351778667265
+    },
+    "Proposed_DSDNet_Receipt": {
+      "sources": 5,
+      "variants": 15,
+      "mean_psnr": 21.2447302575759,
+      "mean_ssim": 0.8829017453795329,
+      "mean_cer": 0.6649742786278627,
+      "mean_wer": 0.9223048301700543,
+      "field_accuracy": 0.5,
+      "failed_ocr_count": 0,
+      "mean_processing_seconds": 25.327688413346188,
+      "mean_ocr_seconds": 7.832489606652719
+    }
+  }
+}

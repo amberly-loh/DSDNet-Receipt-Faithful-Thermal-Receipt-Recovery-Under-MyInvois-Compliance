@@ -12,6 +12,9 @@ def load_config(path: str | Path) -> tuple[dict[str, Any], Path]:
     for key in ("dataset_root", "artifacts_root"):
         config[key] = str((base / config[key]).resolve())
     config["dsdnet"]["source_path"] = str((base / config["dsdnet"]["source_path"]).resolve())
+    checkpoint = config["dsdnet"].get("checkpoint")
+    if checkpoint:
+        config["dsdnet"]["checkpoint"] = str((base / checkpoint).resolve())
     return config, config_path
 
 

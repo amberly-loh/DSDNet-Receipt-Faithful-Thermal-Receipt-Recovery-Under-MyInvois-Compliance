@@ -20,8 +20,8 @@ from dsdnet_receipt.images import read_gray  # noqa: E402
 from dsdnet_receipt.metrics import cer, psnr, ssim, wer  # noqa: E402
 from dsdnet_receipt.ocr import PaddleOCRAdapter  # noqa: E402
 
-DATASET = REPO.parent / "FYP datasets" / "External" / "CORD-v2"
-CORPUS = REPO / "artifacts" / "controlled_degradation"
+DATASET = REPO.parent / "FYP datasets" / "External" / "SROIE-Malaysia"
+CORPUS = REPO / "artifacts" / "controlled_degradation_sroie"
 
 def normalized_amount(value: str) -> str:
     return re.sub(r"[^0-9]", "", value)
@@ -31,7 +31,7 @@ def main() -> None:
     parser.add_argument("--sources", type=int, default=10)
     args = parser.parse_args()
     config, _ = load_config(REPO / "configs" / "default.json")
-    with (DATASET / "evaluation_references.csv").open("r", newline="", encoding="utf-8-sig") as stream:
+    with (DATASET / "sroie_protocol_manifest.csv").open("r", newline="", encoding="utf-8-sig") as stream:
         references = {row["source_id"]: row for row in csv.DictReader(stream)}
     variants = [json.loads(line) for line in (CORPUS / "generation_manifest.jsonl").read_text(encoding="utf-8").splitlines() if line]
     train_sources = sorted({row["source_id"] for row in variants if row["project_partition"] == "train"})[: args.sources]

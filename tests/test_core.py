@@ -5,6 +5,7 @@ import numpy as np
 from dsdnet_receipt.baselines import otsu, perceptual_filter, sauvola
 from dsdnet_receipt.degradation import degrade, variant_seed
 from dsdnet_receipt.metrics import cer, psnr, ssim, wer
+from dsdnet_receipt.fields import extract_fields, route_fields
 
 
 def test_seed_is_stable() -> None:
@@ -51,3 +52,21 @@ def test_metrics_identity() -> None:
     assert cer("abc", "abc") == 0.0
     assert wer("a b", "a b") == 0.0
 
+
+def test_target_field_extraction() -> None:
+    text = "DOCUMENT NO: TD01167104\nDATE: 25/12/2018\nTOTAL: RM 9.00"
+    fields = extract_fields(text, [{"text": text, "confidence": 0.91}])
+    assert fields["transaction_date"]["value"] == "25/12/2018"
+    assert fields["receipt_invoice_number"]["value"] == "TD01167104"
+    assert fields["total_amount"]["value"] == "9.00"
+
+
+def test_natural_receipt_never_auto_accepts_without_support() -> None:
+    extracted = {
+        "transaction_date": {"value": "25/12/2018", "confidence": 0.99},
+        "receipt_invoice_number": {"value": "TD01167104", "confidence": 0.99},
+        "total_amount": {"value": "9.00", "confidence": 0.99},
+    }
+    decisions = route_fields(extracted, support_available=False, model_available=True)
+    assert all(item.decision == "Human decision required" for item in decisions)
+    assert all(item.support_status == "unavailable" for item in decisions)
