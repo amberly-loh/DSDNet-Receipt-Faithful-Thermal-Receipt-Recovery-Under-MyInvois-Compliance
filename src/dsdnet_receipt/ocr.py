@@ -92,3 +92,31 @@ class PaddleOCRAdapter:
             )
         except Exception as error:
             return OCRResult("", [], self.version, "failed", f"{type(error).__name__}: {error}")
+
+    def run_views(self, views: list[tuple[str, np.ndarray]]) -> OCRResult:
+        """Run the fixed OCR configuration on faithful views and merge duplicates."""
+        merged: dict[str, dict[str, Any]] = {}
+        errors: list[str] = []
+        for view_name, image in views:
+            result = self.run(image)
+            if result.error:
+                errors.append(f"{view_name}: {result.error}")
+            for line in result.lines:
+                key = "".join(ch.lower() for ch in str(line.get("text", "")) if ch.isalnum())
+                if not key:
+                    continue
+                candidate = dict(line)
+                candidate["source_view"] = view_name
+                old = merged.get(key)
+                if old is None or float(candidate.get("confidence") or 0) > float(old.get("confidence") or 0):
+                    merged[key] = candidate
+        lines = sorted(merged.values(), key=lambda item: _line_position(item.get("box")))
+        return OCRResult("\n".join(str(line["text"]) for line in lines), lines, self.version,
+                         "ok" if lines else "failed", "; ".join(errors) if errors and not lines else None)
+
+
+def _line_position(box: Any) -> tuple[float, float]:
+    try:
+        return (min(float(point[1]) for point in box), min(float(point[0]) for point in box))
+    except (TypeError, ValueError, IndexError):
+        return (float("inf"), float("inf"))

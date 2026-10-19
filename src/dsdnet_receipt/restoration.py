@@ -126,3 +126,14 @@ class RestorationEngine:
             return RestorationResult((restored * 255.0).round().astype(np.uint8), True, "ok", None, str(checkpoint), int(self.config["dsdnet"]["stages"]), diagnostic_u8, {"mode": "stage-stability-and-branch-agreement", "formal_source_support": False, "mean": float(diagnostic.mean()), "display_output": "raw_x8", "ocr_input": f"source_preserving_fusion_alpha_{blend_alpha:.2f}"}, model_output)
         except Exception as error:
             return RestorationResult(image.copy(), False, "restoration_failed", f"{type(error).__name__}: {error}", str(checkpoint))
+
+
+def make_readability_view(source: np.ndarray, restored: np.ndarray) -> np.ndarray:
+    """Create a conservative, non-generative user-facing reading view."""
+    import cv2
+
+    base = restored.astype(np.uint8)
+    denoised = cv2.fastNlMeansDenoising(base, None, h=5, templateWindowSize=7, searchWindowSize=21)
+    local_contrast = cv2.createCLAHE(clipLimit=1.35, tileGridSize=(12, 12)).apply(denoised)
+    readable = cv2.addWeighted(denoised, 0.62, local_contrast, 0.38, 0)
+    return cv2.bilateralFilter(readable, 5, 18, 18)

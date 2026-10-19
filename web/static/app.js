@@ -247,12 +247,9 @@ async function openReceipt(id) {
     $('merchantField').value = currentReceipt.merchant || ''; $('dateField').value = currentReceipt.transaction_date || '';
     $('numberField').value = currentReceipt.receipt_number || ''; $('totalField').value = currentReceipt.total_amount || '';
     $('reviewStatus').value = currentReceipt.status; $('tagsField').value = currentReceipt.tags.join(', '); $('notesField').value = currentReceipt.notes || '';
-    $('restorationStatus').textContent = currentReceipt.restoration_status; $('supportStatus').textContent = currentReceipt.support_status;
     $('runtimeStatus').textContent = `${Number(currentReceipt.runtime_seconds).toFixed(2)} seconds`; $('recordId').textContent = currentReceipt.public_id;
-    const preprocessing = currentReceipt.audit?.preprocessing || {}; const orientation = preprocessing.orientation_correction || {};
-    $('orientationStatus').textContent = `${orientation.coarse_rotation_degrees || 0}° coarse, ${Number(orientation.deskew_degrees || 0).toFixed(1)}° deskew`;
-    $('stageStatus').textContent = `${currentReceipt.audit?.restoration_stages || 0} / 8`;
-    $('diagnosticImage').src = currentReceipt.diagnostic_url;
+    const missing = ['merchant','transaction_date','receipt_number','total_amount'].filter(key => !currentReceipt[key]);
+    $('readingMessage').textContent = missing.length ? `We could not confidently read ${missing.length} important ${missing.length === 1 ? 'detail' : 'details'}. Enter them manually before marking this receipt as reviewed.` : 'All key details were found. Compare them with the original before marking this receipt as reviewed.';
     $('ocrText').textContent = currentReceipt.ocr_text || 'No text was recognised.'; $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`;
     $('compareSlider').value = 50; updateComparison(50); route('detail');
   } catch (error) { toast(error.message, true); }

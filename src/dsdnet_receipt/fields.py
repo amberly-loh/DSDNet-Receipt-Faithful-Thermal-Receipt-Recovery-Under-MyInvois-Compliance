@@ -11,9 +11,9 @@ DATE_PATTERNS = (
     re.compile(r"\b(?:0?[1-9]|[12]\d|3[01])[/-](?:0?[1-9]|1[0-2])[/-](?:19|20)?\d{2}\b"),
     re.compile(r"\b(?:19|20)\d{2}[/-](?:0?[1-9]|1[0-2])[/-](?:0?[1-9]|[12]\d|3[01])\b"),
 )
-TOTAL_PATTERN = re.compile(r"(?i)\b(?:grand\s+total|total\s+amt|total|amount)\b[^\d]{0,12}(?:RM\s*)?([0-9][0-9,]*\.\d{2})")
+TOTAL_PATTERN = re.compile(r"(?i)\b(?:net\s+amt|grand\s+total|total\s+rm|total\s+amt|total|amount)\b[^\d]{0,16}(?:RM\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)")
 MONEY_PATTERN = re.compile(r"(?i)(?:RM\s*)?([0-9][0-9,]*\.\d{2})")
-NUMBER_PATTERN = re.compile(r"(?i)\b(?:receipt|invoice|document|bill)\s*(?:no|number|#|:)\.?(?:\s*[:#-]?)\s*([A-Z0-9][A-Z0-9/-]{3,})")
+NUMBER_PATTERN = re.compile(r"(?i)\b(?:(?:receipt|invoice|document|bill)\s*)?(?:(?:no|number)\b|#)\.?(?:\s*[:#-]?)\s*([A-Z0-9][A-Z0-9/-]{2,})")
 
 
 @dataclass
@@ -70,7 +70,8 @@ def _rule_passes(name: str, value: str | None) -> bool:
                 except ValueError: continue
             return False
         if name == "total_amount": return Decimal(value) >= 0
-        if name == "receipt_invoice_number": return 4 <= len(value) <= 64 and bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9/-]+", value))
+        if name == "receipt_invoice_number": return 3 <= len(value) <= 64 and bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9/-]+", value))
+        if name == "merchant": return 3 <= len(value) <= 80 and any(ch.isalpha() for ch in value)
     except (InvalidOperation, ValueError):
         return False
     return False
@@ -86,11 +87,31 @@ def extract_fields(text: str, lines: list[dict[str, Any]]) -> dict[str, dict[str
     else:
         amounts = [match.group(1).replace(",", "") for match in MONEY_PATTERN.finditer(text)]
         total = amounts[-1] if amounts else None
+    merchant = _merchant_candidate(lines)
     return {
+        "merchant": {"value": merchant, "confidence": _mean_confidence(lines, [merchant or ""]), "box": _box_for(lines, [merchant or ""])},
         "transaction_date": {"value": date, "confidence": _mean_confidence(lines, [date or "date"]), "box": _box_for(lines, [date or "date"])},
         "receipt_invoice_number": {"value": receipt_number, "confidence": _mean_confidence(lines, [receipt_number or "receipt", "invoice", "document"]), "box": _box_for(lines, [receipt_number or "receipt", "invoice", "document"])},
         "total_amount": {"value": total, "confidence": _mean_confidence(lines, [total or "total"]), "box": _box_for(lines, [total or "total"])},
     }
+
+
+def _merchant_candidate(lines: list[dict[str, Any]]) -> str | None:
+    reject = re.compile(r"(?i)\b(?:receipt|invoice|cash\s+sale|address|tel|date|item|qty|quantity|price|amount|total|tax|sst|thank)\b")
+    ordered = sorted(lines, key=lambda item: _line_position(item.get("box")))
+    for line in ordered[:12]:
+        value = str(line.get("text", "")).strip(" -:|")
+        letters = sum(ch.isalpha() for ch in value)
+        if 3 <= len(value) <= 80 and letters >= 3 and not reject.search(value) and not re.fullmatch(r"[\d\W]+", value):
+            return value
+    return None
+
+
+def _line_position(box: Any) -> tuple[float, float]:
+    try:
+        return (min(float(point[1]) for point in box), min(float(point[0]) for point in box))
+    except (TypeError, ValueError, IndexError):
+        return (float("inf"), float("inf"))
 
 
 def route_fields(
