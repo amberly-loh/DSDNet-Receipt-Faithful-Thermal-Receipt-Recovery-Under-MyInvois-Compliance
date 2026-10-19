@@ -13,6 +13,7 @@ import threading
 import time
 import unicodedata
 import uuid
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -80,6 +81,12 @@ def _data_url(image: np.ndarray) -> str:
 
 def status_label_for_export(status: str | None) -> str:
     return {"needs_review": "Needs review", "reviewed": "Reviewed", "archived": "Archived"}.get(status or "", status or "Unknown")
+
+
+def safe_excel_value(value):
+    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
 
 
 def _ocr_center(line: dict) -> tuple[float, float]:
@@ -351,6 +358,21 @@ def create_app(
         payload = request.get_json(silent=True) or {}
         if payload.get("status") not in {None, "needs_review", "reviewed", "archived"}:
             return jsonify({"error": "Invalid review status."}), 400
+        existing = store.get_receipt(current_user()["id"], receipt_id)
+        if not existing: return jsonify({"error": "Receipt not found."}), 404
+        proposed = {**existing, **payload}
+        errors = {}
+        if payload.get("transaction_date"):
+            try: datetime.strptime(str(payload["transaction_date"]), "%Y-%m-%d")
+            except ValueError: errors["transaction_date"] = "Use a valid date in YYYY-MM-DD format."
+        if payload.get("total_amount"):
+            try:
+                if Decimal(str(payload["total_amount"])) < 0: raise InvalidOperation
+            except (InvalidOperation, ValueError): errors["total_amount"] = "Enter a non-negative numeric amount."
+        if payload.get("status") == "reviewed":
+            missing = [key for key in ("merchant", "transaction_date", "receipt_number", "total_amount") if not str(proposed.get(key) or "").strip()]
+            if missing: errors["status"] = "Complete merchant, date, receipt number and total before marking this receipt reviewed."
+        if errors: return jsonify({"error": "Correct the highlighted receipt details.", "fields": errors}), 400
         receipt = store.update_receipt(current_user()["id"], receipt_id, payload)
         if receipt: store.log_event(current_user()["id"], "receipt.review_update", "receipt", receipt_id, details={"status": receipt["status"]})
         return jsonify(receipt) if receipt else (jsonify({"error": "Receipt not found."}), 404)
@@ -429,13 +451,13 @@ def create_app(
             ("Source file", receipt.get("source_name")), ("Processed at", receipt.get("created_at")),
             ("Reviewer notes", receipt.get("notes")), ("Tags", ", ".join(receipt.get("tags", []))),
         ]
-        for label, value in summary_rows: summary.append([label, value or "Not confirmed"])
+        for label, value in summary_rows: summary.append([label, safe_excel_value(value or "Not confirmed")])
         summary.column_dimensions["A"].width = 28; summary.column_dimensions["B"].width = 72
         for cell in summary[3:]: cell[0].font = cell[0].font.copy(bold=True)
 
         items = workbook.create_sheet("Line Items")
         items.append(["Item", "Description", "Quantity", "Unit", "Unit price (RM)", "Discount", "Amount (RM)", "Review note"])
-        for row in accounting_line_items(lines): items.append(row)
+        for row in accounting_line_items(lines): items.append([safe_excel_value(value) for value in row])
         if items.max_row == 1: items.append([None, "No line items were extracted reliably", None, None, None, None, None, "Check the receipt image"])
         for cell in items[1]: cell.font = cell.font.copy(bold=True)
         items.freeze_panes = "A2"; items.auto_filter.ref = items.dimensions
@@ -446,11 +468,31 @@ def create_app(
         friendly_views = {"rectified_input":"Original receipt", "source_preserving_recovery":"Recovered receipt", "readability_view":"Clean reading copy"}
         for index, line in enumerate(lines, 1):
             confidence = line.get("confidence")
-            evidence.append([index, line.get("text", ""), round(float(confidence) * 100, 1) if confidence is not None else None, friendly_views.get(line.get("source_view"), "Receipt image")])
+            evidence.append([index, safe_excel_value(line.get("text", "")), round(float(confidence) * 100, 1) if confidence is not None else None, friendly_views.get(line.get("source_view"), "Receipt image")])
         for cell in evidence[1]: cell.font = cell.font.copy(bold=True)
         evidence.freeze_panes = "A2"; evidence.auto_filter.ref = evidence.dimensions
         evidence.column_dimensions["A"].width = 15; evidence.column_dimensions["B"].width = 72
         evidence.column_dimensions["C"].width = 18; evidence.column_dimensions["D"].width = 24
+
+        coverage = workbook.create_sheet("MyInvois Coverage")
+        coverage.append(["Important", "This workbook supports review and accounting. It is not a MyInvois submission file.", ""])
+        coverage.append(["MyInvois field", "Current value", "Coverage status"])
+        line_rows = accounting_line_items(lines)
+        coverage_rows = [
+            ("Supplier name", receipt.get("merchant"), "Captured" if receipt.get("merchant") else "Requires user input"),
+            ("Supplier TIN", None, "Requires user input"), ("Supplier registration / ID", None, "Requires user input"),
+            ("Supplier address and contact", None, "Requires user input"), ("Buyer name, TIN, ID, address and contact", None, "Requires user input"),
+            ("e-Invoice code / number", receipt.get("receipt_number"), "Captured" if receipt.get("receipt_number") else "Requires user input"),
+            ("Invoice date", receipt.get("transaction_date"), "Captured" if receipt.get("transaction_date") else "Requires user input"),
+            ("Invoice time", None, "Requires user input"), ("Invoice currency code", "MYR", "Application default; verify"),
+            ("Invoice line descriptions, quantities and prices", f"{len(line_rows)} candidate line(s)", "Review Line Items sheet" if line_rows else "Requires user input"),
+            ("Product / service classification", None, "Requires user input"), ("Tax type, rate and amount", None, "Requires user input"),
+            ("Tax-exclusive / tax-inclusive / payable totals", receipt.get("total_amount"), "Payable total captured; remaining totals require input"),
+            ("Digital signature and submission identifiers", None, "Created only by the authorised MyInvois workflow"),
+        ]
+        for row in coverage_rows: coverage.append([safe_excel_value(value) for value in row])
+        for cell in coverage[2]: cell.font = cell.font.copy(bold=True)
+        coverage.freeze_panes = "A3"; coverage.column_dimensions["A"].width = 48; coverage.column_dimensions["B"].width = 55; coverage.column_dimensions["C"].width = 42
         output = io.BytesIO(); workbook.save(output); output.seek(0)
         store.log_event(current_user()["id"], "receipt.export_ocr_xlsx", "receipt", receipt_id)
         return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=f"{receipt_id}-audit-accounting.xlsx")
@@ -461,7 +503,7 @@ def create_app(
         image = cv2.imdecode(raw, cv2.IMREAD_COLOR)
         if image is None: raise ValueError(f"{upload.filename}: unreadable receipt image")
         started = time.perf_counter(); processed, preprocessing_record = preprocess(image, config)
-        from .restoration import make_readability_view
+        from .restoration import make_evidence_preserving_view, make_readability_view
         with inference_lock:
             restoration = restoration_engine.run(processed)
             readability = make_readability_view(processed, restoration.image)
@@ -470,12 +512,13 @@ def create_app(
                 ("source_preserving_recovery", restoration.image),
                 ("readability_view", readability),
             ])
+            display_readability = make_evidence_preserving_view(readability, ocr.lines)
         fields = route_fields(extract_fields(ocr.text, ocr.lines), support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
         run_id = f"USER-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         audit_root = Path(config["artifacts_root"]) / "user_runs" / run_id
         input_path, restored_path, diagnostic_path = audit_root / "input.png", audit_root / "restored.png", audit_root / "diagnostic.png"
-        display_restoration = readability
+        display_restoration = display_readability
         write_image(input_path, processed); write_image(restored_path, display_restoration)
         write_image(audit_root / "ocr_input.png", restoration.image)
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
@@ -511,7 +554,8 @@ def create_app(
     def bulk_analyze():
         uploads = [item for item in request.files.getlist("receipts") if item.filename]
         if not uploads: return jsonify({"error": "Choose one or more receipt images."}), 400
-        if len(uploads) > 25: return jsonify({"error": "Process at most 25 receipts in one batch."}), 400
+        maximum = int(config.get("app", {}).get("max_bulk_files", 25))
+        if len(uploads) > maximum: return jsonify({"error": f"Process at most {maximum} receipts in one batch."}), 400
         completed, failed = [], []
         for upload in uploads:
             try: completed.append(process_receipt(upload, current_user())["receipt"])

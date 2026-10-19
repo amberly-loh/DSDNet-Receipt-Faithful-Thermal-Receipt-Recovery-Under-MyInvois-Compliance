@@ -110,3 +110,16 @@ def test_duplicate_registration_is_rejected(tmp_path: Path) -> None:
     response = second.post("/api/register", json=payload, headers={"X-CSRF-Token": csrf(second)})
     assert response.status_code == 409
     assert "email" in response.get_json()["fields"]
+
+
+def test_review_rejects_missing_required_fields_and_invalid_values(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    client = app.test_client(); token = csrf(client)
+    response = client.post("/api/register", json={"name":"Review User","email":"review@valid-domain.my","password":"a secure review passphrase 2026","password_confirmation":"a secure review passphrase 2026","policy_accepted":True}, headers={"X-CSRF-Token":token})
+    token = response.get_json()["csrf_token"]; user = response.get_json()["user"]; store = app.extensions["receipt_store"]; now = utc_now()
+    source = tmp_path / "a.png"; source.write_bytes(b"x")
+    store.create_receipt({"public_id":"R-INVALID","user_id":user["id"],"source_name":"a.png","created_at":now,"updated_at":now,"status":"needs_review","merchant":None,"transaction_date":None,"receipt_number":None,"total_amount":None,"tags":"[]","notes":"","ocr_text":"","audit_json":"{}","input_path":str(source),"restored_path":str(source),"runtime_seconds":0,"restoration_status":"ok","support_status":"unavailable"})
+    result = client.patch("/api/receipts/R-INVALID", json={"transaction_date":"2025-02-31","total_amount":"-2","status":"reviewed"}, headers={"X-CSRF-Token":token})
+    assert result.status_code == 400
+    assert set(result.get_json()["fields"]) == {"transaction_date", "total_amount", "status"}

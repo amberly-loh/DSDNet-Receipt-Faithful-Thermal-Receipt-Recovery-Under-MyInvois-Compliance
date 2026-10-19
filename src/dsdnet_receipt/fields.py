@@ -78,25 +78,35 @@ def _rule_passes(name: str, value: str | None) -> bool:
 
 
 def extract_fields(text: str, lines: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    date = next((match.group(0) for pattern in DATE_PATTERNS if (match := pattern.search(text))), None)
+    raw_date = next((match.group(0) for pattern in DATE_PATTERNS if (match := pattern.search(text))), None)
+    date = _normalise_date(raw_date)
     number_match = NUMBER_PATTERN.search(text)
     receipt_number = _spatial_invoice_number(lines) or (number_match.group(1) if number_match else None)
     spatial_total = _spatial_total(lines)
     total_match = TOTAL_PATTERN.search(text)
     if spatial_total:
-        total = spatial_total
+        total = f"{Decimal(spatial_total):.2f}"
     elif total_match:
-        total = total_match.group(1).replace(",", "")
+        total = f"{Decimal(total_match.group(1).replace(',', '')):.2f}"
     else:
         amounts = [match.group(1).replace(",", "") for match in MONEY_PATTERN.finditer(text)]
-        total = amounts[-1] if amounts else None
+        total = f"{Decimal(amounts[-1]):.2f}" if amounts else None
     merchant = _merchant_candidate(lines)
     return {
         "merchant": {"value": merchant, "confidence": _mean_confidence(lines, [merchant or ""]), "box": _box_for(lines, [merchant or ""])},
-        "transaction_date": {"value": date, "confidence": _mean_confidence(lines, [date or "date"]), "box": _box_for(lines, [date or "date"])},
+        "transaction_date": {"value": date, "confidence": _mean_confidence(lines, [raw_date or "date"]), "box": _box_for(lines, [raw_date or "date"])},
         "receipt_invoice_number": {"value": receipt_number, "confidence": _mean_confidence(lines, [receipt_number or "receipt", "invoice", "document"]), "box": _box_for(lines, [receipt_number or "receipt", "invoice", "document"])},
         "total_amount": {"value": total, "confidence": _mean_confidence(lines, [total or "total"]), "box": _box_for(lines, [total or "total"])},
     }
+
+
+def _normalise_date(value: str | None) -> str | None:
+    if not value:
+        return None
+    for pattern in ("%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y", "%Y/%m/%d", "%Y-%m-%d"):
+        try: return datetime.strptime(value, pattern).date().isoformat()
+        except ValueError: continue
+    return None
 
 
 def _bounds(box: Any) -> tuple[float, float, float, float] | None:

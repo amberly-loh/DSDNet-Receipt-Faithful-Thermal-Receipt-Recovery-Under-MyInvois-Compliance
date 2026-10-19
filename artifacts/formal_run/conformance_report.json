@@ -1,0 +1,86 @@
+{
+  "status": "FAIL",
+  "formal_evidence_allowed": false,
+  "configuration": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\configs\\default.json",
+  "checks": [
+    {
+      "name": "dataset_manifest",
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\generation_manifest_611_sources.jsonl",
+      "status": "PASS",
+      "sha256": "83ca768c7dd5e77c0f72828f9ebe51ff94163fae7044fd1b5a87bd28d71ebd8f"
+    },
+    {
+      "name": "dependency_record",
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\CHAPTER4_ENVIRONMENT.md",
+      "status": "PASS",
+      "sha256": "847f108444a5e4be16c1aa8f02e2f7a5dd7a637d378c6f3a448516f7b5ec6a03"
+    },
+    {
+      "name": "training_provenance",
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_development\\training_summary.json",
+      "status": "FAIL",
+      "sha256": null
+    },
+    {
+      "name": "algorithm_tests",
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\formal_run\\algorithm1_tests.json",
+      "status": "FAIL",
+      "sha256": null
+    },
+    {
+      "name": "protocol_manifest",
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\formal_run\\chapter3_4_protocol_manifest.json",
+      "status": "FAIL",
+      "sha256": null
+    },
+    {
+      "name": "support_calibration",
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\formal_run\\support_calibration.json",
+      "status": "FAIL",
+      "sha256": null
+    },
+    {
+      "name": "decision_thresholds",
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\formal_run\\decision_thresholds.json",
+      "status": "FAIL",
+      "sha256": null
+    },
+    {
+      "name": "model_checkpoint",
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_development\\checkpoint_0009000.pt",
+      "status": "PASS",
+      "sha256": "f07e763c9ac4bb4bab51a6ade584aed665346d165ee89080cf595c50ef40e707"
+    },
+    {
+      "name": "dsdnet.stages",
+      "actual": 8,
+      "expected": 8,
+      "status": "PASS"
+    },
+    {
+      "name": "dsdnet.maxout_branches",
+      "actual": 4,
+      "expected": 4,
+      "status": "PASS"
+    },
+    {
+      "name": "ocr.required_version",
+      "actual": "2.7.0.3",
+      "expected": "2.7.0.3",
+      "status": "PASS"
+    },
+    {
+      "name": "ocr.ocr_version",
+      "actual": "PP-OCRv3",
+      "expected": "PP-OCRv3",
+      "status": "PASS"
+    }
+  ],
+  "reasons": [
+    "training_provenance",
+    "algorithm_tests",
+    "protocol_manifest",
+    "support_calibration",
+    "decision_thresholds"
+  ]
+}

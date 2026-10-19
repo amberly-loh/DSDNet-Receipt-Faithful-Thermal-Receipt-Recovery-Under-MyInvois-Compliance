@@ -143,3 +143,26 @@ def make_readability_view(source: np.ndarray, restored: np.ndarray) -> np.ndarra
     # or not.
     readable[readable > 190] = 255
     return readable
+
+
+def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str, Any]]) -> np.ndarray:
+    """Suppress residual light texture without deleting dark unrecognised ink."""
+    import cv2
+
+    localized = np.zeros_like(readable, dtype=np.uint8)
+    for line in ocr_lines:
+        points = np.asarray(line.get("box", []), dtype=np.int32)
+        if points.shape == (4, 2):
+            cv2.fillPoly(localized, [points], 255)
+    localized = cv2.dilate(localized, np.ones((21, 21), np.uint8))
+    # Strengthen only already-observed strokes inside OCR-localised regions.
+    # A small black-hat response improves thin thermal characters without
+    # sharpening folds and paper grain across the rest of the receipt.
+    blackhat = cv2.morphologyEx(readable, cv2.MORPH_BLACKHAT, np.ones((3, 3), np.uint8))
+    locally_sharpened = cv2.subtract(readable, (blackhat.astype(np.float32) * 0.55).astype(np.uint8))
+    output = np.full_like(readable, 255)
+    keep = (localized > 0) | (readable < 150)
+    output[keep] = readable[keep]
+    text_pixels = (localized > 0) & (readable < 225)
+    output[text_pixels] = locally_sharpened[text_pixels]
+    return output

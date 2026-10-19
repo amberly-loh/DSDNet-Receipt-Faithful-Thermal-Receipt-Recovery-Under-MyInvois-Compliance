@@ -260,6 +260,23 @@ async function openReceipt(id) {
 function updateComparison(value) { $('restoredWrap').style.clipPath = `inset(0 ${100 - value}% 0 0)`; $('compareLine').style.left = `${value}%`; }
 $('compareSlider').oninput = event => updateComparison(event.target.value);
 
+let imageZoom = 1;
+function updateFullImageZoom() {
+  $('fullImage').style.width = `${Math.round(imageZoom * 100)}%`;
+  $('zoomLevel').textContent = `${Math.round(imageZoom * 100)}%`;
+}
+function openFullImage() {
+  if (!currentReceipt) return;
+  $('fullImage').src = currentReceipt.restored_url;
+  imageZoom = 1; updateFullImageZoom(); $('imageDialog').showModal();
+}
+$('fullImageButton').onclick = openFullImage;
+$('comparison').ondblclick = openFullImage;
+$('closeImageButton').onclick = () => $('imageDialog').close();
+$('zoomInButton').onclick = () => { imageZoom = Math.min(3, imageZoom + .25); updateFullImageZoom(); };
+$('zoomOutButton').onclick = () => { imageZoom = Math.max(.5, imageZoom - .25); updateFullImageZoom(); };
+$('zoomResetButton').onclick = () => { imageZoom = 1; updateFullImageZoom(); };
+
 $('reviewForm').onsubmit = async event => {
   event.preventDefault(); if (!currentReceipt) return;
   const payload = {merchant: $('merchantField').value.trim(), transaction_date: $('dateField').value.trim(), receipt_number: $('numberField').value.trim(), total_amount: $('totalField').value.trim(), status: $('reviewStatus').value, tags: $('tagsField').value.split(',').map(v => v.trim()).filter(Boolean), notes: $('notesField').value.trim()};

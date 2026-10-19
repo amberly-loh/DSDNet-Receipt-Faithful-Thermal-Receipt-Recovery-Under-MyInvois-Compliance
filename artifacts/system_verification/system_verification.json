@@ -1,0 +1,551 @@
+{
+  "scope": "development and validation verification; not held-out test evidence",
+  "input_robustness": {
+    "portrait_gray": {
+      "status": "PASS",
+      "shape": [
+        900,
+        420
+      ],
+      "record": {
+        "original_shape": [
+          900,
+          420
+        ],
+        "processed_shape": [
+          900,
+          420
+        ],
+        "scale": 1.0,
+        "boundary_detection": {
+          "status": "not_detected",
+          "corners": null
+        },
+        "orientation_correction": {
+          "status": "applied",
+          "coarse_rotation_degrees": 0,
+          "deskew_degrees": -0.0,
+          "orientation_scores": {
+            "0": 0.0,
+            "90": 0.0
+          },
+          "hough_skew_degrees": 0.0,
+          "component_skew_degrees": 0.0,
+          "line_count": 0
+        },
+        "grayscale": "BT.601 OpenCV conversion",
+        "normalization": "uint8 grayscale [0,255]",
+        "generative_processing": false
+      }
+    },
+    "landscape_color": {
+      "status": "PASS",
+      "shape": [
+        420,
+        900
+      ],
+      "record": {
+        "original_shape": [
+          420,
+          900,
+          3
+        ],
+        "processed_shape": [
+          420,
+          900
+        ],
+        "scale": 1.0,
+        "boundary_detection": {
+          "status": "not_detected",
+          "corners": null
+        },
+        "orientation_correction": {
+          "status": "applied",
+          "coarse_rotation_degrees": 0,
+          "deskew_degrees": -0.0,
+          "orientation_scores": {
+            "0": 0.0,
+            "90": 0.0
+          },
+          "hough_skew_degrees": 0.0,
+          "component_skew_degrees": 0.0,
+          "line_count": 0
+        },
+        "grayscale": "BT.601 OpenCV conversion",
+        "normalization": "uint8 grayscale [0,255]",
+        "generative_processing": false
+      }
+    },
+    "tiny": {
+      "status": "PASS",
+      "shape": [
+        12,
+        8
+      ],
+      "record": {
+        "original_shape": [
+          12,
+          8
+        ],
+        "processed_shape": [
+          12,
+          8
+        ],
+        "scale": 1.0,
+        "boundary_detection": {
+          "status": "not_detected",
+          "corners": null
+        },
+        "orientation_correction": {
+          "status": "applied",
+          "coarse_rotation_degrees": 0,
+          "deskew_degrees": -0.0,
+          "orientation_scores": {
+            "0": 0.0,
+            "90": 0.0
+          },
+          "hough_skew_degrees": 0.0,
+          "component_skew_degrees": 0.0,
+          "line_count": 0
+        },
+        "grayscale": "BT.601 OpenCV conversion",
+        "normalization": "uint8 grayscale [0,255]",
+        "generative_processing": false
+      }
+    },
+    "uniform_blank": {
+      "status": "PASS",
+      "shape": [
+        500,
+        300
+      ],
+      "record": {
+        "original_shape": [
+          500,
+          300
+        ],
+        "processed_shape": [
+          500,
+          300
+        ],
+        "scale": 1.0,
+        "boundary_detection": {
+          "status": "not_detected",
+          "corners": null
+        },
+        "orientation_correction": {
+          "status": "applied",
+          "coarse_rotation_degrees": 0,
+          "deskew_degrees": -0.0,
+          "orientation_scores": {
+            "0": 0.0,
+            "90": 0.0
+          },
+          "hough_skew_degrees": 0.0,
+          "component_skew_degrees": 0.0,
+          "line_count": 0
+        },
+        "grayscale": "BT.601 OpenCV conversion",
+        "normalization": "uint8 grayscale [0,255]",
+        "generative_processing": false
+      }
+    },
+    "high_noise": {
+      "status": "PASS",
+      "shape": [
+        599,
+        319
+      ],
+      "record": {
+        "original_shape": [
+          600,
+          320
+        ],
+        "processed_shape": [
+          599,
+          319
+        ],
+        "scale": 1.0,
+        "boundary_detection": {
+          "status": "rectified",
+          "corners": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              599
+            ],
+            [
+              319,
+              599
+            ],
+            [
+              319,
+              0
+            ]
+          ],
+          "output_shape": [
+            599,
+            319
+          ]
+        },
+        "orientation_correction": {
+          "status": "applied",
+          "coarse_rotation_degrees": 0,
+          "deskew_degrees": -0.0,
+          "orientation_scores": {
+            "0": 1.1405,
+            "90": 0.8768
+          },
+          "hough_skew_degrees": 0.0,
+          "component_skew_degrees": 0.0,
+          "line_count": 0
+        },
+        "grayscale": "BT.601 OpenCV conversion",
+        "normalization": "uint8 grayscale [0,255]",
+        "generative_processing": false
+      }
+    },
+    "empty": {
+      "status": "PASS",
+      "result": "rejected safely"
+    },
+    "four_dimensional": {
+      "status": "PASS",
+      "result": "rejected safely"
+    }
+  },
+  "field_extraction": {
+    "standard": {
+      "status": "PASS",
+      "expected": [
+        "2026-10-19",
+        "INV-1001",
+        "102.50"
+      ],
+      "observed": [
+        "2026-10-19",
+        "INV-1001",
+        "102.50"
+      ]
+    },
+    "integer_total": {
+      "status": "PASS",
+      "expected": [
+        "2026-01-01",
+        "R100",
+        "10.00"
+      ],
+      "observed": [
+        "2026-01-01",
+        "R100",
+        "10.00"
+      ]
+    },
+    "invalid_calendar": {
+      "status": "PASS",
+      "expected": [
+        null,
+        "R101",
+        "1.00"
+      ],
+      "observed": [
+        null,
+        "R101",
+        "1.00"
+      ]
+    },
+    "comma_amount": {
+      "status": "PASS",
+      "expected": [
+        "2026-10-19",
+        "AB-999",
+        "1234.50"
+      ],
+      "observed": [
+        "2026-10-19",
+        "AB-999",
+        "1234.50"
+      ]
+    },
+    "natural_support_gate": {
+      "status": "PASS"
+    }
+  },
+  "saved_natural_runs": {
+    "runs_checked": 13,
+    "current_failed_runs": 0,
+    "legacy_runs": 9,
+    "records": [
+      {
+        "run_id": "USER-20261016-152053",
+        "issues": [
+          "record predates the current audit schema and must not be treated as current conformance evidence"
+        ],
+        "status": "LEGACY"
+      },
+      {
+        "run_id": "USER-20261016-152147",
+        "issues": [
+          "record predates the current audit schema and must not be treated as current conformance evidence"
+        ],
+        "status": "LEGACY"
+      },
+      {
+        "run_id": "USER-20261019-104946",
+        "issues": [
+          "record predates the current audit schema and must not be treated as current conformance evidence"
+        ],
+        "status": "LEGACY"
+      },
+      {
+        "run_id": "USER-20261019-120800-b1346f",
+        "issues": [
+          "record predates the current audit schema and must not be treated as current conformance evidence"
+        ],
+        "status": "LEGACY"
+      },
+      {
+        "run_id": "USER-20261019-120823-5a7e2c",
+        "issues": [
+          "record predates the current audit schema and must not be treated as current conformance evidence"
+        ],
+        "status": "LEGACY"
+      },
+      {
+        "run_id": "USER-20261019-120841-4e8473",
+        "issues": [
+          "record predates the current audit schema and must not be treated as current conformance evidence"
+        ],
+        "status": "LEGACY"
+      },
+      {
+        "run_id": "USER-20261019-131153-8b5cbe",
+        "issues": [
+          "record predates the current audit schema and must not be treated as current conformance evidence"
+        ],
+        "status": "LEGACY"
+      },
+      {
+        "run_id": "USER-20261019-131259-be1b3c",
+        "issues": [
+          "record predates the current audit schema and must not be treated as current conformance evidence"
+        ],
+        "status": "LEGACY"
+      },
+      {
+        "run_id": "USER-20261019-131348-876e73",
+        "issues": [
+          "record predates the current audit schema and must not be treated as current conformance evidence"
+        ],
+        "status": "LEGACY"
+      },
+      {
+        "run_id": "USER-20261019-145844-5c33e9",
+        "issues": [],
+        "line_item_candidates": 0,
+        "status": "PASS"
+      },
+      {
+        "run_id": "USER-20261019-190816-6dfb3e",
+        "issues": [],
+        "line_item_candidates": 0,
+        "status": "PASS"
+      },
+      {
+        "run_id": "USER-20261019-191035-0bb097",
+        "issues": [],
+        "line_item_candidates": 0,
+        "status": "PASS"
+      },
+      {
+        "run_id": "USER-20261019-192401-6ef645",
+        "issues": [],
+        "line_item_candidates": 5,
+        "dark_stroke_preservation": 1.0,
+        "nonwhite_display_fraction": 0.029348958333333335,
+        "status": "PASS"
+      }
+    ]
+  },
+  "natural_dataset_preprocessing": {
+    "total": 646,
+    "decoded": 646,
+    "failed": [],
+    "batches": 8
+  },
+  "restoration_validation": {
+    "checkpoint_9000": {
+      "partition": "validation only",
+      "formal_test_evidence": false,
+      "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_development\\checkpoint_0009000.pt",
+      "checkpoint_iteration": 9000,
+      "manifest": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\generation_manifest_611_sources.jsonl",
+      "crop_size": 128,
+      "methods": {
+        "A_direct": {
+          "sources": 86,
+          "variants": 258,
+          "mean_psnr": Infinity,
+          "mean_ssim": 0.6353268789011135,
+          "mean_l1": 0.05287420386183783,
+          "mean_validation_objective": 0.12580882808161514
+        },
+        "B_otsu": {
+          "sources": 86,
+          "variants": 258,
+          "mean_psnr": Infinity,
+          "mean_ssim": 0.5198093181743763,
+          "mean_l1": 0.15881712809578774,
+          "mean_validation_objective": 0.2548552644609125
+        },
+        "B_sauvola": {
+          "sources": 86,
+          "variants": 258,
+          "mean_psnr": Infinity,
+          "mean_ssim": 0.7766949467620959,
+          "mean_l1": 0.08705372808189411,
+          "mean_validation_objective": 0.13171473872947492
+        },
+        "C_perceptual": {
+          "sources": 86,
+          "variants": 258,
+          "mean_psnr": Infinity,
+          "mean_ssim": 0.7429068955839551,
+          "mean_l1": 0.055832540497879134,
+          "mean_validation_objective": 0.10725116138108812
+        },
+        "Proposed_DSDNet_Receipt": {
+          "sources": 86,
+          "variants": 258,
+          "mean_psnr": 24.634639138423264,
+          "mean_ssim": 0.8986949504208644,
+          "mean_l1": 0.036437723859427736,
+          "mean_validation_objective": 0.05669873377525485
+        }
+      }
+    },
+    "blend_selection": {
+      "partition": "validation only",
+      "formal_test_evidence": false,
+      "selection_rule": "maximum field accuracy, then minimum CER, then method identifier",
+      "selected": "Proposed_blend_0.25",
+      "methods": {
+        "Proposed_blend_0.25": {
+          "sources": 5,
+          "variants": 15,
+          "mean_psnr": 21.224576945837196,
+          "mean_ssim": 0.7851397999922198,
+          "mean_cer": 0.6041973977719506,
+          "mean_wer": 0.8767095784538071,
+          "field_accuracy": 0.7333333333333333,
+          "failed_ocr_count": 0,
+          "mean_processing_seconds": 0.0,
+          "mean_ocr_seconds": 0.0
+        },
+        "Proposed_blend_0.50": {
+          "sources": 5,
+          "variants": 15,
+          "mean_psnr": 22.22860910644575,
+          "mean_ssim": 0.8539257911127669,
+          "mean_cer": 0.6041183200894761,
+          "mean_wer": 0.8769190110826939,
+          "field_accuracy": 0.6666666666666666,
+          "failed_ocr_count": 0,
+          "mean_processing_seconds": 0.0,
+          "mean_ocr_seconds": 0.0
+        },
+        "Proposed_blend_0.75": {
+          "sources": 5,
+          "variants": 15,
+          "mean_psnr": 23.102055074310226,
+          "mean_ssim": 0.9131966263054473,
+          "mean_cer": 0.6077495098007192,
+          "mean_wer": 0.8780719393592676,
+          "field_accuracy": 0.6333333333333333,
+          "failed_ocr_count": 0,
+          "mean_processing_seconds": 0.0,
+          "mean_ocr_seconds": 0.0
+        },
+        "Proposed_blend_1.00": {
+          "sources": 5,
+          "variants": 15,
+          "mean_psnr": 23.630296707911306,
+          "mean_ssim": 0.9411177935842376,
+          "mean_cer": 0.6155885663632763,
+          "mean_wer": 0.8830130176784673,
+          "field_accuracy": 0.6333333333333333,
+          "failed_ocr_count": 0,
+          "mean_processing_seconds": 0.0,
+          "mean_ocr_seconds": 0.0
+        }
+      }
+    }
+  },
+  "thesis_conformance": [
+    {
+      "requirement": "deterministic preprocessing and recorded transforms",
+      "status": "PASS"
+    },
+    {
+      "requirement": "eight DSDNet stages and four maxout branches",
+      "status": "PASS"
+    },
+    {
+      "requirement": "shared PaddleOCR configuration",
+      "status": "PASS",
+      "note": "same OCR model is run on three faithful views"
+    },
+    {
+      "requirement": "natural receipts never auto-accepted without source support",
+      "status": "PASS"
+    },
+    {
+      "requirement": "controlled pixel support proxy Ares/Astage/Aunc",
+      "status": "FAIL",
+      "note": "targets exist but full proxy evaluation is not implemented"
+    },
+    {
+      "requirement": "validation-only isotonic calibration and thresholds",
+      "status": "FAIL",
+      "note": "no fitted calibrator or selected policy thresholds"
+    },
+    {
+      "requirement": "mandatory arithmetic consistency gate",
+      "status": "FAIL",
+      "note": "line arithmetic is exported for review but not enforced in routing"
+    },
+    {
+      "requirement": "formal-run conformance checker",
+      "status": "PASS",
+      "note": "checker is implemented; the current formal-run preflight itself remains FAIL until its required manifests and calibration artifacts exist"
+    },
+    {
+      "requirement": "held-out test used once after validation lock",
+      "status": "NOT RUN"
+    }
+  ],
+  "myinvois_assessment": {
+    "status": "PARTIAL",
+    "captured": [
+      "supplier/merchant candidate",
+      "invoice number",
+      "invoice date",
+      "payable total",
+      "candidate line descriptions, quantities and prices"
+    ],
+    "missing_or_user_supplied": [
+      "supplier TIN and registration ID",
+      "supplier address/contact",
+      "buyer identity/TIN/address/contact",
+      "invoice time",
+      "classification codes",
+      "tax type/rate/amount",
+      "tax-exclusive and tax-inclusive totals",
+      "authorised digital signature and submission identifiers"
+    ],
+    "boundary": "The application is an audit/recovery aid, not a MyInvois submission client."
+  }
+}
