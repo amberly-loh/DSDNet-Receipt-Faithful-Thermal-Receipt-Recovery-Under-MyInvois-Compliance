@@ -363,19 +363,23 @@ def create_app(
         data = io.BytesIO(json.dumps(receipt["audit"], indent=2).encode("utf-8"))
         return send_file(data, mimetype="application/json", as_attachment=True, download_name=f"{receipt_id}-audit.json")
 
-    @app.get("/api/receipts/<receipt_id>/ocr.csv")
+    @app.get("/api/receipts/<receipt_id>/ocr.xlsx")
     @require_auth
     def export_ocr(receipt_id: str):
         receipt = store.get_receipt(current_user()["id"], receipt_id)
         if not receipt: return jsonify({"error": "Receipt not found."}), 404
-        output = io.StringIO(); writer = csv.writer(output)
-        writer.writerow(["reading_order", "text", "confidence_percent", "image_view"])
+        workbook = Workbook(); sheet = workbook.active; sheet.title = "Recognised text"
+        sheet.append(["Reading order", "Recognised text", "Confidence (%)", "Image view"])
         for index, line in enumerate(receipt["audit"].get("ocr_lines", []), 1):
             confidence = line.get("confidence")
-            writer.writerow([index, line.get("text", ""), round(float(confidence) * 100, 1) if confidence is not None else "", line.get("source_view", "")])
-        store.log_event(current_user()["id"], "receipt.export_ocr", "receipt", receipt_id)
-        data = io.BytesIO(output.getvalue().encode("utf-8-sig"))
-        return send_file(data, mimetype="text/csv", as_attachment=True, download_name=f"{receipt_id}-recognised-text.csv")
+            sheet.append([index, line.get("text", ""), round(float(confidence) * 100, 1) if confidence is not None else None, line.get("source_view", "")])
+        for cell in sheet[1]: cell.font = cell.font.copy(bold=True)
+        sheet.freeze_panes = "A2"; sheet.auto_filter.ref = sheet.dimensions
+        sheet.column_dimensions["A"].width = 15; sheet.column_dimensions["B"].width = 72
+        sheet.column_dimensions["C"].width = 18; sheet.column_dimensions["D"].width = 28
+        output = io.BytesIO(); workbook.save(output); output.seek(0)
+        store.log_event(current_user()["id"], "receipt.export_ocr_xlsx", "receipt", receipt_id)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=f"{receipt_id}-recognised-text.xlsx")
 
     def process_receipt(upload, user):
         raw_bytes = upload.read()
@@ -383,7 +387,7 @@ def create_app(
         image = cv2.imdecode(raw, cv2.IMREAD_COLOR)
         if image is None: raise ValueError(f"{upload.filename}: unreadable receipt image")
         started = time.perf_counter(); processed, preprocessing_record = preprocess(image, config)
-        from .restoration import make_readability_view
+        from .restoration import clean_empty_rows, make_readability_view
         with inference_lock:
             restoration = restoration_engine.run(processed)
             readability = make_readability_view(processed, restoration.image)
@@ -392,12 +396,13 @@ def create_app(
                 ("source_preserving_recovery", restoration.image),
                 ("readability_view", readability),
             ])
+            display_readability = clean_empty_rows(readability, ocr.lines)
         fields = route_fields(extract_fields(ocr.text, ocr.lines), support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
         run_id = f"USER-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         audit_root = Path(config["artifacts_root"]) / "user_runs" / run_id
         input_path, restored_path, diagnostic_path = audit_root / "input.png", audit_root / "restored.png", audit_root / "diagnostic.png"
-        display_restoration = readability
+        display_restoration = display_readability
         write_image(input_path, processed); write_image(restored_path, display_restoration)
         write_image(audit_root / "ocr_input.png", restoration.image)
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
