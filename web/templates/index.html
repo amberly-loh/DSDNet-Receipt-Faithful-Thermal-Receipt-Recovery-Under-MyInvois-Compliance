@@ -32,13 +32,15 @@
         <p id="authSubtitle">Sign in to access your saved receipts.</p>
         <label id="nameLabel" class="field hidden">Name<input id="authName" autocomplete="name" minlength="2"><small id="nameError" class="field-error"></small></label>
         <label class="field">Email<input id="authEmail" type="email" autocomplete="email" required><small id="emailError" class="field-error"></small></label>
-        <label class="field">Password<input id="authPassword" type="password" autocomplete="current-password" minlength="12" required><small id="passwordHint" class="hidden">Use at least 12 characters with letters and numbers.</small><small id="passwordError" class="field-error"></small></label>
+        <label class="field">Password<input id="authPassword" type="password" autocomplete="current-password" minlength="15" maxlength="128" required><small id="passwordHint" class="hidden">Use at least 15 characters. Spaces are allowed; forced symbols or capitals are not required.</small><small id="passwordError" class="field-error"></small></label>
+        <label id="confirmationLabel" class="field hidden">Confirm password<input id="authConfirmation" type="password" autocomplete="new-password" minlength="15" maxlength="128"><small id="confirmationError" class="field-error"></small></label>
         <label id="policyLabel" class="policy-check hidden"><input id="policyAccepted" type="checkbox"> <span>I understand that receipt images and extracted information are stored locally for authorised review and audit purposes.</span></label><small id="policyError" class="field-error"></small>
         <p id="authError" class="form-error hidden" role="alert"></p>
         <button id="authSubmit" class="button primary wide" type="submit">Sign in</button>
         <div class="auth-divider"><span>or</span></div>
         <a id="googleLogin" class="button google wide" href="/auth/google"><b>G</b> Continue with Google</a>
         <p id="googleStatus" class="provider-note"></p>
+        <p class="provider-note">By continuing, you accept the local data-handling notice. Google is used only for sign-in; receipt images and extracted fields are not sent to Google.</p>
         <p class="auth-switch"><span id="authSwitchText">New here?</span> <button id="authSwitch" type="button">Create an account</button></p>
       </form>
     </div>
@@ -132,9 +134,9 @@
 
         <section id="adminPage" class="page hidden">
           <div class="section-head"><div><h2>Account and audit administration</h2><p>Approve access, suspend accounts and review system activity.</p></div><button id="refreshAdmin" class="button secondary">Refresh</button></div>
-          <div class="stat-grid"><article><span class="stat-icon green">♙</span><div><small>Accounts</small><strong id="adminUsers">0</strong></div></article><article><span class="stat-icon amber">!</span><div><small>Pending approval</small><strong id="adminPending">0</strong></div></article><article><span class="stat-icon blue">▦</span><div><small>Stored receipts</small><strong id="adminReceipts">0</strong></div></article></div>
+          <div class="stat-grid"><article><span class="stat-icon green">♙</span><div><small>Accounts</small><strong id="adminUsers">0</strong></div></article><article><span class="stat-icon amber">!</span><div><small>Suspended</small><strong id="adminPending">0</strong></div></article><article><span class="stat-icon blue">▦</span><div><small>Stored receipts</small><strong id="adminReceipts">0</strong></div></article></div>
           <div class="admin-grid"><div class="admin-card"><h3>User accounts</h3><div id="userTable" class="table-wrap"></div></div><div class="admin-card"><h3>Audit activity</h3><div id="eventList" class="event-list"></div></div></div>
-          <div class="policy-card"><h3>Data-handling controls</h3><ul><li>Primary records are stored in local SQLite; images remain in local audit folders under internal IDs.</li><li>New accounts require administrator approval. Email format is checked, but mailbox ownership is not claimed without an email service.</li><li>Access, review changes, image views, exports and verified deletions are logged.</li><li>The configured default retention period is seven years; earlier deletion remains appropriate when the purpose ends and no legal requirement applies.</li><li>Exports are derived copies and must be protected by the person downloading them.</li></ul></div>
+          <div class="policy-card"><h3>Data-handling controls</h3><ul><li>Primary records are stored in local SQLite; images remain in local audit folders under internal IDs.</li><li>Accounts are available after consent. Administrators may suspend abusive accounts but do not approve every registration.</li><li>Access, review changes, image views, exports and verified deletions are logged.</li><li>The configured default retention period is seven years; earlier deletion remains appropriate when the purpose ends and no legal requirement applies.</li><li>Exports are derived copies and must be protected by the person downloading them.</li></ul></div>
         </section>
       </main>
     </div>

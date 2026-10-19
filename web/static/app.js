@@ -48,6 +48,7 @@ function setAuthMode(mode) {
   $('nameLabel').classList.toggle('hidden', !register);
   $('passwordHint').classList.toggle('hidden', !register);
   $('policyLabel').classList.toggle('hidden', !register);
+  $('confirmationLabel').classList.toggle('hidden', !register);
   $('authTitle').textContent = register ? 'Create your workspace' : 'Welcome back';
   $('authSubtitle').textContent = register ? 'Save, organise and review your recovered receipts.' : 'Sign in to access your saved receipts.';
   $('authSubmit').textContent = register ? 'Create account' : 'Sign in';
@@ -59,8 +60,8 @@ function setAuthMode(mode) {
 }
 
 function clearFieldErrors() {
-  ['name','email','password','policy'].forEach(name => { const node = $(`${name}Error`); if (node) node.textContent = ''; });
-  ['authName','authEmail','authPassword'].forEach(id => $(id).removeAttribute('aria-invalid'));
+  ['name','email','password','confirmation','policy'].forEach(name => { const node = $(`${name}Error`); if (node) node.textContent = ''; });
+  ['authName','authEmail','authPassword','authConfirmation'].forEach(id => $(id).removeAttribute('aria-invalid'));
 }
 
 function showFieldErrors(fields = {}) {
@@ -79,10 +80,9 @@ $('authForm').onsubmit = async event => {
   button.disabled = true; button.textContent = authMode === 'login' ? 'Signing in…' : 'Creating account…';
   try {
     const payload = {email: $('authEmail').value, password: $('authPassword').value};
-    if (authMode === 'register') { payload.name = $('authName').value; payload.policy_accepted = $('policyAccepted').checked; }
+    if (authMode === 'register') { payload.name = $('authName').value; payload.password_confirmation = $('authConfirmation').value; payload.policy_accepted = $('policyAccepted').checked; }
     const data = await api(`/api/${authMode === 'register' ? 'register' : 'login'}`, {method: 'POST', body: payload});
-    if (data.pending) { setAuthMode('login'); $('authError').textContent = data.message; $('authError').classList.remove('hidden'); }
-    else { user = data.user; showWorkspace(); }
+    user = data.user; showWorkspace();
   } catch (error) {
     showFieldErrors(error.details?.fields);
     $('authError').textContent = error.message; $('authError').classList.remove('hidden');
@@ -274,7 +274,7 @@ $('deleteButton').onclick = async () => {
 async function loadAdmin() {
   try {
     const data = await api('/api/admin/overview');
-    $('adminUsers').textContent = data.stats.users; $('adminPending').textContent = data.stats.pending_users; $('adminReceipts').textContent = data.stats.receipts;
+    $('adminUsers').textContent = data.stats.users; $('adminPending').textContent = data.users.filter(account => account.status === 'suspended').length; $('adminReceipts').textContent = data.stats.receipts;
     $('userTable').innerHTML = `<table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${data.users.map(account => `<tr><td>${escapeHtml(account.name)}</td><td>${escapeHtml(account.email)}</td><td>${escapeHtml(account.role)}</td><td><span class="status-pill ${account.status}">${escapeHtml(account.status)}</span></td><td>${account.public_id === user.public_id ? '<small>Current account</small>' : `<select data-user-action="${escapeHtml(account.public_id)}"><option value="">Change…</option><option value="active">Approve / activate</option><option value="suspended">Suspend</option><option value="role:admin">Make admin</option><option value="role:user">Make user</option></select>`}</td></tr>`).join('')}</tbody></table>`;
     $('userTable').querySelectorAll('[data-user-action]').forEach(select => select.onchange = async () => {
       if (!select.value) return; const payload = select.value.startsWith('role:') ? {role: select.value.split(':')[1]} : {status: select.value};
@@ -316,7 +316,7 @@ window.addEventListener('hashchange', () => { if (user) route(location.hash.slic
     }
     const authError = new URLSearchParams(location.search).get('auth_error');
     if (authError) {
-      const messages = {google_not_configured:'Google sign-in is not configured yet.',google_state:'Google sign-in could not be verified. Try again.',google_denied:'Google sign-in was cancelled.',google_unverified:'Google did not confirm this email address.',approval_required:'Your Google account is verified but still requires administrator approval.',google_failed:'Google sign-in could not be completed.'};
+      const messages = {google_not_configured:'Google sign-in is not configured yet.',google_state:'Google sign-in could not be verified. Try again.',google_denied:'Google sign-in was cancelled.',google_unverified:'Google did not confirm this email address.',account_suspended:'This account has been suspended. Contact the application administrator.',google_failed:'Google sign-in could not be completed.'};
       $('authError').textContent = messages[authError] || 'Sign-in could not be completed.'; $('authError').classList.remove('hidden');
       history.replaceState(null, '', '/');
     }

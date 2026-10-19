@@ -19,7 +19,7 @@ def test_account_and_owned_receipt_workflow(tmp_path: Path) -> None:
     token = csrf(client)
     response = client.post(
         "/api/register",
-        json={"name": "Test User", "email": "test@valid-domain.my", "password": "long-test-password-1", "policy_accepted": True},
+        json={"name": "Test User", "email": "test@valid-domain.my", "password": "long-test-password-1", "password_confirmation": "long-test-password-1", "policy_accepted": True},
         headers={"X-CSRF-Token": token},
     )
     assert response.status_code == 201
@@ -78,7 +78,7 @@ def test_mutation_requires_csrf(tmp_path: Path) -> None:
     csrf(client)
     response = client.post(
         "/api/register",
-        json={"name": "Test User", "email": "test@valid-domain.my", "password": "long-test-password-1", "policy_accepted": True},
+        json={"name": "Test User", "email": "test@valid-domain.my", "password": "long-test-password-1", "password_confirmation": "long-test-password-1", "policy_accepted": True},
     )
     assert response.status_code == 403
 
@@ -89,8 +89,24 @@ def test_registration_returns_field_specific_errors(tmp_path: Path) -> None:
     client = app.test_client()
     response = client.post(
         "/api/register",
-        json={"name": "A", "email": "fake@invalid.t", "password": "short", "policy_accepted": False},
+        json={"name": "A", "email": "fake@invalid.t", "password": "short", "password_confirmation": "different", "policy_accepted": False},
         headers={"X-CSRF-Token": csrf(client)},
     )
     assert response.status_code == 400
-    assert set(response.get_json()["fields"]) == {"name", "email", "password", "policy"}
+    assert set(response.get_json()["fields"]) == {"name", "email", "password", "confirmation", "policy"}
+
+
+def test_duplicate_registration_is_rejected(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    first = app.test_client()
+    payload = {
+        "name": "Duplicate User", "email": "duplicate@valid-domain.my",
+        "password": "a long unique passphrase 2026", "password_confirmation": "a long unique passphrase 2026",
+        "policy_accepted": True,
+    }
+    assert first.post("/api/register", json=payload, headers={"X-CSRF-Token": csrf(first)}).status_code == 201
+    second = app.test_client()
+    response = second.post("/api/register", json=payload, headers={"X-CSRF-Token": csrf(second)})
+    assert response.status_code == 409
+    assert "email" in response.get_json()["fields"]

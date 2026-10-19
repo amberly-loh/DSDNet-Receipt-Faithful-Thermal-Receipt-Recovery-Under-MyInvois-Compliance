@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     created_at TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'user',
-    status TEXT NOT NULL DEFAULT 'pending',
+    status TEXT NOT NULL DEFAULT 'active',
     last_login_at TEXT,
     failed_login_count INTEGER NOT NULL DEFAULT 0,
     locked_until TEXT
@@ -83,7 +83,7 @@ class ReceiptStore:
         user_columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
         receipt_columns = {row["name"] for row in db.execute("PRAGMA table_info(receipts)")}
         for name, definition in {
-            "role": "TEXT NOT NULL DEFAULT 'user'", "status": "TEXT NOT NULL DEFAULT 'pending'",
+            "role": "TEXT NOT NULL DEFAULT 'user'", "status": "TEXT NOT NULL DEFAULT 'active'",
             "last_login_at": "TEXT", "failed_login_count": "INTEGER NOT NULL DEFAULT 0", "locked_until": "TEXT",
         }.items():
             if name not in user_columns:
@@ -96,6 +96,8 @@ class ReceiptStore:
         first = db.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()
         if first and not db.execute("SELECT 1 FROM users WHERE role='admin'").fetchone():
             db.execute("UPDATE users SET role='admin', status='active' WHERE id=?", (first["id"],))
+        # Self-service registration replaced the earlier approval-queue prototype.
+        db.execute("UPDATE users SET status='active' WHERE status='pending'")
 
     def connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.database, timeout=20)
@@ -108,7 +110,7 @@ class ReceiptStore:
             first_user = db.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
             cursor = db.execute(
                 "INSERT INTO users(public_id,name,email,password_hash,created_at,role,status) VALUES(?,?,?,?,?,?,?)",
-                (public_id, name.strip(), email.strip().lower(), password_hash, utc_now(), "admin" if first_user else "user", "active" if first_user else "pending"),
+                (public_id, name.strip(), email.strip().lower(), password_hash, utc_now(), "admin" if first_user else "user", "active"),
             )
             return dict(db.execute("SELECT id,public_id,name,email,created_at,role,status FROM users WHERE id=?", (cursor.lastrowid,)).fetchone())
 

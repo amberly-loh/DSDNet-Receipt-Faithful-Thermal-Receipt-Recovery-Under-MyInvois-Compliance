@@ -8,8 +8,10 @@ import json
 import os
 import re
 import secrets
+import sqlite3
 import threading
 import time
+import unicodedata
 import uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -34,13 +36,39 @@ from .storage import ReceiptStore, utc_now
 
 EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$")
 BLOCKED_EMAIL_DOMAINS = {"example.com", "example.org", "example.net", "mailinator.com", "guerrillamail.com", "tempmail.com"}
+COMMON_PASSWORDS = {
+    "passwordpassword", "password123456", "qwertyuiop12345", "123456789012345",
+    "letmeinletmein123", "adminadminadmin", "receipt-recovery", "thermalreceipt",
+}
 
 
 def _valid_email(value: str) -> bool:
-    email = value.strip().lower()
-    domain = email.rsplit("@", 1)[-1] if "@" in email else ""
+    email = unicodedata.normalize("NFKC", value).strip().lower()
+    if len(email) > 254 or email.count("@") != 1 or any(ch.isspace() for ch in email):
+        return False
+    local, domain = email.rsplit("@", 1)
+    if not local or len(local) > 64 or local.startswith(".") or local.endswith(".") or ".." in local:
+        return False
+    try:
+        domain = domain.encode("idna").decode("ascii")
+    except UnicodeError:
+        return False
     suffix = domain.rsplit(".", 1)[-1] if "." in domain else ""
-    return bool(EMAIL_PATTERN.fullmatch(email)) and len(suffix) >= 2 and domain not in BLOCKED_EMAIL_DOMAINS and not domain.endswith((".test", ".invalid", ".localhost"))
+    canonical = f"{local}@{domain}"
+    return bool(EMAIL_PATTERN.fullmatch(canonical)) and len(suffix) >= 2 and domain not in BLOCKED_EMAIL_DOMAINS and not domain.endswith((".test", ".invalid", ".localhost"))
+
+
+def _password_error(password: str, name: str, email: str) -> str | None:
+    normalized = unicodedata.normalize("NFC", password)
+    compact = normalized.casefold().replace(" ", "")
+    if len(normalized) < 15:
+        return "Use at least 15 characters. A memorable passphrase works well."
+    if len(normalized) > 128:
+        return "Use no more than 128 characters."
+    contextual = {name.casefold().replace(" ", ""), email.split("@", 1)[0].casefold()}
+    if compact in COMMON_PASSWORDS or compact in contextual or compact.isdigit() or len(set(compact)) < 5:
+        return "Choose a less common password that is not based on your name or email."
+    return None
 
 
 def _data_url(image: np.ndarray) -> str:
@@ -134,19 +162,22 @@ def create_app(
         payload = request.get_json(silent=True) or {}
         name, email, password = str(payload.get("name", "")).strip(), str(payload.get("email", "")).strip().lower(), str(payload.get("password", ""))
         errors = {}
-        if len(name) < 2: errors["name"] = "Enter your full name."
-        if not _valid_email(email): errors["email"] = "Enter a valid non-temporary email address with a real domain."
-        if len(password) < 12: errors["password"] = "Use at least 12 characters."
-        elif not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password): errors["password"] = "Include at least one letter and one number."
+        confirmation = str(payload.get("password_confirmation", ""))
+        if not 2 <= len(name) <= 80 or any(ord(ch) < 32 for ch in name): errors["name"] = "Enter your name using 2 to 80 characters."
+        if not _valid_email(email): errors["email"] = "Enter a valid email address, such as name@example.my."
+        password_error = _password_error(password, name, email)
+        if password_error: errors["password"] = password_error
+        if confirmation != password: errors["confirmation"] = "The passwords do not match."
         if payload.get("policy_accepted") is not True: errors["policy"] = "Accept the local data-handling notice."
         if errors:
             return jsonify({"error": "Check the highlighted fields.", "fields": errors}), 400
         if store.user_by_email(email):
-            return jsonify({"error": "An account already exists for this email address."}), 409
-        user = store.create_user(uuid.uuid4().hex, name, email, generate_password_hash(password, method="scrypt"))
+            return jsonify({"error": "An account already exists for this email address.", "fields": {"email": "Use a different email or sign in instead."}}), 409
+        try:
+            user = store.create_user(uuid.uuid4().hex, name, email, generate_password_hash(unicodedata.normalize("NFC", password), method="scrypt"))
+        except sqlite3.IntegrityError:
+            return jsonify({"error": "An account already exists for this email address.", "fields": {"email": "Use a different email or sign in instead."}}), 409
         store.log_event(user["id"], "account.register", "user", user["public_id"], details={"status": user["status"], "policy_accepted": True})
-        if user["status"] != "active":
-            return jsonify({"pending": True, "message": "Account request submitted. An administrator must approve it before sign-in.", "csrf_token": session["csrf_token"]}), 202
         session.clear(); session["user_id"] = user["id"]; session["csrf_token"] = secrets.token_urlsafe(24); session.permanent = True
         return jsonify({"user": user, "csrf_token": session["csrf_token"]}), 201
 
@@ -177,8 +208,8 @@ def create_app(
             user = store.user_by_email(profile["email"])
             if not user:
                 user = store.create_user(uuid.uuid4().hex, profile.get("name") or profile["email"].split("@")[0], profile["email"], generate_password_hash(secrets.token_urlsafe(48), method="scrypt"))
-                store.log_event(user["id"], "account.register_google", "user", user["public_id"], details={"status": user["status"]})
-            if user.get("status") != "active": return redirect("/?auth_error=approval_required")
+                store.log_event(user["id"], "account.register_google", "user", user["public_id"], details={"status": user["status"], "consent": "google_oauth_and_local_notice"})
+            if user.get("status") == "suspended": return redirect("/?auth_error=account_suspended")
             store.record_login(user["id"], True); store.log_event(user["id"], "account.login_google", "user", user["public_id"])
             session.clear(); session["user_id"] = user["id"]; session["csrf_token"] = secrets.token_urlsafe(24); session.permanent = True
             return redirect("/#overview")
@@ -218,9 +249,9 @@ def create_app(
         return jsonify({
             "storage": "Receipt images, extracted fields and audit records are stored on this device.",
             "primary_store": "SQLite is the primary record; JSON and spreadsheet files are derived exports.",
-            "access": "Users access their own records. Approved administrators can manage accounts and audit records.",
+            "access": "Users access their own records. Administrators can suspend accounts and inspect audit records.",
             "retention": "The configured default retention period is seven years; records should be deleted earlier when no longer required and no legal requirement applies.",
-            "verification": "Email syntax and risky domains are checked, but this offline installation cannot prove mailbox ownership. New accounts therefore require administrator approval.",
+            "verification": "Google verifies Google identities. Password accounts use format, duplicate and password-safety checks; a deployable public version should also send an email-verification link.",
         })
 
     @app.get("/api/admin/overview")
