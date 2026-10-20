@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from dsdnet_receipt.config import load_config
-from dsdnet_receipt.restoration import make_evidence_preserving_view, make_readability_view
+from dsdnet_receipt.restoration import make_evidence_preserving_view
 
 
 def main() -> None:
@@ -29,8 +29,7 @@ def main() -> None:
         audit = json.loads(audit_path.read_text(encoding="utf-8"))
         backup = run / "restored_before_structured_cleanup.png"
         if target_path.is_file() and not backup.exists(): shutil.copy2(target_path, backup)
-        readable = make_readability_view(source, recovery)
-        output = make_evidence_preserving_view(readable, audit.get("ocr_lines", []))
+        output = make_evidence_preserving_view(recovery, audit.get("ocr_lines", []))
         if not cv2.imwrite(str(target_path), output): raise RuntimeError(f"Could not update {target_path}")
         refreshed += 1
     print({"refreshed": refreshed, "skipped": skipped})

@@ -145,21 +145,26 @@ def make_readability_view(source: np.ndarray, restored: np.ndarray) -> np.ndarra
 
 
 def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str, Any]]) -> np.ndarray:
-    """Reduce paper texture without thresholding away observed receipt marks."""
+    """Create a clean, non-generative black-and-white reading copy."""
     import cv2
+    from .baselines import sauvola
 
-    # OCR boxes must never decide which pixels survive: OCR can miss precisely
-    # the faded text this system is intended to recover. Non-local denoising
-    # attenuates repeated paper grain while retaining edge-like print, rules,
-    # handwriting and signatures across the complete receipt.
+    # OCR boxes never decide which pixels survive: OCR can miss precisely the
+    # faded content the system is intended to make readable. This view is an
+    # explicitly recorded display transform, separate from raw x8 and OCR.
     _ = ocr_lines
     denoised = cv2.fastNlMeansDenoising(
-        readable.astype(np.uint8), None, h=16, templateWindowSize=7, searchWindowSize=31
+        readable.astype(np.uint8), None, h=12, templateWindowSize=7, searchWindowSize=21
     )
-    local_mean = cv2.GaussianBlur(denoised, (0, 0), 1.0)
-    # Conservative unsharp masking improves character edges continuously; it
-    # does not binarise, erase, or synthesize any region.
-    output = cv2.addWeighted(denoised, 1.5, local_mean, -0.5, 3)
+    binary = sauvola(denoised, window=51, k=0.14)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(255 - binary, 8)
+    output = np.full_like(binary, 255)
+    for index in range(1, count):
+        area = int(stats[index, cv2.CC_STAT_AREA])
+        width = int(stats[index, cv2.CC_STAT_WIDTH])
+        height = int(stats[index, cv2.CC_STAT_HEIGHT])
+        if area >= 5 or width >= 5 or height >= 5:
+            output[labels == index] = 0
     horizontal_contrast = cv2.morphologyEx(
         readable, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
     )
@@ -172,6 +177,7 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
     vertical = cv2.morphologyEx(
         vertical_contrast, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 21))
     )
-    rule_mask = (horizontal > 12) | (vertical > 12)
-    output[rule_mask] = np.minimum(output[rule_mask], readable[rule_mask])
+    horizontal = cv2.dilate(horizontal, cv2.getStructuringElement(cv2.MORPH_RECT, (11, 1)))
+    vertical = cv2.dilate(vertical, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 11)))
+    output[(horizontal > 12) | (vertical > 12)] = 0
     return output
