@@ -154,17 +154,17 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
     # explicitly recorded display transform, separate from raw x8 and OCR.
     _ = ocr_lines
     denoised = cv2.fastNlMeansDenoising(
-        readable.astype(np.uint8), None, h=12, templateWindowSize=7, searchWindowSize=21
+        readable.astype(np.uint8), None, h=8, templateWindowSize=7, searchWindowSize=21
     )
-    binary = sauvola(denoised, window=51, k=0.14)
+    binary = sauvola(denoised, window=51, k=0.21)
     count, labels, stats, _ = cv2.connectedComponentsWithStats(255 - binary, 8)
-    output = np.full_like(binary, 255)
+    foreground = np.zeros_like(binary, dtype=bool)
     for index in range(1, count):
         area = int(stats[index, cv2.CC_STAT_AREA])
         width = int(stats[index, cv2.CC_STAT_WIDTH])
         height = int(stats[index, cv2.CC_STAT_HEIGHT])
-        if area >= 5 or width >= 5 or height >= 5:
-            output[labels == index] = 0
+        if area >= 4 or width >= 5 or height >= 5:
+            foreground[labels == index] = True
     horizontal_contrast = cv2.morphologyEx(
         readable, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
     )
@@ -179,5 +179,11 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
     )
     horizontal = cv2.dilate(horizontal, cv2.getStructuringElement(cv2.MORPH_RECT, (11, 1)))
     vertical = cv2.dilate(vertical, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 11)))
-    output[(horizontal > 12) | (vertical > 12)] = 0
+    foreground |= (horizontal > 12) | (vertical > 12)
+    # Keep the source-derived grey edge tones rather than painting every
+    # selected pixel solid black. This prevents small characters from merging
+    # into heavy, smudged glyphs when the receipt is scaled in the interface.
+    output = np.full_like(binary, 255)
+    tones = np.clip((readable.astype(np.float32) - 55.0) * 1.25, 0, 215).astype(np.uint8)
+    output[foreground] = tones[foreground]
     return output
