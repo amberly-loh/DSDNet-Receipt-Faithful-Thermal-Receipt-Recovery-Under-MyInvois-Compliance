@@ -137,11 +137,11 @@ def make_readability_view(source: np.ndarray, restored: np.ndarray) -> np.ndarra
     # whitens empty paper without inventing strokes or replacing OCR text.
     background = cv2.GaussianBlur(base, (0, 0), 31)
     flattened = cv2.divide(base, np.maximum(background, 1), scale=245)
-    readable = cv2.fastNlMeansDenoising(flattened, None, h=5, templateWindowSize=7, searchWindowSize=21)
-    # Do not threshold the result. Faint printed strokes can occupy the same
-    # intensity range as paper texture, so forcing light pixels to white can
-    # erase genuine receipt evidence. Illumination correction and mild
-    # denoising reduce texture while preserving the full tonal image.
+    readable = cv2.fastNlMeansDenoising(flattened, None, h=7, templateWindowSize=7, searchWindowSize=21)
+    # Light paper grain and fold shading are mapped to clean paper. Dark ink,
+    # including handwriting and signatures, is retained whether OCR finds it
+    # or not.
+    readable[readable > 190] = 255
     return readable
 
 

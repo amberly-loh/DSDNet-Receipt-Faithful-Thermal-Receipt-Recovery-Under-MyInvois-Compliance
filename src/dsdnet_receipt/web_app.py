@@ -398,9 +398,7 @@ def create_app(
         path = receipt["input_path"] if kind == "original" else receipt["restored_path"]
         if kind == "diagnostic": path = str(Path(receipt["restored_path"]).with_name("diagnostic.png"))
         if not Path(path).is_file(): return jsonify({"error": "Image not found."}), 404
-        response = send_file(path, mimetype="image/png", conditional=True, max_age=0)
-        response.cache_control.no_store = True
-        return response
+        return send_file(path, mimetype="image/png", conditional=True)
 
     @app.get("/api/export.csv")
     @require_auth
@@ -513,7 +511,7 @@ def create_app(
         image = cv2.imdecode(raw, cv2.IMREAD_COLOR)
         if image is None: raise ValueError(f"{upload.filename}: unreadable receipt image")
         started = time.perf_counter(); processed, preprocessing_record = preprocess(image, config)
-        from .restoration import make_readability_view
+        from .restoration import make_evidence_preserving_view, make_readability_view
         with inference_lock:
             restoration = restoration_engine.run(processed)
             readability = make_readability_view(processed, restoration.image)
@@ -522,12 +520,13 @@ def create_app(
                 ("source_preserving_recovery", restoration.image),
                 ("readability_view", readability),
             ])
+            display_readability = make_evidence_preserving_view(readability, ocr.lines)
         fields = route_fields(extract_fields(ocr.text, ocr.lines), support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
         run_id = f"USER-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         audit_root = Path(config["artifacts_root"]) / "user_runs" / run_id
         input_path, restored_path, diagnostic_path = audit_root / "input.png", audit_root / "restored.png", audit_root / "diagnostic.png"
-        display_restoration = readability
+        display_restoration = display_readability
         write_image(input_path, processed); write_image(restored_path, display_restoration)
         write_image(audit_root / "ocr_input.png", restoration.image)
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
