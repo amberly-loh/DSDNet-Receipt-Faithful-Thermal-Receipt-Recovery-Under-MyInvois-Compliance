@@ -170,3 +170,16 @@ def test_clean_view_keeps_continuous_faint_document_rules() -> None:
     output = make_evidence_preserving_view(readable, [])
     assert np.count_nonzero(output[30, 15:205] < 230) >= 180
     assert np.count_nonzero(output[20:105, 40] < 230) >= 75
+
+
+def test_clean_view_suppresses_texture_while_retaining_faint_text() -> None:
+    yy, xx = np.indices((180, 320))
+    texture = 232 + 7 * np.sin(xx / 8.0) + 6 * np.cos(yy / 11.0)
+    readable = np.clip(texture, 0, 255).astype(np.uint8)
+    cv2.putText(readable, "TOTAL 102.50", (35, 85), cv2.FONT_HERSHEY_SIMPLEX, 0.7, 155, 1, cv2.LINE_AA)
+    lines = [{"text": "TOTAL 102.50", "box": [[30, 60], [205, 60], [205, 92], [30, 92]]}]
+    output = make_evidence_preserving_view(readable, lines)
+    text_region = output[58:95, 28:210]
+    background = output[110:165, 25:295]
+    assert np.count_nonzero(text_region < 235) >= 100
+    assert np.count_nonzero(background < 235) / background.size < 0.02

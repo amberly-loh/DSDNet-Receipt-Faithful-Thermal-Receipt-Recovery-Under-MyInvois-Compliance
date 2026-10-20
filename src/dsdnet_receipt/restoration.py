@@ -145,45 +145,70 @@ def make_readability_view(source: np.ndarray, restored: np.ndarray) -> np.ndarra
 
 
 def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str, Any]]) -> np.ndarray:
-    """Create a clean, non-generative black-and-white reading copy."""
+    """Create an edge-supported, background-normalised reading copy."""
     import cv2
     from .baselines import sauvola
 
-    # OCR boxes never decide which pixels survive: OCR can miss precisely the
-    # faded content the system is intended to make readable. This view is an
-    # explicitly recorded display transform, separate from raw x8 and OCR.
-    _ = ocr_lines
-    denoised = cv2.fastNlMeansDenoising(
-        readable.astype(np.uint8), None, h=8, templateWindowSize=7, searchWindowSize=21
+    source = readable.astype(np.uint8)
+    denoised = cv2.bilateralFilter(source, 7, 24, 24)
+    background = cv2.morphologyEx(
+        denoised, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (41, 41))
     )
-    binary = sauvola(denoised, window=51, k=0.21)
-    count, labels, stats, _ = cv2.connectedComponentsWithStats(255 - binary, 8)
-    foreground = np.zeros_like(binary, dtype=bool)
+    normalised = cv2.divide(denoised, np.maximum(background, 1), scale=245)
+    local_foreground = sauvola(normalised, window=41, k=0.17) == 0
+    edges = cv2.Canny(normalised, 22, 70, L2gradient=True)
+    edge_support = cv2.dilate(edges, np.ones((5, 5), np.uint8)) > 0
+    candidates = local_foreground & edge_support
+
+    # OCR is used only to protect known text-bearing regions from broad-mark
+    # rejection; it never creates foreground on its own.
+    localised = np.zeros_like(source, dtype=np.uint8)
+    for line in ocr_lines:
+        points = np.asarray(line.get("box", []), dtype=np.int32)
+        if points.shape == (4, 2):
+            cv2.fillPoly(localised, [points], 255)
+    localised = cv2.dilate(localised, np.ones((15, 15), np.uint8)) > 0
+
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(candidates.astype(np.uint8), 8)
+    foreground = np.zeros_like(candidates)
+    image_width = source.shape[1]
     for index in range(1, count):
         area = int(stats[index, cv2.CC_STAT_AREA])
         width = int(stats[index, cv2.CC_STAT_WIDTH])
         height = int(stats[index, cv2.CC_STAT_HEIGHT])
-        if area >= 4 or width >= 5 or height >= 5:
-            foreground[labels == index] = True
-    horizontal_contrast = cv2.morphologyEx(
-        readable, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
-    )
-    vertical_contrast = cv2.morphologyEx(
-        readable, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 1))
-    )
-    horizontal = cv2.morphologyEx(
-        horizontal_contrast, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (21, 1))
-    )
-    vertical = cv2.morphologyEx(
-        vertical_contrast, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 21))
-    )
-    horizontal = cv2.dilate(horizontal, cv2.getStructuringElement(cv2.MORPH_RECT, (11, 1)))
-    vertical = cv2.dilate(vertical, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 11)))
-    foreground |= (horizontal > 12) | (vertical > 12)
-    # Keep the source-derived grey edge tones rather than painting every
-    # selected pixel solid black. This prevents small characters from merging
-    # into heavy, smudged glyphs when the receipt is scaled in the interface.
-    output = np.full_like(binary, 255)
-    tones = np.clip((readable.astype(np.float32) - 55.0) * 1.25, 0, 215).astype(np.uint8)
+        component = labels == index
+        protected = bool(np.any(localised & component))
+        # Only suppress page-spanning, thick unlabelled bands. A lower width
+        # cutoff wrongly rejects connected words and nearby field labels.
+        median_tone = float(np.median(normalised[component]))
+        broad_unlabelled_mark = (
+            width > int(0.60 * image_width)
+            and height > 4
+            and median_tone > 155.0
+            and not protected
+        )
+        if area >= 4 and not broad_unlabelled_mark:
+            foreground[component] = True
+
+    # Recover genuinely thin form rules that local thresholding can miss,
+    # while excluding multi-row/column crease bands.
+    horizontal_response = cv2.morphologyEx(
+        255 - normalised, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (21, 1))
+    ) > 35
+    vertical_response = cv2.morphologyEx(
+        255 - normalised, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 21))
+    ) > 35
+    horizontal_neighbour = np.zeros_like(horizontal_response)
+    horizontal_neighbour[1:] |= horizontal_response[:-1]
+    horizontal_neighbour[:-1] |= horizontal_response[1:]
+    vertical_neighbour = np.zeros_like(vertical_response)
+    vertical_neighbour[:, 1:] |= vertical_response[:, :-1]
+    vertical_neighbour[:, :-1] |= vertical_response[:, 1:]
+    foreground |= (horizontal_response & ~horizontal_neighbour) | (vertical_response & ~vertical_neighbour)
+
+    local_mean = cv2.GaussianBlur(normalised, (0, 0), 0.7)
+    sharpened = cv2.addWeighted(normalised, 1.7, local_mean, -0.7, 0)
+    output = np.full_like(source, 255)
+    tones = np.clip((sharpened.astype(np.float32) - 60.0) * 1.05, 0, 210).astype(np.uint8)
     output[foreground] = tones[foreground]
     return output
