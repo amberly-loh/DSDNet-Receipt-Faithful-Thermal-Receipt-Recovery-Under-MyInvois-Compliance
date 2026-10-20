@@ -253,7 +253,7 @@ async function openReceipt(id) {
     const lines = dedupeOcrLines(currentReceipt.audit?.ocr_lines || []);
     $('ocrTable').innerHTML = lines.length ? `<table><thead><tr><th>#</th><th>Recognised text</th><th>Confidence</th></tr></thead><tbody>${lines.map((line, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(line.text)}</td><td>${line.confidence == null ? '—' : `${(Number(line.confidence) * 100).toFixed(1)}%`}</td></tr>`).join('')}</tbody></table>` : '<p class="empty-copy">No text was recognised. Enter the receipt details manually.</p>';
     $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`; $('ocrDownload').href = `/api/receipts/${encodeURIComponent(id)}/ocr.xlsx`;
-    $('compareSlider').value = 50; updateComparison(50); route('detail');
+    setImageMode('improved'); route('detail');
   } catch (error) { toast(error.message, true); }
 }
 
@@ -281,6 +281,18 @@ function dedupeOcrLines(lines) {
 
 function updateComparison(value) { $('restoredWrap').style.clipPath = `inset(0 ${100 - value}% 0 0)`; $('compareLine').style.left = `${value}%`; }
 $('compareSlider').oninput = event => updateComparison(event.target.value);
+
+function setImageMode(mode) {
+  const comparison = $('comparison');
+  comparison.classList.remove('improved-mode','original-mode','compare-mode'); comparison.classList.add(`${mode}-mode`);
+  for (const [name,id] of [['improved','improvedViewButton'],['original','originalViewButton'],['compare','compareViewButton']]) $(''+id).classList.toggle('active', name === mode);
+  if (mode === 'compare') { $('compareSlider').value = 50; updateComparison(50); }
+  $('comparisonViewLabel').textContent = mode === 'improved' ? 'Improved receipt · complete image' : mode === 'original' ? 'Original receipt · complete image' : 'Original and improved comparison';
+  $('comparisonHelp').textContent = mode === 'compare' ? 'Drag the divider' : 'Select Compare for the split view';
+}
+$('improvedViewButton').onclick = () => setImageMode('improved');
+$('originalViewButton').onclick = () => setImageMode('original');
+$('compareViewButton').onclick = () => setImageMode('compare');
 
 let imageZoom = 1;
 function updateFullImageZoom() {
