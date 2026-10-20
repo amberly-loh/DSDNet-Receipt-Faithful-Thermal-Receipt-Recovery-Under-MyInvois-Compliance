@@ -9,7 +9,7 @@ from dsdnet_receipt.metrics import cer, psnr, ssim, wer
 from dsdnet_receipt.fields import extract_fields, route_fields
 from dsdnet_receipt.preprocessing import preprocess
 from dsdnet_receipt.ocr import OCRResult, PaddleOCRAdapter, deduplicate_lines
-from dsdnet_receipt.restoration import make_evidence_preserving_view
+from dsdnet_receipt.restoration import make_evidence_preserving_view, make_readability_view
 
 
 def test_seed_is_stable() -> None:
@@ -161,3 +161,11 @@ def test_reading_view_suppresses_light_texture_without_erasing_dark_ink() -> Non
     assert np.all(output[10:12, 10:150] == 255)
     assert np.all(output[30:34, 20:80] <= readable[30:34, 20:80])
     assert np.mean(output[50:54, 25:130]) <= np.mean(readable[50:54, 25:130])
+
+
+def test_readability_view_preserves_faint_tonal_strokes() -> None:
+    image = np.full((120, 180), 215, np.uint8)
+    image[50:54, 25:150] = 185
+    output = make_readability_view(image, image)
+    assert np.mean(output[50:54, 25:150]) < 250
+    assert len(np.unique(output)) > 2
