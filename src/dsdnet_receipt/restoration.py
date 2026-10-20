@@ -137,11 +137,10 @@ def make_readability_view(source: np.ndarray, restored: np.ndarray) -> np.ndarra
     # whitens empty paper without inventing strokes or replacing OCR text.
     background = cv2.GaussianBlur(base, (0, 0), 31)
     flattened = cv2.divide(base, np.maximum(background, 1), scale=245)
-    readable = cv2.fastNlMeansDenoising(flattened, None, h=7, templateWindowSize=7, searchWindowSize=21)
-    # Light paper grain and fold shading are mapped to clean paper. Dark ink,
-    # including handwriting and signatures, is retained whether OCR finds it
-    # or not.
-    readable[readable > 190] = 255
+    readable = cv2.fastNlMeansDenoising(flattened, None, h=5, templateWindowSize=7, searchWindowSize=21)
+    # Thresholding happens only after text and document structures have been
+    # localised. Applying one global threshold here breaks faint characters
+    # and continuous table rules into disconnected fragments.
     return readable
 
 
@@ -154,14 +153,44 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
         points = np.asarray(line.get("box", []), dtype=np.int32)
         if points.shape == (4, 2):
             cv2.fillPoly(localized, [points], 255)
-    localized = cv2.dilate(localized, np.ones((21, 21), np.uint8))
+    localized = cv2.dilate(localized, np.ones((9, 9), np.uint8))
     # Strengthen only already-observed strokes inside OCR-localised regions.
     # A small black-hat response improves thin thermal characters without
     # sharpening folds and paper grain across the rest of the receipt.
     blackhat = cv2.morphologyEx(readable, cv2.MORPH_BLACKHAT, np.ones((3, 3), np.uint8))
     locally_sharpened = cv2.subtract(readable, (blackhat.astype(np.float32) * 0.55).astype(np.uint8))
     output = np.full_like(readable, 255)
-    keep = (localized > 0) | (readable < 150)
+    # Measure line contrast against the local paper tone first; using absolute
+    # darkness would classify an uneven grey background as document ink.
+    horizontal_contrast = cv2.morphologyEx(
+        readable, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
+    )
+    vertical_contrast = cv2.morphologyEx(
+        readable, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 1))
+    )
+    horizontal = cv2.morphologyEx(
+        horizontal_contrast, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (21, 1))
+    )
+    vertical = cv2.morphologyEx(
+        vertical_contrast, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 21))
+    )
+    # Restore rule endpoints shortened by the continuity opening.
+    horizontal = cv2.dilate(horizontal, cv2.getStructuringElement(cv2.MORPH_RECT, (11, 1)))
+    vertical = cv2.dilate(vertical, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 11)))
+    horizontal_candidate = horizontal > 16
+    vertical_candidate = vertical > 16
+    # Printed form rules are normally one-pixel centre-lines at this scale.
+    # Reject broad parallel bands, which are much more likely to be folds.
+    horizontal_neighbour = np.zeros_like(horizontal_candidate)
+    horizontal_neighbour[1:] |= horizontal_candidate[:-1]
+    horizontal_neighbour[:-1] |= horizontal_candidate[1:]
+    vertical_neighbour = np.zeros_like(vertical_candidate)
+    vertical_neighbour[:, 1:] |= vertical_candidate[:, :-1]
+    vertical_neighbour[:, :-1] |= vertical_candidate[:, 1:]
+    document_rules = (horizontal_candidate & ~horizontal_neighbour) | (vertical_candidate & ~vertical_neighbour)
+    # Retain faint strokes only where OCR localized text; elsewhere require
+    # strong ink or a continuous document rule so paper grain is not promoted.
+    keep = ((localized > 0) & (readable < 225)) | (readable < 145) | document_rules
     output[keep] = readable[keep]
     text_pixels = (localized > 0) & (readable < 225)
     output[text_pixels] = locally_sharpened[text_pixels]

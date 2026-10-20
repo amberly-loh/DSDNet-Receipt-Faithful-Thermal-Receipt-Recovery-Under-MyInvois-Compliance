@@ -161,3 +161,12 @@ def test_reading_view_suppresses_light_texture_without_erasing_dark_ink() -> Non
     assert np.all(output[10:12, 10:150] == 255)
     assert np.all(output[30:34, 20:80] <= readable[30:34, 20:80])
     assert np.mean(output[50:54, 25:130]) <= np.mean(readable[50:54, 25:130])
+
+
+def test_clean_view_keeps_continuous_faint_document_rules() -> None:
+    readable = np.full((120, 220), 238, np.uint8)
+    readable[30, 15:205] = 190
+    readable[20:105, 40] = 188
+    output = make_evidence_preserving_view(readable, [])
+    assert np.count_nonzero(output[30, 15:205] < 230) >= 180
+    assert np.count_nonzero(output[20:105, 40] < 230) >= 75
