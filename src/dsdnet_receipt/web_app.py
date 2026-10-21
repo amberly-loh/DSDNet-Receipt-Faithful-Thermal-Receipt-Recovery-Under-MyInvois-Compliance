@@ -426,6 +426,17 @@ def create_app(
             receipt["audit"]["ocr_lines"] = deduplicate_lines(receipt["audit"]["ocr_lines"])
             receipt["audit"]["ocr_suggestions"] = suggestions_for_lines(receipt["audit"]["ocr_lines"])
             receipt["audit"]["arithmetic_consistency"] = arithmetic_consistency(receipt["audit"]["ocr_lines"], receipt.get("total_amount"))
+            if not receipt.get("line_items"):
+                receipt["line_items"] = [dict(zip(("item", "description", "quantity", "unit", "unit_price", "discount", "amount", "review_note"), row)) for row in accounting_line_items(receipt["audit"]["ocr_lines"])]
+        if receipt:
+            duplicates = []
+            for candidate in store.list_receipts(current_user()["id"]):
+                if candidate["public_id"] == receipt_id: continue
+                exact_source = bool(receipt.get("content_sha256") and candidate.get("content_sha256") == receipt.get("content_sha256"))
+                same_business_record = all(receipt.get(key) and receipt.get(key) == candidate.get(key) for key in ("merchant", "transaction_date", "receipt_number", "total_amount"))
+                if exact_source or same_business_record:
+                    duplicates.append({"public_id": candidate["public_id"], "exact_image": exact_source, "created_at": candidate["created_at"]})
+            receipt["possible_duplicates"] = duplicates
         if receipt: receipt["integrity"] = _receipt_integrity(receipt)
         if receipt: store.log_event(current_user()["id"], "receipt.view", "receipt", receipt_id)
         return jsonify(receipt) if receipt else (jsonify({"error": "Receipt not found."}), 404)
@@ -453,6 +464,12 @@ def create_app(
             arithmetic = arithmetic_consistency(existing.get("audit", {}).get("ocr_lines", []), proposed.get("total_amount"))
             if arithmetic["status"] == "inconsistent":
                 errors["status"] = "Resolve the detected line-amount inconsistency before marking this receipt reviewed."
+        if "line_items" in payload:
+            if not isinstance(payload["line_items"], list) or len(payload["line_items"]) > 200:
+                errors["line_items"] = "Line items must be a list with no more than 200 rows."
+            else:
+                allowed_item_keys = {"item", "description", "quantity", "unit", "unit_price", "discount", "amount", "review_note"}
+                payload["line_items"] = [{key: str(row.get(key, ""))[:300] for key in allowed_item_keys} for row in payload["line_items"] if isinstance(row, dict)]
         if errors: return jsonify({"error": "Correct the highlighted receipt details.", "fields": errors}), 400
         receipt = store.update_receipt(current_user()["id"], receipt_id, payload)
         if receipt: store.log_event(current_user()["id"], "receipt.review_update", "receipt", receipt_id, details={"status": receipt["status"]})
@@ -563,7 +580,9 @@ def create_app(
 
         items = workbook.create_sheet("Line Items")
         items.append(["Item", "Description", "Quantity", "Unit", "Unit price (RM)", "Discount", "Amount (RM)", "Review note"])
-        for row in accounting_line_items(lines): items.append([safe_excel_value(value) for value in row])
+        saved_items = receipt.get("line_items") or []
+        export_items = [[row.get(key, "") for key in ("item", "description", "quantity", "unit", "unit_price", "discount", "amount", "review_note")] for row in saved_items] if saved_items else accounting_line_items(lines)
+        for row in export_items: items.append([safe_excel_value(value) for value in row])
         if items.max_row == 1: items.append([None, "No line items were extracted reliably", None, None, None, None, None, "Check the receipt image"])
         for cell in items[1]:
             font = copy(cell.font); font.bold = True; cell.font = font
@@ -593,7 +612,7 @@ def create_app(
         coverage = workbook.create_sheet("MyInvois Coverage")
         coverage.append(["Important", "This workbook supports review and accounting. It is not a MyInvois submission file.", ""])
         coverage.append(["MyInvois field", "Current value", "Coverage status"])
-        line_rows = accounting_line_items(lines)
+        line_rows = export_items
         coverage_rows = [
             ("Supplier name", receipt.get("merchant"), "Captured" if receipt.get("merchant") else "Requires user input"),
             ("Supplier TIN", None, "Requires user input"), ("Supplier registration / ID", None, "Requires user input"),
@@ -661,6 +680,7 @@ def create_app(
             "created_at": now, "updated_at": now, "status": "needs_review", "merchant": field_map.get("merchant"),
             "transaction_date": field_map.get("transaction_date"), "receipt_number": field_map.get("receipt_invoice_number"),
             "total_amount": field_map.get("total_amount"), "tags": "[]", "notes": "", "ocr_text": ocr.text,
+            "line_items_json": "[]",
             "audit_json": json.dumps(audit), "input_path": str(input_path), "restored_path": str(restored_path),
             "runtime_seconds": runtime, "restoration_status": restoration.status, "support_status": "unavailable_for_natural_source",
             "retention_until": retention_until, "content_sha256": audit["content_sha256"],

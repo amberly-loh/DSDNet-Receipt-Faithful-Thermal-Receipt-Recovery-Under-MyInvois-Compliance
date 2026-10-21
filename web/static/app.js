@@ -247,6 +247,16 @@ async function openReceipt(id) {
     $('merchantField').value = currentReceipt.merchant || ''; $('dateField').value = currentReceipt.transaction_date || '';
     $('numberField').value = currentReceipt.receipt_number || ''; $('totalField').value = currentReceipt.total_amount || '';
     $('reviewStatus').value = currentReceipt.status; $('tagsField').value = currentReceipt.tags.join(', '); $('notesField').value = currentReceipt.notes || '';
+    renderLineItems(currentReceipt.line_items || []);
+    renderReadiness(currentReceipt);
+    const duplicateCount = (currentReceipt.possible_duplicates || []).length;
+    $('duplicateWarning').classList.toggle('hidden', !duplicateCount);
+    $('duplicateWarning').textContent = duplicateCount ? `Possible duplicate: ${duplicateCount} matching receipt record${duplicateCount === 1 ? '' : 's'} found. Verify before recording it again.` : '';
+    const evidence = new Map((currentReceipt.audit?.fields || []).map(field => [field.name, field]));
+    for (const [name, elementId] of [['merchant','merchantEvidence'],['transaction_date','dateEvidence'],['receipt_invoice_number','numberEvidence'],['total_amount','totalEvidence']]) {
+      const field = evidence.get(name), confidence = field?.ocr_confidence;
+      $(elementId).textContent = field?.value ? `${confidence == null ? 'Located in receipt' : `${(Number(confidence) * 100).toFixed(1)}% scan confidence`} · verify against original` : 'Not read automatically · enter manually';
+    }
     $('runtimeStatus').textContent = `${Number(currentReceipt.runtime_seconds).toFixed(2)} seconds`; $('recordId').textContent = currentReceipt.public_id;
     const integrity = currentReceipt.integrity?.status || 'legacy_unverified';
     $('integrityStatus').textContent = integrity === 'verified' ? 'Evidence files verified' : integrity === 'failed' ? 'Integrity check failed' : 'Legacy record · not hashed';
@@ -261,6 +271,37 @@ async function openReceipt(id) {
     $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`; $('ocrDownload').href = `/api/receipts/${encodeURIComponent(id)}/ocr.xlsx`; $('myinvoisExcel').href = `/api/receipts/${encodeURIComponent(id)}/ocr.xlsx`; $('documentDownload').href = currentReceipt.restored_url;
     setImageMode('improved'); route('detail');
   } catch (error) { toast(error.message, true); }
+}
+
+function renderLineItems(items) {
+  const keys = ['item','description','quantity','unit','unit_price','discount','amount','review_note'];
+  const labels = ['Item','Description','Qty','Unit','Unit price','Discount','Amount','Review note'];
+  const rows = items.length ? items : [{item:'',description:'',quantity:'',unit:'',unit_price:'',discount:'',amount:'',review_note:''}];
+  $('lineItemEditor').innerHTML = `<table><thead><tr>${labels.map(label => `<th>${label}</th>`).join('')}<th></th></tr></thead><tbody>${rows.map((row,index) => `<tr>${keys.map(key => `<td><input data-line-index="${index}" data-line-key="${key}" value="${escapeHtml(row[key] || '')}"></td>`).join('')}<td><button class="button secondary compact remove-line-item" type="button" data-line-index="${index}">Remove</button></td></tr>`).join('')}</tbody></table>`;
+  document.querySelectorAll('.remove-line-item').forEach(button => button.onclick = () => { const updated = collectLineItems(); updated.splice(Number(button.dataset.lineIndex),1); renderLineItems(updated); });
+}
+
+function collectLineItems() {
+  const rows = new Map();
+  document.querySelectorAll('#lineItemEditor input[data-line-index]').forEach(input => { const index=Number(input.dataset.lineIndex); if(!rows.has(index)) rows.set(index,{}); rows.get(index)[input.dataset.lineKey]=input.value.trim(); });
+  return [...rows.values()].filter(row => Object.values(row).some(Boolean));
+}
+
+function renderReadiness(receipt) {
+  const items = receipt.line_items || [];
+  const rows = [
+    ['Supplier name', receipt.merchant, receipt.merchant ? 'Captured—verify' : 'Required'],
+    ['Invoice number', receipt.receipt_number, receipt.receipt_number ? 'Captured—verify' : 'Required'],
+    ['Invoice date', receipt.transaction_date, receipt.transaction_date ? 'Captured—verify' : 'Required'],
+    ['Payable total', receipt.total_amount, receipt.total_amount ? 'Captured—verify' : 'Required'],
+    ['Line items', items.length ? `${items.length} row(s)` : '', items.length ? 'Review rows' : 'Required'],
+    ['Supplier TIN, registration, address and contact', '', 'Required from business records'],
+    ['Buyer name, TIN, ID, address and contact', '', 'Required from business records'],
+    ['Classification and tax details', '', 'Required from accounting/tax setup'],
+    ['Currency and invoice time', 'MYR / not captured', 'Verify or enter'],
+    ['Digital signature and submission identifiers', '', 'Created by authorised submission workflow'],
+  ];
+  $('myinvoisChecklist').innerHTML = `<table><thead><tr><th>Field group</th><th>Current value</th><th>Status</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHtml(row[0])}</td><td>${escapeHtml(row[1] || '—')}</td><td>${escapeHtml(row[2])}</td></tr>`).join('')}</tbody></table>`;
 }
 
 function dedupeOcrLines(lines) {
@@ -319,7 +360,7 @@ $('zoomResetButton').onclick = () => { imageZoom = 1; updateFullImageZoom(); };
 
 $('reviewForm').onsubmit = async event => {
   event.preventDefault(); if (!currentReceipt) return;
-  const payload = {merchant: $('merchantField').value.trim(), transaction_date: $('dateField').value.trim(), receipt_number: $('numberField').value.trim(), total_amount: $('totalField').value.trim(), status: $('reviewStatus').value, tags: $('tagsField').value.split(',').map(v => v.trim()).filter(Boolean), notes: $('notesField').value.trim()};
+  const payload = {merchant: $('merchantField').value.trim(), transaction_date: $('dateField').value.trim(), receipt_number: $('numberField').value.trim(), total_amount: $('totalField').value.trim(), status: $('reviewStatus').value, tags: $('tagsField').value.split(',').map(v => v.trim()).filter(Boolean), notes: $('notesField').value.trim(), line_items: collectLineItems()};
   try {
     currentReceipt = await api(`/api/receipts/${encodeURIComponent(currentReceipt.public_id)}`, {method: 'PATCH', body: payload});
     $('detailStatus').textContent = statusLabel(currentReceipt.status); $('detailStatus').className = `status-pill ${currentReceipt.status}`;
@@ -327,6 +368,8 @@ $('reviewForm').onsubmit = async event => {
     $('saveMessage').textContent = 'Saved successfully.'; toast('Receipt review saved.'); setTimeout(() => $('saveMessage').textContent = '', 2500);
   } catch (error) { $('saveMessage').textContent = error.message; }
 };
+
+$('addLineItemButton').onclick = () => { const rows = collectLineItems(); rows.push({item:'',description:'',quantity:'',unit:'',unit_price:'',discount:'',amount:'',review_note:''}); renderLineItems(rows); };
 
 $('copyFieldsButton').onclick = async () => {
   if (!currentReceipt) return;

@@ -59,12 +59,13 @@ def test_account_and_owned_receipt_workflow(tmp_path: Path) -> None:
     assert client.get("/api/dashboard").get_json()["stats"]["total"] == 1
     update = client.patch(
         "/api/receipts/USER-TEST-001",
-        json={"merchant": "Local Shop", "status": "reviewed", "tags": ["claim"]},
+        json={"merchant": "Local Shop", "status": "reviewed", "tags": ["claim"], "line_items": [{"item":"1","description":"Office paper","quantity":"2","unit":"pack","unit_price":"5.00","discount":"0.00","amount":"10.00","review_note":"Verified"}]},
         headers={"X-CSRF-Token": token},
     )
     assert update.status_code == 200
     assert update.get_json()["merchant"] == "Local Shop"
     assert update.get_json()["status"] == "reviewed"
+    assert update.get_json()["line_items"][0]["description"] == "Office paper"
     assert client.get("/api/export.csv").status_code == 200
 
     assert client.post("/api/logout", headers={"X-CSRF-Token": token}).status_code == 200

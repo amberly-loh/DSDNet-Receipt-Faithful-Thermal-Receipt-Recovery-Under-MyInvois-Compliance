@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS receipts (
     transaction_date TEXT,
     receipt_number TEXT,
     total_amount TEXT,
+    line_items_json TEXT NOT NULL DEFAULT '[]',
     tags TEXT NOT NULL DEFAULT '[]',
     notes TEXT NOT NULL DEFAULT '',
     ocr_text TEXT NOT NULL DEFAULT '',
@@ -94,6 +95,7 @@ class ReceiptStore:
                 db.execute(f"ALTER TABLE users ADD COLUMN {name} {definition}")
         for name, definition in {
             "retention_until": "TEXT", "deletion_verified_at": "TEXT", "content_sha256": "TEXT",
+            "line_items_json": "TEXT NOT NULL DEFAULT '[]'",
         }.items():
             if name not in receipt_columns:
                 db.execute(f"ALTER TABLE receipts ADD COLUMN {name} {definition}")
@@ -251,10 +253,12 @@ class ReceiptStore:
         return self.present(dict(row)) if row else None
 
     def update_receipt(self, user_id: int, public_id: str, values: dict[str, Any]):
-        allowed = {"merchant", "transaction_date", "receipt_number", "total_amount", "status", "notes", "tags"}
+        allowed = {"merchant", "transaction_date", "receipt_number", "total_amount", "status", "notes", "tags", "line_items"}
         clean = {k: v for k, v in values.items() if k in allowed}
         if "tags" in clean:
             clean["tags"] = json.dumps(clean["tags"] if isinstance(clean["tags"], list) else [])
+        if "line_items" in clean:
+            clean["line_items_json"] = json.dumps(clean.pop("line_items") if isinstance(clean["line_items"], list) else [])
         clean["updated_at"] = utc_now()
         with self.connect() as db:
             db.execute(f"UPDATE receipts SET {','.join(f'{k}=?' for k in clean)} WHERE user_id=? AND public_id=? AND deleted_at IS NULL", (*clean.values(), user_id, public_id))
@@ -282,6 +286,7 @@ class ReceiptStore:
     @staticmethod
     def present(row: dict[str, Any], compact: bool = False) -> dict[str, Any]:
         row["tags"] = json.loads(row.get("tags") or "[]")
+        row["line_items"] = json.loads(row.pop("line_items_json", "[]") or "[]")
         row["fields"] = {
             "merchant": row.get("merchant"), "transaction_date": row.get("transaction_date"),
             "receipt_number": row.get("receipt_number"), "total_amount": row.get("total_amount"),
