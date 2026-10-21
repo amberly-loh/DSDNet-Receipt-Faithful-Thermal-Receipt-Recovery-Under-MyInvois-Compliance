@@ -187,7 +187,14 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
             and median_tone > 155.0
             and not protected
         )
-        if area >= 4 and not broad_unlabelled_mark:
+        # Outside OCR-supported regions, require a materially dark and
+        # substantial component.  This retains handwriting, stamps and logos
+        # while rejecting the pale fragments produced by paper grain/folds.
+        x = int(stats[index, cv2.CC_STAT_LEFT])
+        y = int(stats[index, cv2.CC_STAT_TOP])
+        touches_page_edge = x <= 1 or y <= 1 or x + width >= source.shape[1] - 1 or y + height >= source.shape[0] - 1
+        independently_supported = area >= 12 and median_tone < 135.0 and not touches_page_edge
+        if (protected or independently_supported) and not broad_unlabelled_mark:
             foreground[component] = True
 
     # Recover genuinely thin form rules that local thresholding can miss,
