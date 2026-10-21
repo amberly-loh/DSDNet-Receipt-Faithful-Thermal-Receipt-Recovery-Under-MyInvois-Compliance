@@ -145,6 +145,36 @@ def make_readability_view(source: np.ndarray, restored: np.ndarray) -> np.ndarra
     return readable
 
 
+def make_faint_thermal_view(readable: np.ndarray) -> np.ndarray:
+    """Preserve faint thermal strokes using continuous, non-binary contrast."""
+    import cv2
+
+    source = readable.astype(np.uint8)
+    background = cv2.GaussianBlur(source, (0, 0), 31)
+    normalised = cv2.divide(source, np.maximum(background, 1), scale=245)
+    darkness = np.maximum(245 - normalised.astype(np.int16), 0).astype(np.float32)
+    # A soft floor removes minor scanner noise while retaining every measured
+    # shade above it. Unlike binarisation, this does not delete weak character
+    # fragments or force strong totals and faint labels to the same thickness.
+    return np.clip(255.0 - np.maximum(darkness - 2.0, 0.0) * 2.0, 0, 255).astype(np.uint8)
+
+
+def make_adaptive_document_view(readable: np.ndarray, ocr_lines: list[dict[str, Any]], evidence_source: np.ndarray | None = None) -> tuple[np.ndarray, str]:
+    """Choose clean-document or faint-thermal rendering from measured contrast."""
+    import cv2
+
+    source = readable.astype(np.uint8)
+    background = cv2.GaussianBlur(source, (0, 0), 31)
+    normalised = cv2.divide(source, np.maximum(background, 1), scale=245)
+    faint_thermal = float(normalised.std()) < 25.0 and float(np.mean(normalised < 200)) < 0.03
+    if faint_thermal:
+        # Start from the rectified source when available. The intermediate
+        # denoiser is useful for ordinary documents but can soften already
+        # weak thermal strokes before this specialised contrast step.
+        return make_faint_thermal_view(evidence_source if evidence_source is not None else source), "faint_thermal_grayscale"
+    return make_evidence_preserving_view(source, ocr_lines), "component_aware_document"
+
+
 def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str, Any]]) -> np.ndarray:
     """Create an edge-supported, background-normalised reading copy."""
     import cv2

@@ -211,6 +211,18 @@ def test_clean_view_suppresses_texture_while_retaining_faint_text() -> None:
     assert np.count_nonzero(background < 235) / background.size < 0.02
 
 
+def test_adaptive_view_preserves_faint_thermal_text_without_binarising() -> None:
+    from dsdnet_receipt.restoration import make_adaptive_document_view
+    receipt = np.full((180, 320), 247, np.uint8)
+    cv2.putText(receipt, "Bill No Date Cashier", (20, 55), cv2.FONT_HERSHEY_SIMPLEX, .55, 222, 1, cv2.LINE_AA)
+    cv2.putText(receipt, "HARDWARE 1 10.00", (20, 100), cv2.FONT_HERSHEY_SIMPLEX, .55, 218, 1, cv2.LINE_AA)
+    cv2.putText(receipt, "Net Amt 12.00", (20, 145), cv2.FONT_HERSHEY_SIMPLEX, .7, 175, 2, cv2.LINE_AA)
+    output, mode = make_adaptive_document_view(receipt, [])
+    assert mode == "faint_thermal_grayscale"
+    assert np.count_nonzero(output[35:110] < 245) >= 200
+    assert len(np.unique(output)) > 16
+
+
 def test_receipt_language_assistance_is_conservative_and_auditable() -> None:
     suggestion = suggest_receipt_text("Total PayabIE")
     assert suggestion is not None

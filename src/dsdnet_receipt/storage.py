@@ -264,6 +264,14 @@ class ReceiptStore:
             db.execute(f"UPDATE receipts SET {','.join(f'{k}=?' for k in clean)} WHERE user_id=? AND public_id=? AND deleted_at IS NULL", (*clean.values(), user_id, public_id))
         return self.get_receipt(user_id, public_id)
 
+    def update_receipt_audit(self, user_id: int, public_id: str, audit: dict[str, Any]) -> bool:
+        with self.connect() as db:
+            cursor = db.execute(
+                "UPDATE receipts SET audit_json=?,updated_at=? WHERE user_id=? AND public_id=? AND deleted_at IS NULL",
+                (json.dumps(audit), utc_now(), user_id, public_id),
+            )
+        return cursor.rowcount == 1
+
     def delete_receipt(self, user_id: int, public_id: str) -> bool:
         with self.connect() as db:
             now = utc_now()

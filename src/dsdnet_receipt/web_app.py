@@ -586,8 +586,33 @@ def create_app(
             "status": "needs_review",
         }
         updated = store.update_receipt(user["id"], receipt_id, values)
+        # Rebuild the reading copy too. This allows older faint thermal
+        # receipts to benefit from the adaptive renderer without re-uploading.
+        from .restoration import make_adaptive_document_view, make_readability_view
+        run_root = Path(existing["restored_path"]).parent
+        source_path = run_root / "rectified_input.png"
+        recovery_path = run_root / "ocr_input.png"
+        source_image = cv2.imread(str(source_path if source_path.is_file() else existing["input_path"]), cv2.IMREAD_GRAYSCALE)
+        recovery_image = cv2.imread(str(recovery_path), cv2.IMREAD_GRAYSCALE)
+        if source_image is not None and recovery_image is not None:
+            readable = make_readability_view(source_image, recovery_image)
+            refreshed_view, display_mode = make_adaptive_document_view(readable, lines, source_image)
+            write_image(existing["restored_path"], refreshed_view)
+            audit = existing["audit"]
+            audit["display_image"] = display_mode
+            audit["display_component_policy"] = ({
+                "text": "continuous grayscale source evidence",
+                "background": "locally normalised",
+                "selection": "low-contrast thermal receipt",
+            } if display_mode == "faint_thermal_grayscale" else {
+                "text": "OCR-localised source pixels", "rules": "thin linear structures",
+                "marks": "dark connected source components", "background": "white",
+            })
+            audit.setdefault("stored_file_sha256", {})["recovered"] = _file_sha256(existing["restored_path"])
+            write_json(run_root / "audit.json", audit)
+            store.update_receipt_audit(user["id"], receipt_id, audit)
         store.log_event(user["id"], "receipt.fields_reextracted", "receipt", receipt_id, details=values)
-        return jsonify(updated)
+        return jsonify(store.get_receipt(user["id"], receipt_id) or updated)
 
     @app.delete("/api/receipts/<receipt_id>")
     @require_auth
@@ -747,7 +772,7 @@ def create_app(
         if int(image.shape[0]) * int(image.shape[1]) > MAX_IMAGE_PIXELS:
             raise ValueError(f"{upload.filename}: image dimensions are too large")
         started = time.perf_counter(); processed, preprocessing_record = preprocess(image, config)
-        from .restoration import make_evidence_preserving_view, make_readability_view
+        from .restoration import make_adaptive_document_view, make_readability_view
         with inference_lock:
             restoration = restoration_engine.run(processed)
             readability = make_readability_view(processed, restoration.image)
@@ -756,7 +781,7 @@ def create_app(
                 ("source_preserving_recovery", restoration.image),
                 ("readability_view", readability),
             ])
-            document_view = make_evidence_preserving_view(readability, ocr.lines)
+            document_view, display_mode = make_adaptive_document_view(readability, ocr.lines, processed)
         fields = route_fields(extract_fields(ocr.text, ocr.lines), support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
         run_id = f"USER-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
@@ -774,7 +799,8 @@ def create_app(
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
         if restoration.diagnostic_map is not None: write_image(diagnostic_path, restoration.diagnostic_map)
         runtime = time.perf_counter() - started
-        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path)}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": "component_aware_document_reading_view", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "display_component_policy": {"text": "OCR-localised source pixels", "rules": "thin linear structures", "marks": "dark connected source components", "background": "white"}, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
+        policy = ({"text": "continuous grayscale source evidence", "background": "locally normalised", "selection": "low-contrast thermal receipt"} if display_mode == "faint_thermal_grayscale" else {"text": "OCR-localised source pixels", "rules": "thin linear structures", "marks": "dark connected source components", "background": "white"})
+        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path)}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": display_mode, "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
         write_json(audit_root / "audit.json", audit)
         now = utc_now(); retention_days = int(config.get("app", {}).get("retention_days", 2555))
         retention_until = (datetime.now(timezone.utc) + timedelta(days=retention_days)).date().isoformat()
