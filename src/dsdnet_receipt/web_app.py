@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urlencode
+from xml.sax.saxutils import escape
 
 import cv2
 import numpy as np
@@ -26,6 +27,15 @@ import requests
 from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 from openpyxl import Workbook
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import Image as PdfImage
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from .config import load_config, write_json
 from .fields import extract_fields, route_fields
@@ -45,6 +55,89 @@ COMMON_PASSWORDS = {
 }
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
 MAX_IMAGE_PIXELS = 40_000_000
+
+
+def _pdf_fonts() -> tuple[str, str]:
+    """Use a Unicode-capable Windows font when available."""
+    candidates = [
+        (Path("C:/Windows/Fonts/msyh.ttc"), Path("C:/Windows/Fonts/msyhbd.ttc"), "AuditYaHei"),
+        (Path("C:/Windows/Fonts/arial.ttf"), Path("C:/Windows/Fonts/arialbd.ttf"), "AuditArial"),
+    ]
+    for regular, bold, family in candidates:
+        if regular.is_file() and bold.is_file():
+            try:
+                if family not in pdfmetrics.getRegisteredFontNames(): pdfmetrics.registerFont(TTFont(family, str(regular)))
+                if family + "Bold" not in pdfmetrics.getRegisteredFontNames(): pdfmetrics.registerFont(TTFont(family + "Bold", str(bold)))
+                return family, family + "Bold"
+            except Exception:
+                continue
+    return "Helvetica", "Helvetica-Bold"
+
+
+def build_audit_pdf(receipt: dict, reviewer: dict, integrity: dict, events: list[dict]) -> io.BytesIO:
+    """Create a fixed, human-readable audit report; JSON remains the technical record."""
+    regular, bold = _pdf_fonts()
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, rightMargin=16 * mm, leftMargin=16 * mm, topMargin=16 * mm, bottomMargin=16 * mm,
+                            title=f"Receipt audit report - {receipt['public_id']}", author="Receipt Recovery Audit Application")
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle("AuditTitle", parent=styles["Title"], fontName=bold, fontSize=19, leading=23, textColor=colors.HexColor("#103C36"), spaceAfter=3 * mm)
+    heading = ParagraphStyle("AuditHeading", parent=styles["Heading2"], fontName=bold, fontSize=11, leading=14, textColor=colors.HexColor("#176B5D"), spaceBefore=4 * mm, spaceAfter=2 * mm)
+    body = ParagraphStyle("AuditBody", parent=styles["BodyText"], fontName=regular, fontSize=8.5, leading=11, textColor=colors.HexColor("#263633"))
+    small = ParagraphStyle("AuditSmall", parent=body, fontSize=7, leading=9, textColor=colors.HexColor("#526864"))
+    table_header = ParagraphStyle("AuditTableHeader", parent=small, fontName=bold, textColor=colors.white)
+    right = ParagraphStyle("AuditRight", parent=small, alignment=TA_RIGHT)
+    center = ParagraphStyle("AuditCenter", parent=body, alignment=TA_CENTER)
+
+    def p(value, style=body):
+        return Paragraph(escape(str(value if value not in (None, "") else "Not confirmed")), style)
+
+    def footer(canvas, document):
+        canvas.saveState(); canvas.setFont(regular, 7); canvas.setFillColor(colors.HexColor("#61736F"))
+        canvas.drawString(16 * mm, 9 * mm, f"Receipt audit report - {receipt['public_id']}")
+        canvas.drawRightString(A4[0] - 16 * mm, 9 * mm, f"Page {document.page}"); canvas.restoreState()
+
+    generated_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    status = status_label_for_export(receipt.get("status"))
+    integrity_label = {"verified": "Verified", "failed": "FAILED", "legacy_unverified": "Not available for legacy record"}.get(integrity.get("status"), "Not available")
+    lines = deduplicate_lines(receipt.get("audit", {}).get("ocr_lines", []))
+    arithmetic = arithmetic_consistency(lines, receipt.get("total_amount"))
+    items = receipt.get("line_items") or []
+    if not items:
+        keys = ("item", "description", "quantity", "unit", "unit_price", "discount", "amount", "review_note")
+        items = [dict(zip(keys, row)) for row in accounting_line_items(lines)]
+
+    story = [Paragraph("Receipt Audit Report", title),
+             Table([[p("Record ID", small), p(receipt["public_id"], small), p("Generated", small), p(generated_at, right)]], colWidths=[24*mm, 58*mm, 22*mm, 72*mm],
+                   style=TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#E9F4F1")),("BOX",(0,0),(-1,-1),.5,colors.HexColor("#B8D4CE")),("VALIGN",(0,0),(-1,-1),"MIDDLE"),("LEFTPADDING",(0,0),(-1,-1),5),("RIGHTPADDING",(0,0),(-1,-1),5),("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)])),
+             Paragraph("Audit conclusion", heading)]
+    missing = [label for key, label in (("merchant","merchant"),("transaction_date","transaction date"),("receipt_number","receipt / invoice number"),("total_amount","total amount")) if not receipt.get(key)]
+    conclusion = ("This record was reviewed and its key fields are complete." if status == "Reviewed" and not missing else "This record still requires human review" + (f"; missing: {', '.join(missing)}." if missing else "."))
+    story.append(Table([[p("Review status", small), p(status), p("File integrity", small), p(integrity_label)], [p("Arithmetic check", small), p(arithmetic["status"].replace("_", " ").title()), p("Reviewer", small), p(reviewer.get("name") or reviewer.get("email"))], [p("Conclusion", small), Paragraph(escape(conclusion), body), "", ""]], colWidths=[30*mm,58*mm,30*mm,58*mm], style=TableStyle([("GRID",(0,0),(-1,1),.4,colors.HexColor("#CBD8D5")),("SPAN",(1,2),(-1,2)),("BOX",(0,2),(-1,2),.4,colors.HexColor("#CBD8D5")),("BACKGROUND",(0,0),(0,-1),colors.HexColor("#F1F6F5")),("BACKGROUND",(2,0),(2,1),colors.HexColor("#F1F6F5")),("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6),("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)])))
+    story += [Paragraph("Verified receipt details", heading), Table([[p("Merchant", small), p(receipt.get("merchant")), p("Transaction date", small), p(receipt.get("transaction_date"))], [p("Receipt / invoice no.", small), p(receipt.get("receipt_number")), p("Total amount", small), p("RM " + str(receipt.get("total_amount")) if receipt.get("total_amount") else None)], [p("Tags", small), p(", ".join(receipt.get("tags", [])) or None), p("Source file", small), p(receipt.get("source_name"))], [p("Reviewer notes", small), p(receipt.get("notes")), p("Last updated", small), p(receipt.get("updated_at"))]], colWidths=[30*mm,58*mm,30*mm,58*mm], style=TableStyle([("GRID",(0,0),(-1,-1),.4,colors.HexColor("#CBD8D5")),("BACKGROUND",(0,0),(0,-1),colors.HexColor("#F1F6F5")),("BACKGROUND",(2,0),(2,-1),colors.HexColor("#F1F6F5")),("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6),("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)])), Paragraph("Receipt evidence", heading)]
+    image_cells = []
+    for label, path in (("Original audit source", receipt.get("input_path")), ("Clean document view", receipt.get("restored_path"))):
+        try:
+            from PIL import Image as PilImage
+            with PilImage.open(path) as im: width, height = im.size
+            max_w, max_h = 84 * mm, 108 * mm; scale = min(max_w / width, max_h / height)
+            image_cells.append([PdfImage(path, width=width*scale, height=height*scale), p(label, center)])
+        except Exception:
+            image_cells.append([p("Image unavailable in this test record", center), p(label, center)])
+    story.append(Table([[image_cells[0][0], image_cells[1][0]], [image_cells[0][1], image_cells[1][1]]], colWidths=[88*mm,88*mm], style=TableStyle([("BOX",(0,0),(-1,0),.4,colors.HexColor("#CBD8D5")),("INNERGRID",(0,0),(-1,0),.4,colors.HexColor("#CBD8D5")),("ALIGN",(0,0),(-1,-1),"CENTER"),("VALIGN",(0,0),(-1,-1),"MIDDLE"),("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)])))
+    story += [PageBreak(), Paragraph("Accounting evidence", title), Paragraph("Line items", heading)]
+    item_data = [[p(x, table_header) for x in ("Item", "Description", "Qty", "Unit", "Unit price", "Discount", "Amount", "Review note")]]
+    for row in items: item_data.append([p(row.get(key), small) for key in ("item","description","quantity","unit","unit_price","discount","amount","review_note")])
+    if len(item_data) == 1: item_data.append([p("-",small), p("No line items confirmed",small), p("-",small), p("-",small), p("-",small), p("-",small), p("-",small), p("Verify the receipt",small)])
+    story.append(Table(item_data, repeatRows=1, colWidths=[10*mm,45*mm,13*mm,13*mm,20*mm,17*mm,19*mm,39*mm], style=TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#176B5D")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),.35,colors.HexColor("#C7D5D2")),("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),4),("RIGHTPADDING",(0,0),(-1,-1),4),("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4)])))
+    story += [Paragraph("Validation findings", heading), Table([[p("Check", table_header), p("Result", table_header), p("Meaning", table_header)], [p("Key fields", small), p("Complete" if not missing else "Incomplete", small), p("All four primary fields are present." if not missing else "Human input required for: " + ", ".join(missing), small)], [p("Line arithmetic", small), p(arithmetic["status"].replace("_"," ").title(), small), p(f"{arithmetic.get('checks_run', 0)} calculation(s) checked; {arithmetic.get('failed_checks', 0)} failed.", small)], [p("Stored files", small), p(integrity_label, small), p("Hashes confirm stored evidence is unchanged." if integrity.get("status") == "verified" else "Do not rely on the recovered view without checking the original.", small)]], colWidths=[36*mm,38*mm,102*mm], style=TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#176B5D")),("GRID",(0,0),(-1,-1),.35,colors.HexColor("#C7D5D2")),("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),5),("RIGHTPADDING",(0,0),(-1,-1),5),("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)])), Paragraph("Audit trail", heading)]
+    event_data = [[p("Time", table_header), p("Action", table_header), p("Actor", table_header), p("Outcome", table_header)]]
+    for event in sorted(events, key=lambda item: item.get("occurred_at", ""))[-12:]: event_data.append([p(event.get("occurred_at"), small), p(event.get("action", "").replace("_", " "), small), p(event.get("actor_name") or "System", small), p(event.get("outcome"), small)])
+    if len(event_data) == 1: event_data.append([p(receipt.get("created_at"),small),p("receipt record created",small),p(reviewer.get("name"),small),p("success",small)])
+    story.append(Table(event_data, repeatRows=1, colWidths=[48*mm,66*mm,42*mm,20*mm], style=TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#176B5D")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),.35,colors.HexColor("#C7D5D2")),("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),5),("RIGHTPADDING",(0,0),(-1,-1),5),("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4)])))
+    story += [Spacer(1, 6*mm), Paragraph("Important: this report documents receipt recovery and human review. It does not replace the original receipt, constitute an independent audit opinion, or submit an e-Invoice to MyInvois.", small)]
+    doc.build(story, onFirstPage=footer, onLaterPages=footer); output.seek(0)
+    return output
 
 
 def _valid_email(value: str) -> bool:
@@ -554,6 +647,16 @@ def create_app(
         store.log_event(current_user()["id"], "receipt.export_audit", "receipt", receipt_id)
         data = io.BytesIO(json.dumps(receipt["audit"], indent=2).encode("utf-8"))
         return send_file(data, mimetype="application/json", as_attachment=True, download_name=f"{receipt_id}-audit.json")
+
+    @app.get("/api/receipts/<receipt_id>/audit.pdf")
+    @require_auth
+    def export_audit_pdf(receipt_id: str):
+        receipt = store.get_receipt(current_user()["id"], receipt_id)
+        if not receipt: return jsonify({"error": "Receipt not found."}), 404
+        events = [event for event in store.list_events(limit=500) if event.get("object_type") == "receipt" and event.get("object_id") == receipt_id]
+        data = build_audit_pdf(receipt, current_user(), _receipt_integrity(receipt), events)
+        store.log_event(current_user()["id"], "receipt.export_audit_pdf", "receipt", receipt_id)
+        return send_file(data, mimetype="application/pdf", as_attachment=True, download_name=f"{receipt_id}-audit-report.pdf")
 
     @app.get("/api/receipts/<receipt_id>/ocr.xlsx")
     @require_auth

@@ -7,6 +7,7 @@ import sqlite3
 from pathlib import Path
 
 from openpyxl import load_workbook
+from pypdf import PdfReader
 
 from dsdnet_receipt.storage import utc_now
 from dsdnet_receipt.web_app import arithmetic_consistency, create_app
@@ -54,7 +55,7 @@ def test_receipt_ownership_isolation_covers_detail_images_and_exports(tmp_path: 
     _, owner_user = register(owner, "owner@example.my", "Owner User")
     register(outsider, "outsider@example.my", "Other User")
     add_receipt(app, tmp_path, owner_user)
-    for path in ("/api/receipts/OWNER-001", "/api/receipts/OWNER-001/image/original", "/api/receipts/OWNER-001/image/restored", "/api/receipts/OWNER-001/audit.json", "/api/receipts/OWNER-001/ocr.xlsx"):
+    for path in ("/api/receipts/OWNER-001", "/api/receipts/OWNER-001/image/original", "/api/receipts/OWNER-001/image/restored", "/api/receipts/OWNER-001/audit.json", "/api/receipts/OWNER-001/audit.pdf", "/api/receipts/OWNER-001/ocr.xlsx"):
         assert outsider.get(path).status_code == 404, path
 
 
@@ -148,6 +149,20 @@ def test_receipt_workbook_has_accounting_evidence_and_myinvois_boundary(tmp_path
     workbook = load_workbook(io.BytesIO(response.data), data_only=False)
     assert workbook.sheetnames == ["Receipt Summary", "Line Items", "OCR Evidence", "MyInvois Coverage"]
     assert "not a MyInvois submission file" in workbook["MyInvois Coverage"]["B1"].value
+
+
+def test_audit_pdf_is_fixed_readable_report(tmp_path: Path) -> None:
+    app = create_app(CONFIG, testing=True, database_path=tmp_path / "db.sqlite3")
+    client = app.test_client(); _, user = register(client, "pdf@example.my")
+    add_receipt(app, tmp_path, user, receipt_id="PDF-001")
+    response = client.get("/api/receipts/PDF-001/audit.pdf")
+    assert response.status_code == 200
+    assert response.mimetype == "application/pdf"
+    reader = PdfReader(io.BytesIO(response.data))
+    assert len(reader.pages) >= 2
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    for expected in ("Receipt Audit Report", "PDF-001", "Local Shop", "Accounting evidence", "Audit trail"):
+        assert expected in text
 
 
 def test_google_login_without_configuration_fails_safely(tmp_path: Path, monkeypatch) -> None:
