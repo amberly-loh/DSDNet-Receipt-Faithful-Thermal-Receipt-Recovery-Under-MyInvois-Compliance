@@ -96,7 +96,17 @@ def _orient_and_deskew(image: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         component_skew = float(rect_angle - 90.0 if rect_width >= rect_height else rect_angle)
         if component_skew > 45: component_skew -= 90
         if component_skew < -45: component_skew += 90
-    skew = component_skew if 0.5 <= abs(component_skew) <= 25 else hough_skew
+    # Do not rotate an already level receipt because a textured page can bias
+    # the connected-component axis. Prefer the measured rule/text-line angle;
+    # accept the component estimate only when line evidence is unavailable or
+    # both estimators agree in direction and magnitude.
+    skew = hough_skew
+    if len(angles) < 3:
+        skew = component_skew if 0.5 <= abs(component_skew) <= 25 else 0.0
+    elif 0.5 <= abs(component_skew) <= 25 and abs(hough_skew) >= 0.35:
+        same_direction = np.sign(component_skew) == np.sign(hough_skew)
+        if same_direction and abs(component_skew - hough_skew) <= 1.0:
+            skew = float(np.median([component_skew, hough_skew]))
     corrected = _rotate_bound(oriented, -skew) if abs(skew) >= 0.35 else oriented
     return corrected, {"status": "applied", "coarse_rotation_degrees": coarse_rotation, "deskew_degrees": round(-skew, 3), "orientation_scores": {"0": round(score_0, 4), "90": round(score_90, 4)}, "hough_skew_degrees": round(hough_skew, 3), "component_skew_degrees": round(component_skew, 3), "line_count": len(angles)}
 

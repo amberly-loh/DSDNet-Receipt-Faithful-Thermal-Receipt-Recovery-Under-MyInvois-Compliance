@@ -223,9 +223,32 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
                 thin_rules[response_labels == response_index] = True
     foreground |= thin_rules
 
-    local_mean = cv2.GaussianBlur(normalised, (0, 0), 0.7)
-    sharpened = cv2.addWeighted(normalised, 1.7, local_mean, -0.7, 0)
+    # Preserve genuinely solid source graphics (for example merchant logos)
+    # as graphics rather than treating their interior as paper texture. A
+    # small closing operation repairs pinholes, while the minimum-area gate
+    # prevents background speckles from becoming new foreground.
+    solid_seed = (source < 145).astype(np.uint8)
+    solid_seed = cv2.morphologyEx(
+        solid_seed, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    )
+    solid_count, solid_labels, solid_stats, _ = cv2.connectedComponentsWithStats(solid_seed, 8)
+    minimum_graphic_area = max(200, int(source.size * 0.0010))
+    solid_graphics = np.zeros_like(source, dtype=np.uint8)
+    for solid_index in range(1, solid_count):
+        area = int(solid_stats[solid_index, cv2.CC_STAT_AREA])
+        width = int(solid_stats[solid_index, cv2.CC_STAT_WIDTH])
+        height = int(solid_stats[solid_index, cv2.CC_STAT_HEIGHT])
+        fill_ratio = area / max(width * height, 1)
+        component = solid_labels == solid_index
+        ocr_overlap = float(np.count_nonzero(localised & component)) / max(area, 1)
+        if area >= minimum_graphic_area and width >= 20 and height >= 20 and fill_ratio >= 0.35 and ocr_overlap < 0.05:
+            component_u8 = component.astype(np.uint8)
+            contours, _ = cv2.findContours(component_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(solid_graphics, contours, -1, 1, thickness=cv2.FILLED)
+    foreground |= solid_graphics > 0
+
     output = np.full_like(source, 255)
-    tones = np.clip((sharpened.astype(np.float32) - 60.0) * 1.05, 0, 210).astype(np.uint8)
-    output[foreground] = tones[foreground]
+    # Once a pixel has passed a component-specific support rule, render it as
+    # document ink. This avoids carrying grey paper modulation back into text.
+    output[foreground] = 0
     return output
