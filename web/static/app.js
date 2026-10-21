@@ -293,7 +293,7 @@ function setImageMode(mode) {
   comparison.classList.remove('improved-mode','original-mode','compare-mode'); comparison.classList.add(`${mode}-mode`);
   for (const [name,id] of [['improved','improvedViewButton'],['original','originalViewButton'],['compare','compareViewButton']]) $(''+id).classList.toggle('active', name === mode);
   if (mode === 'compare') { $('compareSlider').value = 50; updateComparison(50); }
-  $('comparisonViewLabel').textContent = mode === 'improved' ? 'Recovered receipt · source-preserving view' : mode === 'original' ? 'Original upload · unchanged content' : 'Original and recovered comparison';
+  $('comparisonViewLabel').textContent = mode === 'improved' ? 'Enhanced reading view · complete image' : mode === 'original' ? 'Original upload · unchanged content' : 'Original and enhanced comparison';
   $('comparisonHelp').textContent = mode === 'compare' ? 'Drag the divider' : 'Select Compare for the split view';
 }
 $('improvedViewButton').onclick = () => setImageMode('improved');
