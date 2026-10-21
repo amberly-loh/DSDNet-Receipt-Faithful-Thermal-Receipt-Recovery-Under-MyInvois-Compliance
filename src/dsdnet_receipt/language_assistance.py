@@ -11,6 +11,7 @@ RECEIPT_TERMS = (
     "invoice", "receipt", "description", "quantity", "unit", "price",
     "amount", "discount", "subtotal", "total", "payable", "payment",
     "cash", "change", "date", "customer", "supplier", "merchant",
+    "cashier", "bill", "item",
     "address", "telephone", "email", "notes", "terms", "authorised",
     "authorized", "signature", "issued", "received", "registration",
     "currency", "tax", "service", "charge", "rounding", "balance",

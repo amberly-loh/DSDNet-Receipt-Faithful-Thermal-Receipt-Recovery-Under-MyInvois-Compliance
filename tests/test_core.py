@@ -223,6 +223,19 @@ def test_adaptive_view_preserves_faint_thermal_text_without_binarising() -> None
     assert len(np.unique(output)) > 16
 
 
+def test_thermal_overlay_renders_only_supported_ocr_text() -> None:
+    from dsdnet_receipt.restoration import overlay_supported_ocr_text
+    image = np.full((100, 260), 250, np.uint8)
+    lines = [
+        {"text":"Payment Cash", "confidence":.97, "box":[[20,20],[170,20],[170,42],[20,42]]},
+        {"text":"uncertain", "confidence":.42, "box":[[20,60],[170,60],[170,82],[20,82]]},
+    ]
+    output, count = overlay_supported_ocr_text(image, lines)
+    assert count == 1
+    assert np.count_nonzero(output[18:45] < 100) > 20
+    assert np.count_nonzero(output[58:85] < 245) == 0
+
+
 def test_receipt_language_assistance_is_conservative_and_auditable() -> None:
     suggestion = suggest_receipt_text("Total PayabIE")
     assert suggestion is not None

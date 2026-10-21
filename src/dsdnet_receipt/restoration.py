@@ -159,6 +159,77 @@ def make_faint_thermal_view(readable: np.ndarray) -> np.ndarray:
     return np.clip(255.0 - np.maximum(darkness - 2.0, 0.0) * 2.0, 0, 255).astype(np.uint8)
 
 
+def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]], minimum_confidence: float = 0.85) -> tuple[np.ndarray, int]:
+    """Render only high-confidence OCR readings over their measured regions."""
+    import cv2
+    from .language_assistance import suggest_receipt_text
+
+    def bounds(line):
+        points = np.asarray(line.get("box", []), dtype=np.float32)
+        if points.shape != (4, 2): return None
+        return float(points[:,0].min()), float(points[:,1].min()), float(points[:,0].max()), float(points[:,1].max())
+
+    def same_line(first, second):
+        a, b = bounds(first), bounds(second)
+        if a is None or b is None: return False
+        aw, ah = max(a[2]-a[0],1), max(a[3]-a[1],1); bw, bh = max(b[2]-b[0],1), max(b[3]-b[1],1)
+        return abs((a[0]+a[2]-b[0]-b[2])/2) <= max(12,.18*max(aw,bw)) and abs((a[1]+a[3]-b[1]-b[3])/2) <= max(8,.45*max(ah,bh))
+
+    # OCR views often disagree by one character. Group by geometry first so
+    # only one reading is typeset at each physical line.
+    groups: list[list[dict[str, Any]]] = []
+    for line in ocr_lines:
+        group = next((item for item in groups if same_line(item[0], line)), None)
+        if group is None:
+            groups.append([line])
+        else:
+            group.append(line)
+    selected = []
+    for group in groups:
+        selected.append(max(group, key=lambda item: float(item.get("confidence") or 0.0)))
+
+    output = image.copy()
+    rendered = 0
+    for line in sorted(selected, key=lambda item: (bounds(item) or (0,0,0,0))[1]):
+        text = str(line.get("text", "")).strip()
+        confidence = float(line.get("confidence") or 0.0)
+        points = np.asarray(line.get("box", []), dtype=np.float32)
+        if confidence < minimum_confidence or points.shape != (4, 2) or not text:
+            continue
+        suggestion = suggest_receipt_text(text)
+        if suggestion:
+            text = suggestion["suggested"]
+        # Do not typeset isolated uncertain punctuation or extremely small
+        # fragments; these are more likely to be paper damage than content.
+        if len(re.sub(r"[^A-Za-z0-9]", "", text)) < 2:
+            continue
+        x, y, width, height = cv2.boundingRect(points.astype(np.int32))
+        if width < 12 or height < 8:
+            continue
+        # Thermal OCR commonly drops the decimal point in monetary columns.
+        # Apply cents formatting only to pure numeric readings located in the
+        # right half and lower half of the receipt; IDs and dates are excluded.
+        if re.fullmatch(r"\d{3,7}", text) and x >= int(output.shape[1] * .45) and y >= int(output.shape[0] * .45):
+            text = text[:-2] + "." + text[-2:]
+        pad_x, pad_y = 2, 2
+        x1, y1 = max(0, x-pad_x), max(0, y-pad_y)
+        x2, y2 = min(output.shape[1], x+width+pad_x), min(output.shape[0], y+height+pad_y)
+        # Preserve nearby rules by clearing only the central text band.
+        output[y1:y2, x1:x2] = 255
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        target_height = max(8, int(height * 0.72))
+        scale = max(0.25, target_height / 22.0)
+        thickness = 1 if target_height < 22 else 2
+        measured = cv2.getTextSize(text, font, scale, thickness)[0]
+        if measured[0] > max(width, 1):
+            scale *= width / measured[0]
+            measured = cv2.getTextSize(text, font, scale, thickness)[0]
+        baseline_y = min(output.shape[0]-2, y + max(height-2, measured[1]+1))
+        cv2.putText(output, text, (x, baseline_y), font, scale, 25, thickness, cv2.LINE_AA)
+        rendered += 1
+    return output, rendered
+
+
 def make_adaptive_document_view(readable: np.ndarray, ocr_lines: list[dict[str, Any]], evidence_source: np.ndarray | None = None) -> tuple[np.ndarray, str]:
     """Choose clean-document or faint-thermal rendering from measured contrast."""
     import cv2
@@ -171,7 +242,9 @@ def make_adaptive_document_view(readable: np.ndarray, ocr_lines: list[dict[str, 
         # Start from the rectified source when available. The intermediate
         # denoiser is useful for ordinary documents but can soften already
         # weak thermal strokes before this specialised contrast step.
-        return make_faint_thermal_view(evidence_source if evidence_source is not None else source), "faint_thermal_grayscale"
+        thermal = make_faint_thermal_view(evidence_source if evidence_source is not None else source)
+        reconstructed, count = overlay_supported_ocr_text(thermal, ocr_lines)
+        return reconstructed, "faint_thermal_ocr_assisted" if count else "faint_thermal_grayscale"
     return make_evidence_preserving_view(source, ocr_lines), "component_aware_document"
 
 
