@@ -109,6 +109,31 @@ def test_spatial_invoice_number_uses_value_to_right_of_label() -> None:
     assert fields["receipt_invoice_number"]["value"] == "CS2404-211"
 
 
+def test_field_extraction_prefers_payable_total_and_business_name() -> None:
+    lines = [
+        {"text": "#FI%ARZ", "confidence": 0.56, "box": [[5, 5], [70, 5], [70, 20], [5, 20]]},
+        {"text": "Sin Lianhap Sdn Bhd", "confidence": 0.99, "box": [[80, 25], [280, 25], [280, 45], [80, 45]]},
+        {"text": "TOTAL DISCOUNT", "confidence": 0.99, "box": [[400, 400], [520, 400], [520, 420], [400, 420]]},
+        {"text": "0.00", "confidence": 1.0, "box": [[600, 400], [650, 400], [650, 420], [600, 420]]},
+        {"text": "TOTAL PAYABLE", "confidence": 0.99, "box": [[400, 450], [520, 450], [520, 470], [400, 470]]},
+        {"text": "94.50", "confidence": 1.0, "box": [[600, 450], [650, 450], [650, 470], [600, 470]]},
+    ]
+    fields = extract_fields("\n".join(line["text"] for line in lines), lines)
+    assert fields["merchant"]["value"] == "Sin Lianhap Sdn Bhd"
+    assert fields["total_amount"]["value"] == "94.50"
+
+
+def test_invoice_fallback_rejects_item_codes_and_units() -> None:
+    lines = [
+        {"text": "CS.H9oS0", "confidence": 0.75, "box": [[500, 30], [600, 30], [600, 50], [500, 50]]},
+        {"text": "SP-RNL2435", "confidence": 0.99, "box": [[30, 300], [160, 300], [160, 320], [30, 320]]},
+        {"text": "1.00 PCS", "confidence": 1.0, "box": [[500, 300], [580, 300], [580, 320], [500, 320]]},
+        {"text": "TOTAL", "confidence": 1.0, "box": [[30, 700], [100, 700], [100, 720], [30, 720]]},
+    ]
+    fields = extract_fields("\n".join(line["text"] for line in lines), lines)
+    assert fields["receipt_invoice_number"]["value"] == "CS.H9oS0"
+
+
 def test_invalid_calendar_date_is_not_extracted() -> None:
     fields = extract_fields("DATE 31/02/2025\nTOTAL RM 10", [])
     assert fields["transaction_date"]["value"] is None

@@ -125,17 +125,21 @@ def _spatial_total(lines: list[dict[str, Any]]) -> str | None:
         label_box = _bounds(label.get("box"))
         if not label_box:
             continue
+        label_text = str(label.get("text", "")).lower()
+        priority = 0 if re.search(r"total\s+payable|grand\s+total|net\s+amt", label_text) else 1 if "total rm" in label_text else 2
         _, ly1, lx2, ly2 = label_box
         lcy = (ly1 + ly2) / 2
         for line in lines:
             value_box = _bounds(line.get("box"))
-            match = re.fullmatch(r"\s*(?:RM\s*)?([0-9][0-9,]*\.\d{2})\s*", str(line.get("text", "")), re.I)
+            match = re.fullmatch(r"\s*(?:RM\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*", str(line.get("text", "")), re.I)
             if not value_box or not match:
                 continue
             vx1, vy1, _, vy2 = value_box
             vcy = (vy1 + vy2) / 2
-            if abs(vcy - lcy) <= 55 and vx1 >= lx2 - 20:
-                candidates.append((abs(vcy - lcy) + max(0, vx1 - lx2) / 20, match.group(1).replace(",", "")))
+            if abs(vcy - lcy) <= 110 and vx1 >= lx2 - 40:
+                value = Decimal(match.group(1).replace(",", ""))
+                if value > 0:
+                    candidates.append((priority * 1000 + abs(vcy - lcy) + max(0, vx1 - lx2) / 40, f"{value:.2f}"))
     return min(candidates, default=(0, None), key=lambda item: item[0])[1]
 
 
@@ -157,18 +161,45 @@ def _spatial_invoice_number(lines: list[dict[str, Any]]) -> str | None:
             value = str(line.get("text", "")).strip(" :#-")
             if abs(vcy - lcy) <= 45 and vx1 >= lx2 and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 /-]{2,}", value) and any(ch.isdigit() for ch in value):
                 candidates.append((abs(vcy - lcy) + (vx1 - lx2) / 20, re.sub(r"\s+", "", value)))
-    return min(candidates, default=(0, None), key=lambda item: item[0])[1]
+    if candidates:
+        return min(candidates, key=lambda item: item[0])[1]
+    # Some faded receipts lose the literal "No." label while the nearby code
+    # remains readable. Rank code-like strings in the upper document region,
+    # rejecting field labels and ordinary dates/times.
+    positioned = [(line, _bounds(line.get("box"))) for line in lines]
+    bottoms = [bounds[3] for _, bounds in positioned if bounds]
+    document_bottom = max(bottoms, default=0)
+    fallbacks: list[tuple[float, str]] = []
+    rejected = re.compile(r"(?i)\b(?:from|date|cash|term|page|total|amount|price|tel|fax|company|invoice|receipt|document)\b")
+    for line, bounds in positioned:
+        value = str(line.get("text", "")).strip(" :#")
+        if not bounds or bounds[1] > document_bottom * 0.22 or rejected.search(value) or re.match(r"(?i)(?:TEL|FAX|COMPANY)", value) or re.search(r"(?i)(?:PCS|PACK|UNIT|KG)$", value):
+            continue
+        compact = re.sub(r"\s+", "", value)
+        digit_count = sum(ch.isdigit() for ch in compact)
+        has_letter = any(ch.isalpha() for ch in compact)
+        code_shape = has_letter and bool(re.search(r"[-./]", compact))
+        if 5 <= len(compact) <= 32 and digit_count >= 2 and code_shape and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9./-]+", compact):
+            if not any(pattern.fullmatch(compact) for pattern in DATE_PATTERNS):
+                confidence = float(line.get("confidence") or 0)
+                punctuation_bonus = 0.25 if re.search(r"[-./]", compact) else 0.0
+                fallbacks.append((confidence + punctuation_bonus, compact))
+    return max(fallbacks, default=(0, None), key=lambda item: item[0])[1]
 
 
 def _merchant_candidate(lines: list[dict[str, Any]]) -> str | None:
     reject = re.compile(r"(?i)\b(?:receipt|invoice|cash\s+sale|address|tel|date|item|qty|quantity|price|amount|total|tax|sst|thank)\b")
     ordered = sorted(lines, key=lambda item: _line_position(item.get("box")))
-    for line in ordered[:12]:
+    candidates: list[tuple[float, str]] = []
+    for index, line in enumerate(ordered[:18]):
         value = str(line.get("text", "")).strip(" -:|")
         letters = sum(ch.isalpha() for ch in value)
         if 3 <= len(value) <= 80 and letters >= 3 and not reject.search(value) and not re.fullmatch(r"[\d\W]+", value):
-            return value
-    return None
+            confidence = float(line.get("confidence") or 0)
+            company_bonus = 4.0 if re.search(r"(?i)\b(?:sdn\.?\s*bhd|enterprise|trading|company|store|mart|restaurant|kedai)\b", value) else 0.0
+            noise_penalty = 3.0 if letters / max(len(value), 1) < 0.55 else 0.0
+            candidates.append((company_bonus + confidence * 2.0 - index * 0.08 - noise_penalty, value))
+    return max(candidates, default=(0, None), key=lambda item: item[0])[1]
 
 
 def _line_position(box: Any) -> tuple[float, float]:

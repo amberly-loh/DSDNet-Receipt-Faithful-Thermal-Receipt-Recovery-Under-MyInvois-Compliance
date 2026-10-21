@@ -258,7 +258,7 @@ async function openReceipt(id) {
     const lines = dedupeOcrLines(currentReceipt.audit?.ocr_lines || []);
     const suggestions = new Map((currentReceipt.audit?.ocr_suggestions || []).map(item => [Number(item.line_index), item]));
     $('ocrTable').innerHTML = lines.length ? `<table><thead><tr><th>#</th><th>Scanner reading</th><th>Possible correction</th><th>Confidence</th></tr></thead><tbody>${lines.map((line, index) => { const suggestion = suggestions.get(index); return `<tr><td>${index + 1}</td><td>${escapeHtml(line.text)}</td><td>${suggestion ? `<span class="suggested-reading">${escapeHtml(suggestion.suggested)}</span><small>Verify against original</small>` : '<span class="no-suggestion">—</span>'}</td><td>${line.confidence == null ? '—' : `${(Number(line.confidence) * 100).toFixed(1)}%`}</td></tr>`; }).join('')}</tbody></table>` : '<p class="empty-copy">No text was recognised. Enter the receipt details manually.</p>';
-    $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`; $('ocrDownload').href = `/api/receipts/${encodeURIComponent(id)}/ocr.xlsx`;
+    $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`; $('ocrDownload').href = `/api/receipts/${encodeURIComponent(id)}/ocr.xlsx`; $('myinvoisExcel').href = `/api/receipts/${encodeURIComponent(id)}/ocr.xlsx`; $('documentDownload').href = currentReceipt.restored_url;
     setImageMode('improved'); route('detail');
   } catch (error) { toast(error.message, true); }
 }
@@ -326,6 +326,19 @@ $('reviewForm').onsubmit = async event => {
     $('detailTitle').textContent = currentReceipt.merchant || currentReceipt.source_name;
     $('saveMessage').textContent = 'Saved successfully.'; toast('Receipt review saved.'); setTimeout(() => $('saveMessage').textContent = '', 2500);
   } catch (error) { $('saveMessage').textContent = error.message; }
+};
+
+$('copyFieldsButton').onclick = async () => {
+  if (!currentReceipt) return;
+  const text = [`Merchant: ${$('merchantField').value}`, `Transaction date: ${$('dateField').value}`, `Receipt / invoice number: ${$('numberField').value}`, `Total amount (MYR): ${$('totalField').value}`].join('\n');
+  try { await navigator.clipboard.writeText(text); toast('Reviewed details copied.'); }
+  catch (_) { toast('Your browser blocked clipboard access.', true); }
+};
+
+$('reextractButton').onclick = async () => {
+  if (!currentReceipt) return;
+  try { await api(`/api/receipts/${encodeURIComponent(currentReceipt.public_id)}/reextract`, {method: 'POST'}); toast('Fields re-read. Verify them against the original.'); await openReceipt(currentReceipt.public_id); }
+  catch (error) { toast(error.message, true); }
 };
 
 $('deleteButton').onclick = async () => {

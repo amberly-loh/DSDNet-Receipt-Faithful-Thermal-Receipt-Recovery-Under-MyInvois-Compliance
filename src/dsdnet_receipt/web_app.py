@@ -458,6 +458,27 @@ def create_app(
         if receipt: store.log_event(current_user()["id"], "receipt.review_update", "receipt", receipt_id, details={"status": receipt["status"]})
         return jsonify(receipt) if receipt else (jsonify({"error": "Receipt not found."}), 404)
 
+    @app.post("/api/receipts/<receipt_id>/reextract")
+    @require_auth
+    def reextract_receipt(receipt_id: str):
+        user = current_user()
+        existing = store.get_receipt(user["id"], receipt_id)
+        if not existing: return jsonify({"error": "Receipt not found."}), 404
+        lines = deduplicate_lines(existing.get("audit", {}).get("ocr_lines", []))
+        if not lines: return jsonify({"error": "No stored scanner readings are available for this receipt."}), 400
+        text = "\n".join(str(line.get("text", "")) for line in lines)
+        extracted = extract_fields(text, lines)
+        values = {
+            "merchant": extracted["merchant"]["value"],
+            "transaction_date": extracted["transaction_date"]["value"],
+            "receipt_number": extracted["receipt_invoice_number"]["value"],
+            "total_amount": extracted["total_amount"]["value"],
+            "status": "needs_review",
+        }
+        updated = store.update_receipt(user["id"], receipt_id, values)
+        store.log_event(user["id"], "receipt.fields_reextracted", "receipt", receipt_id, details=values)
+        return jsonify(updated)
+
     @app.delete("/api/receipts/<receipt_id>")
     @require_auth
     def delete_receipt(receipt_id: str):
