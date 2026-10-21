@@ -9,6 +9,7 @@ from dsdnet_receipt.metrics import cer, psnr, ssim, wer
 from dsdnet_receipt.fields import extract_fields, route_fields
 from dsdnet_receipt.preprocessing import preprocess
 from dsdnet_receipt.ocr import OCRResult, PaddleOCRAdapter, deduplicate_lines
+from dsdnet_receipt.language_assistance import suggest_receipt_text, suggestions_for_lines
 from dsdnet_receipt.restoration import make_evidence_preserving_view
 
 
@@ -183,3 +184,15 @@ def test_clean_view_suppresses_texture_while_retaining_faint_text() -> None:
     background = output[110:165, 25:295]
     assert np.count_nonzero(text_region < 235) >= 100
     assert np.count_nonzero(background < 235) / background.size < 0.02
+
+
+def test_receipt_language_assistance_is_conservative_and_auditable() -> None:
+    suggestion = suggest_receipt_text("Total PayabIE")
+    assert suggestion is not None
+    assert suggestion["suggested"] == "Total Payable"
+    assert suggestion["source_support"] is False
+    assert suggestion["status"] == "unconfirmed_language_suggestion"
+    assert suggest_receipt_text("NTME TRADING SDN BHD") is None
+    assert suggest_receipt_text("YASEI S-P500 RECOIL ST") is None
+    lines = [{"text": "INVOlCE"}, {"text": "75.00"}]
+    assert suggestions_for_lines(lines)[0]["line_index"] == 0

@@ -30,6 +30,7 @@ from openpyxl import Workbook
 from .config import load_config, write_json
 from .fields import extract_fields, route_fields
 from .images import write_image
+from .language_assistance import suggestions_for_lines
 from .ocr import PaddleOCRAdapter, deduplicate_lines
 from .preprocessing import preprocess
 from .restoration import RestorationEngine
@@ -352,6 +353,7 @@ def create_app(
         receipt = store.get_receipt(current_user()["id"], receipt_id)
         if receipt and receipt.get("audit", {}).get("ocr_lines"):
             receipt["audit"]["ocr_lines"] = deduplicate_lines(receipt["audit"]["ocr_lines"])
+            receipt["audit"]["ocr_suggestions"] = suggestions_for_lines(receipt["audit"]["ocr_lines"])
         if receipt: store.log_event(current_user()["id"], "receipt.view", "receipt", receipt_id)
         return jsonify(receipt) if receipt else (jsonify({"error": "Receipt not found."}), 404)
 
@@ -445,6 +447,7 @@ def create_app(
         receipt = store.get_receipt(current_user()["id"], receipt_id)
         if not receipt: return jsonify({"error": "Receipt not found."}), 404
         lines = deduplicate_lines(receipt["audit"].get("ocr_lines", []))
+        suggestion_by_line = {int(item["line_index"]): item for item in suggestions_for_lines(lines)}
         workbook = Workbook(); summary = workbook.active; summary.title = "Receipt Summary"
         summary.append(["Receipt audit and accounting record"]); title_font = copy(summary["A1"].font); title_font.bold = True; title_font.size = 14; summary["A1"].font = title_font
         summary.append([])
@@ -470,16 +473,24 @@ def create_app(
         for column, width in {"A":10,"B":42,"C":12,"D":12,"E":18,"F":14,"G":16,"H":25}.items(): items.column_dimensions[column].width = width
 
         evidence = workbook.create_sheet("OCR Evidence")
-        evidence.append(["Reading order", "Recognised text", "Confidence (%)", "Evidence source"])
+        evidence.append(["Reading order", "Recognised text", "Suggested reading", "Suggestion status", "Confidence (%)", "Evidence source"])
         friendly_views = {"rectified_input":"Original receipt", "source_preserving_recovery":"Recovered receipt", "readability_view":"Clean reading copy"}
         for index, line in enumerate(lines, 1):
             confidence = line.get("confidence")
-            evidence.append([index, safe_excel_value(line.get("text", "")), round(float(confidence) * 100, 1) if confidence is not None else None, friendly_views.get(line.get("source_view"), "Receipt image")])
+            suggestion = suggestion_by_line.get(index - 1)
+            evidence.append([
+                index, safe_excel_value(line.get("text", "")),
+                safe_excel_value(suggestion["suggested"]) if suggestion else "",
+                "Verify against original" if suggestion else "No language suggestion",
+                round(float(confidence) * 100, 1) if confidence is not None else None,
+                friendly_views.get(line.get("source_view"), "Receipt image"),
+            ])
         for cell in evidence[1]:
             font = copy(cell.font); font.bold = True; cell.font = font
         evidence.freeze_panes = "A2"; evidence.auto_filter.ref = evidence.dimensions
         evidence.column_dimensions["A"].width = 15; evidence.column_dimensions["B"].width = 72
-        evidence.column_dimensions["C"].width = 18; evidence.column_dimensions["D"].width = 24
+        evidence.column_dimensions["C"].width = 72; evidence.column_dimensions["D"].width = 26
+        evidence.column_dimensions["E"].width = 18; evidence.column_dimensions["F"].width = 24
 
         coverage = workbook.create_sheet("MyInvois Coverage")
         coverage.append(["Important", "This workbook supports review and accounting. It is not a MyInvois submission file.", ""])
@@ -532,7 +543,7 @@ def create_app(
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
         if restoration.diagnostic_map is not None: write_image(diagnostic_path, restoration.diagnostic_map)
         runtime = time.perf_counter() - started
-        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": "clean_bw_display_transform_from_source_preserving_recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
+        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": "clean_bw_display_transform_from_source_preserving_recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
         write_json(audit_root / "audit.json", audit)
         now = utc_now(); retention_days = int(config.get("app", {}).get("retention_days", 2555))
         retention_until = (datetime.now(timezone.utc) + timedelta(days=retention_days)).date().isoformat()
