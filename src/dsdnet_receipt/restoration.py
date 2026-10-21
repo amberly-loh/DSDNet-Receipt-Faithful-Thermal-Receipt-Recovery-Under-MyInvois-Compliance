@@ -205,6 +205,32 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
     # text, without lowering the threshold across the whole page.
     weak_mark_regions = cv2.dilate(weak_mark_regions, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (45, 45))) > 0
     candidates |= (weak_binary > 0) & weak_mark_regions
+    # Detect a coherent circular seal independently of OCR. Requiring a
+    # lower-page circle of realistic size and measured circumference support
+    # avoids mistaking rectangular totals tables or random texture for stamps.
+    seal_regions = np.zeros_like(source, dtype=np.uint8)
+    circle_source = cv2.medianBlur(source, 5)
+    circles = cv2.HoughCircles(
+        circle_source, cv2.HOUGH_GRADIENT, dp=1.2, minDist=40,
+        param1=80, param2=30, minRadius=35, maxRadius=80,
+    )
+    if circles is not None:
+        edge_map = cv2.Canny(circle_source, 40, 100)
+        yy, xx = np.ogrid[:source.shape[0], :source.shape[1]]
+        accepted = 0
+        for circle_x, circle_y, radius in np.round(circles[0]).astype(int):
+            if circle_y < int(source.shape[0] * 0.55):
+                continue
+            distance = np.sqrt((xx - circle_x) ** 2 + (yy - circle_y) ** 2)
+            annulus = np.abs(distance - radius) <= 2
+            support = float(np.count_nonzero(edge_map[annulus])) / max(int(np.count_nonzero(annulus)), 1)
+            if support >= 0.24:
+                cv2.circle(seal_regions, (circle_x, circle_y), int(radius * 1.18), 255, thickness=cv2.FILLED)
+                accepted += 1
+                if accepted >= 2:
+                    break
+    candidates |= (weak_binary > 0) & (seal_regions > 0)
+    localised[seal_regions > 0] = 255
     weak_count, weak_labels, weak_stats, _ = cv2.connectedComponentsWithStats(weak_binary, 8)
     weak_structures = np.zeros_like(candidates)
     for weak_index in range(1, weak_count):
