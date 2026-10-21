@@ -181,9 +181,31 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
                     threshold, _ = cv2.threshold(values, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
                     threshold = min(float(threshold), 205.0)
                     region_mask = (region <= threshold) & (polygon > 0)
-                    region_mask = cv2.morphologyEx(region_mask.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((2, 2), np.uint8)) > 0
+                    # Closing helps genuinely broken large glyphs, but it
+                    # thickens small totals/footer text. Apply it only where
+                    # the measured text region is tall enough to tolerate it.
+                    if height >= 32:
+                        region_mask = cv2.morphologyEx(region_mask.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((2, 2), np.uint8)) > 0
                     ocr_foreground[y:y2, x:x2] |= region_mask
     candidates |= ocr_foreground
+
+    # Recover coherent weak marks that OCR does not localise, such as stamps
+    # and signatures. Component filtering keeps this path local: small paper
+    # grain and page-spanning folds are not promoted to document ink.
+    weak_binary = cv2.adaptiveThreshold(normalised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 41, 11)
+    weak_count, weak_labels, weak_stats, _ = cv2.connectedComponentsWithStats(weak_binary, 8)
+    weak_structures = np.zeros_like(candidates)
+    for weak_index in range(1, weak_count):
+        x, y, width, height, area = [int(value) for value in weak_stats[weak_index]]
+        if area < 24 or area > int(source.size * 0.02):
+            continue
+        if width > int(source.shape[1] * 0.55) or height > int(source.shape[0] * 0.20):
+            continue
+        component = weak_labels == weak_index
+        median_tone = float(np.median(normalised[component]))
+        if median_tone < 165.0 and x > 1 and y > 1 and x + width < source.shape[1] - 1 and y + height < source.shape[0] - 1:
+            weak_structures[component] = True
+    candidates |= weak_structures
     localised = cv2.dilate(localised, np.ones((15, 15), np.uint8)) > 0
 
     count, labels, stats, _ = cv2.connectedComponentsWithStats(candidates.astype(np.uint8), 8)
