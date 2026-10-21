@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import sys
 from collections import defaultdict
@@ -38,7 +39,12 @@ def main() -> None:
     selected = [row for row in variants if row["source_id"] in source_ids]
     restoration = RestorationEngine(config)
     ocr = PaddleOCRAdapter(config)
-    output = REPO / "artifacts" / "validation_blend_selection" / args.checkpoint.stem
+    checkpoint = args.checkpoint.resolve()
+    checkpoint_stat = checkpoint.stat()
+    checkpoint_identity = hashlib.sha256(
+        f"{checkpoint}|{checkpoint_stat.st_size}|{checkpoint_stat.st_mtime_ns}".encode("utf-8")
+    ).hexdigest()[:12]
+    output = REPO / "artifacts" / "validation_blend_selection" / f"{checkpoint.stem}_{checkpoint_identity}"
     output.mkdir(parents=True, exist_ok=True)
     progress_path = output / "records.jsonl"
     rows: list[dict[str, object]] = []

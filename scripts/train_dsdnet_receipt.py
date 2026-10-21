@@ -57,6 +57,41 @@ def crop_and_augment(clean: np.ndarray, degraded: np.ndarray, size: int, rng: ra
     return np.ascontiguousarray(np.rot90(clean, rotation)), np.ascontiguousarray(np.rot90(degraded, rotation))
 
 
+def add_natural_receipt_degradation(
+    degraded: np.ndarray, settings: dict, seed: int
+) -> tuple[np.ndarray, dict]:
+    """Add deterministic paper texture and folds while retaining a clean target."""
+    import cv2
+
+    rng = np.random.default_rng(seed)
+    if not settings.get("enabled", False) or rng.random() > float(settings["probability"]):
+        return degraded, {"applied": False}
+    image = degraded.astype(np.float32) / 255.0
+    amplitude = float(rng.uniform(*settings["texture_amplitude"]))
+    scale = float(rng.uniform(*settings["texture_scale_pixels"]))
+    noise = rng.normal(0.0, 1.0, image.shape).astype(np.float32)
+    texture = cv2.GaussianBlur(noise, (0, 0), scale)
+    texture /= max(float(texture.std()), 1e-6)
+    image = np.clip(image + amplitude * texture, 0.0, 1.0)
+    crease_count = 0
+    if rng.random() < float(settings["crease_probability"]):
+        low, high = settings["crease_count"]
+        crease_count = int(rng.integers(int(low), int(high) + 1))
+        h, w = image.shape
+        for _ in range(crease_count):
+            y = int(rng.integers(max(2, h // 12), max(3, h - h // 12)))
+            slope = float(rng.uniform(-0.08, 0.08))
+            strength = float(rng.uniform(*settings["crease_strength"]))
+            thickness = int(rng.integers(int(settings["crease_thickness"][0]), int(settings["crease_thickness"][1]) + 1))
+            overlay = np.zeros_like(image)
+            cv2.line(overlay, (0, y), (w - 1, int(np.clip(y + slope * w, 0, h - 1))), 1.0, thickness)
+            image = np.clip(image - strength * cv2.GaussianBlur(overlay, (0, 0), 1.2), 0.0, 1.0)
+    return (image * 255.0 + 0.5).astype(np.uint8), {
+        "applied": True, "texture_amplitude": amplitude, "texture_scale_pixels": scale,
+        "crease_count": crease_count,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Resumable Chapter 4 DSDNet receipt trainer")
     parser.add_argument("--config", default=str(REPO / "configs" / "dsdnet_receipt_train.json"))
@@ -64,6 +99,8 @@ def main() -> None:
     parser.add_argument("--development-iterations", type=int, help="Run a non-formal development budget without changing the locked formal total")
     parser.add_argument("--development-checkpoint-interval", type=int, default=500)
     parser.add_argument("--resume", type=Path)
+    parser.add_argument("--resume-learning-rate", type=float)
+    parser.add_argument("--output-name", default=None)
     args = parser.parse_args()
     train_config_path = Path(args.config).resolve()
     locked = json.loads(train_config_path.read_text(encoding="utf-8"))
@@ -102,12 +139,16 @@ def main() -> None:
         optimizer.load_state_dict(state["optimizer"])
         scheduler.load_state_dict(state["scheduler"])
         start = int(state["iteration"])
+        if args.resume_learning_rate is not None:
+            for group in optimizer.param_groups:
+                group["lr"] = args.resume_learning_rate
+            scheduler.base_lrs = [args.resume_learning_rate for _ in optimizer.param_groups]
     generation_manifest = (train_config_path.parent / locked["generation_manifest"]).resolve()
     records = [json.loads(line) for line in generation_manifest.read_text(encoding="utf-8").splitlines() if line]
     records = [record for record in records if record["project_partition"] == "train"]
     total = 1 if args.feasibility else (args.development_iterations or int(locked["training"]["total_iterations"]))
     run_kind = "training_feasibility" if args.feasibility else ("training_development" if args.development_iterations else "training")
-    output = REPO / "artifacts" / run_kind
+    output = REPO / "artifacts" / (args.output_name or run_kind)
     output.mkdir(parents=True, exist_ok=True)
     log_path = output / "training_log.jsonl"
     crop = int(locked["training"]["crop_height"])
@@ -117,6 +158,9 @@ def main() -> None:
         clean = read_gray(record["clean_reference"])
         degraded = read_gray(record["degraded_path"])
         clean, degraded = crop_and_augment(clean, degraded, crop, random.Random(seed + iteration))
+        degraded, natural_augmentation = add_natural_receipt_degradation(
+            degraded, locked.get("natural_receipt_augmentation", {}), seed + 1000003 + iteration
+        )
         target = torch.from_numpy(clean).float().div_(255).unsqueeze(0).unsqueeze(0).to(device)
         observed = torch.from_numpy(degraded).float().div_(255).unsqueeze(0).unsqueeze(0).to(device)
         kernel = gaussian_kernel(float(record["parameters"]["blur_sigma"])).to(device)
@@ -151,6 +195,7 @@ def main() -> None:
             "peak_cuda_memory_bytes": torch.cuda.max_memory_allocated(device),
             "mixed_precision": use_amp,
             "gradient_checkpointing": use_checkpointing,
+            "natural_receipt_augmentation": natural_augmentation,
         }
         with log_path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row) + "\n")
