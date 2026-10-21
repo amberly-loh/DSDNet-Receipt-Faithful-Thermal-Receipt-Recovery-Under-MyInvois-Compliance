@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import io
 import json
+import hashlib
+import sqlite3
 from pathlib import Path
 
 from openpyxl import load_workbook
 
 from dsdnet_receipt.storage import utc_now
-from dsdnet_receipt.web_app import create_app
+from dsdnet_receipt.web_app import arithmetic_consistency, create_app
 
 
 CONFIG = Path(__file__).resolve().parents[1] / "configs" / "default.json"
@@ -72,7 +74,7 @@ def test_invalid_upload_empty_bulk_and_bulk_limit_are_safe(tmp_path: Path) -> No
     assert client.post("/api/analyze", data={}, headers={"X-CSRF-Token":token}).status_code == 400
     bad = {"receipt": (io.BytesIO(b"not an image"), "receipt.txt")}
     response = client.post("/api/analyze", data=bad, headers={"X-CSRF-Token":token}, content_type="multipart/form-data")
-    assert response.status_code == 400 and "unreadable" in response.get_json()["error"]
+    assert response.status_code == 400 and ("unreadable" in response.get_json()["error"] or "upload a JPEG" in response.get_json()["error"])
     assert client.post("/api/bulk-analyze", data={}, headers={"X-CSRF-Token":token}).status_code == 400
     too_many = {"receipts": [(io.BytesIO(b"x"), f"r{i}.png") for i in range(26)]}
     response = client.post("/api/bulk-analyze", data=too_many, headers={"X-CSRF-Token":token}, content_type="multipart/form-data")
@@ -102,6 +104,41 @@ def test_health_policy_and_unknown_resources_are_consistent(tmp_path: Path) -> N
     assert client.delete("/api/receipts/MISSING", headers={"X-CSRF-Token":token}).status_code == 404
 
 
+def test_security_headers_and_tamper_evident_event_chain(tmp_path: Path) -> None:
+    database = tmp_path / "db.sqlite3"
+    app = create_app(CONFIG, testing=True, database_path=database)
+    client = app.test_client(); register(client, "chain@example.my")
+    response = client.get("/api/health")
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.get_json()["audit_chain"] == "verified"
+    with sqlite3.connect(database) as db:
+        db.execute("UPDATE audit_events SET action='tampered' WHERE id=(SELECT MIN(id) FROM audit_events)")
+    response = client.get("/api/health")
+    assert response.status_code == 503
+    assert response.get_json()["audit_chain"] == "failed"
+    restarted = create_app(CONFIG, testing=True, database_path=database).test_client()
+    assert restarted.get("/api/health").status_code == 503
+
+
+def test_receipt_file_integrity_is_visible_to_owner(tmp_path: Path) -> None:
+    app = create_app(CONFIG, testing=True, database_path=tmp_path / "db.sqlite3")
+    client = app.test_client(); _, user = register(client, "integrity@example.my")
+    add_receipt(app, tmp_path, user, receipt_id="HASH-001")
+    store = app.extensions["receipt_store"]
+    receipt = store.get_receipt(user["id"], "HASH-001")
+    hashes = {
+        "original": hashlib.sha256(Path(receipt["input_path"]).read_bytes()).hexdigest(),
+        "recovered": hashlib.sha256(Path(receipt["restored_path"]).read_bytes()).hexdigest(),
+    }
+    with store.connect() as db:
+        audit = receipt["audit"]; audit["stored_file_sha256"] = hashes
+        db.execute("UPDATE receipts SET audit_json=? WHERE public_id='HASH-001'", (json.dumps(audit),))
+    assert client.get("/api/receipts/HASH-001").get_json()["integrity"]["status"] == "verified"
+    Path(receipt["restored_path"]).write_bytes(b"changed")
+    assert client.get("/api/receipts/HASH-001").get_json()["integrity"]["status"] == "failed"
+
+
 def test_receipt_workbook_has_accounting_evidence_and_myinvois_boundary(tmp_path: Path) -> None:
     app = create_app(CONFIG, testing=True, database_path=tmp_path / "db.sqlite3")
     client = app.test_client(); _, user = register(client, "workbook@example.my")
@@ -118,3 +155,21 @@ def test_google_login_without_configuration_fails_safely(tmp_path: Path, monkeyp
     app = create_app(CONFIG, testing=True, database_path=tmp_path / "db.sqlite3")
     response = app.test_client().get("/auth/google")
     assert response.status_code == 302 and "google_not_configured" in response.location
+
+
+def test_arithmetic_consistency_gate_reports_mismatch() -> None:
+    lines = [
+        {"text":"ITEM", "box":[[10,10],[35,10],[35,20],[10,20]]},
+        {"text":"DESCRIPTION", "box":[[50,10],[140,10],[140,20],[50,20]]},
+        {"text":"QUANTITY", "box":[[180,10],[230,10],[230,20],[180,20]]},
+        {"text":"UNIT PRICE", "box":[[260,10],[320,10],[320,20],[260,20]]},
+        {"text":"AMOUNT", "box":[[350,10],[400,10],[400,20],[350,20]]},
+        {"text":"Service", "box":[[60,50],[130,50],[130,65],[60,65]]},
+        {"text":"2.00", "box":[[190,50],[225,50],[225,65],[190,65]]},
+        {"text":"10.00", "box":[[270,50],[315,50],[315,65],[270,65]]},
+        {"text":"30.00", "box":[[355,50],[400,50],[400,65],[355,65]]},
+        {"text":"TOTAL PAYABLE", "box":[[240,90],[330,90],[330,105],[240,105]]},
+    ]
+    result = arithmetic_consistency(lines, "30.00")
+    assert result["status"] == "inconsistent"
+    assert result["failed_checks"] >= 1

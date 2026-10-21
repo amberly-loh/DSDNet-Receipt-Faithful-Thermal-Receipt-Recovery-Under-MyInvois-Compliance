@@ -275,7 +275,7 @@
     }
   },
   "saved_natural_runs": {
-    "runs_checked": 14,
+    "runs_checked": 21,
     "current_failed_runs": 0,
     "legacy_runs": 9,
     "records": [
@@ -368,8 +368,8 @@
         "issues": [],
         "ocr_duplicate_lines_removed": 11,
         "line_item_candidates": 5,
-        "dark_stroke_preservation": 1.0,
-        "nonwhite_display_fraction": 0.029348958333333335,
+        "dark_stroke_preservation": 0.9963019777570811,
+        "nonwhite_display_fraction": 0.04293369391025641,
         "status": "PASS"
       },
       {
@@ -377,8 +377,71 @@
         "issues": [],
         "ocr_duplicate_lines_removed": 8,
         "line_item_candidates": 0,
-        "dark_stroke_preservation": 1.0,
-        "nonwhite_display_fraction": 0.03710984848484848,
+        "dark_stroke_preservation": 0.9979398362344396,
+        "nonwhite_display_fraction": 0.04258225108225108,
+        "status": "PASS"
+      },
+      {
+        "run_id": "USER-20261020-112121-be7d6d",
+        "issues": [],
+        "ocr_duplicate_lines_removed": 0,
+        "line_item_candidates": 1,
+        "dark_stroke_preservation": 0.9954625375758607,
+        "nonwhite_display_fraction": 0.030601870474658087,
+        "status": "PASS"
+      },
+      {
+        "run_id": "USER-20261020-185054-a20008",
+        "issues": [],
+        "ocr_duplicate_lines_removed": 0,
+        "line_item_candidates": 1,
+        "dark_stroke_preservation": 0.9954625375758607,
+        "nonwhite_display_fraction": 0.030589802896218824,
+        "status": "PASS"
+      },
+      {
+        "run_id": "USER-20261021-153434-fc5f87",
+        "issues": [],
+        "ocr_duplicate_lines_removed": 0,
+        "line_item_candidates": 1,
+        "dark_stroke_preservation": 0.9954625375758607,
+        "nonwhite_display_fraction": 0.030602373290426386,
+        "status": "PASS"
+      },
+      {
+        "run_id": "USER-20261021-153930-b025ca",
+        "issues": [],
+        "ocr_duplicate_lines_removed": 0,
+        "line_item_candidates": 1,
+        "dark_stroke_preservation": 0.9954627949183303,
+        "nonwhite_display_fraction": 0.030590305711987127,
+        "status": "PASS"
+      },
+      {
+        "run_id": "USER-20261021-163849-75a130",
+        "issues": [],
+        "ocr_duplicate_lines_removed": 0,
+        "line_item_candidates": 0,
+        "dark_stroke_preservation": 0.8171377484354584,
+        "nonwhite_display_fraction": 0.05866235059760956,
+        "status": "PASS"
+      },
+      {
+        "run_id": "USER-20261021-164230-7d420c",
+        "issues": [],
+        "ocr_duplicate_lines_removed": 0,
+        "line_item_candidates": 0,
+        "dark_stroke_preservation": 0.9996050552922591,
+        "nonwhite_display_fraction": 0.019448311948728175,
+        "status": "PASS"
+      },
+      {
+        "run_id": "USER-20261021-164339-9cb08c",
+        "issues": [],
+        "ocr_duplicate_lines_removed": 0,
+        "line_item_candidates": 0,
+        "dark_stroke_preservation": 0.9891818428920902,
+        "nonwhite_display_fraction": 0.06763325702356832,
         "status": "PASS"
       }
     ]
@@ -527,8 +590,8 @@
     },
     {
       "requirement": "mandatory arithmetic consistency gate",
-      "status": "FAIL",
-      "note": "line arithmetic is exported for review but not enforced in routing"
+      "status": "PASS",
+      "note": "evaluated inconsistencies block reviewed status; unevaluable receipts remain subject to human comparison"
     },
     {
       "requirement": "formal-run conformance checker",

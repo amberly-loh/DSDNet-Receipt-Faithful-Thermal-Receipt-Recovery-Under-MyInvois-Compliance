@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -59,7 +60,9 @@ CREATE TABLE IF NOT EXISTS audit_events (
     object_type TEXT NOT NULL,
     object_id TEXT,
     outcome TEXT NOT NULL,
-    details_json TEXT NOT NULL DEFAULT '{}'
+    details_json TEXT NOT NULL DEFAULT '{}',
+    previous_hash TEXT NOT NULL DEFAULT '',
+    event_hash TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_audit_events_time ON audit_events(occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_events_actor ON audit_events(actor_user_id, occurred_at DESC);
@@ -82,6 +85,7 @@ class ReceiptStore:
     def _migrate(db: sqlite3.Connection) -> None:
         user_columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
         receipt_columns = {row["name"] for row in db.execute("PRAGMA table_info(receipts)")}
+        event_columns = {row["name"] for row in db.execute("PRAGMA table_info(audit_events)")}
         for name, definition in {
             "role": "TEXT NOT NULL DEFAULT 'user'", "status": "TEXT NOT NULL DEFAULT 'active'",
             "last_login_at": "TEXT", "failed_login_count": "INTEGER NOT NULL DEFAULT 0", "locked_until": "TEXT",
@@ -93,6 +97,10 @@ class ReceiptStore:
         }.items():
             if name not in receipt_columns:
                 db.execute(f"ALTER TABLE receipts ADD COLUMN {name} {definition}")
+        for name in ("previous_hash", "event_hash"):
+            if name not in event_columns:
+                db.execute(f"ALTER TABLE audit_events ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+        ReceiptStore._backfill_event_chain(db)
         first = db.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()
         if first and not db.execute("SELECT 1 FROM users WHERE role='admin'").fetchone():
             db.execute("UPDATE users SET role='admin', status='active' WHERE id=?", (first["id"],))
@@ -103,7 +111,34 @@ class ReceiptStore:
         db = sqlite3.connect(self.database, timeout=20)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys = ON")
+        db.execute("PRAGMA journal_mode = WAL")
         return db
+
+    @staticmethod
+    def _event_hash(row: dict[str, Any], previous_hash: str) -> str:
+        payload = {
+            "event_id": row["event_id"], "occurred_at": row["occurred_at"],
+            "actor_user_id": row.get("actor_user_id"), "action": row["action"],
+            "object_type": row["object_type"], "object_id": row.get("object_id"),
+            "outcome": row["outcome"], "details_json": row["details_json"],
+            "previous_hash": previous_hash,
+        }
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _backfill_event_chain(db: sqlite3.Connection) -> None:
+        previous_hash = ""
+        for raw in db.execute("SELECT * FROM audit_events ORDER BY id"):
+            row = dict(raw)
+            expected = ReceiptStore._event_hash(row, previous_hash)
+            # Populate only genuinely legacy rows. Never "repair" an existing
+            # mismatch during startup because that would conceal tampering.
+            if not row.get("previous_hash") and not row.get("event_hash"):
+                db.execute("UPDATE audit_events SET previous_hash=?,event_hash=? WHERE id=?", (previous_hash, expected, row["id"]))
+                previous_hash = expected
+            else:
+                previous_hash = str(row.get("event_hash") or "")
 
     def create_user(self, public_id: str, name: str, email: str, password_hash: str) -> dict[str, Any]:
         with self.connect() as db:
@@ -149,11 +184,31 @@ class ReceiptStore:
     def log_event(self, actor_user_id: int | None, action: str, object_type: str, object_id: str | None = None, outcome: str = "success", details: dict[str, Any] | None = None) -> None:
         import uuid
         with self.connect() as db:
-            db.execute("INSERT INTO audit_events(event_id,occurred_at,actor_user_id,action,object_type,object_id,outcome,details_json) VALUES(?,?,?,?,?,?,?,?)", (uuid.uuid4().hex, utc_now(), actor_user_id, action, object_type, object_id, outcome, json.dumps(details or {}, ensure_ascii=False)))
+            db.execute("BEGIN IMMEDIATE")
+            previous = db.execute("SELECT event_hash FROM audit_events ORDER BY id DESC LIMIT 1").fetchone()
+            previous_hash = str(previous[0]) if previous else ""
+            row = {"event_id": uuid.uuid4().hex, "occurred_at": utc_now(), "actor_user_id": actor_user_id,
+                   "action": action, "object_type": object_type, "object_id": object_id, "outcome": outcome,
+                   "details_json": json.dumps(details or {}, sort_keys=True, separators=(",", ":"), ensure_ascii=False)}
+            event_hash = self._event_hash(row, previous_hash)
+            db.execute("INSERT INTO audit_events(event_id,occurred_at,actor_user_id,action,object_type,object_id,outcome,details_json,previous_hash,event_hash) VALUES(?,?,?,?,?,?,?,?,?,?)", (*row.values(), previous_hash, event_hash))
+
+    def verify_event_chain(self) -> dict[str, Any]:
+        previous_hash = ""
+        checked = 0
+        with self.connect() as db:
+            rows = db.execute("SELECT * FROM audit_events ORDER BY id").fetchall()
+        for raw in rows:
+            row = dict(raw); checked += 1
+            expected = self._event_hash(row, previous_hash)
+            if row.get("previous_hash") != previous_hash or row.get("event_hash") != expected:
+                return {"status": "failed", "events_checked": checked, "failed_event_id": row.get("event_id")}
+            previous_hash = expected
+        return {"status": "verified", "events_checked": checked, "head_hash": previous_hash}
 
     def list_events(self, limit: int = 250) -> list[dict[str, Any]]:
         with self.connect() as db:
-            rows = db.execute("SELECT e.event_id,e.occurred_at,e.action,e.object_type,e.object_id,e.outcome,e.details_json,u.name actor_name FROM audit_events e LEFT JOIN users u ON u.id=e.actor_user_id ORDER BY e.id DESC LIMIT ?", (limit,)).fetchall()
+            rows = db.execute("SELECT e.event_id,e.occurred_at,e.action,e.object_type,e.object_id,e.outcome,e.details_json,e.previous_hash,e.event_hash,u.name actor_name FROM audit_events e LEFT JOIN users u ON u.id=e.actor_user_id ORDER BY e.id DESC LIMIT ?", (limit,)).fetchall()
         result = []
         for row in rows:
             item = dict(row); item["details"] = json.loads(item.pop("details_json") or "{}"); result.append(item)

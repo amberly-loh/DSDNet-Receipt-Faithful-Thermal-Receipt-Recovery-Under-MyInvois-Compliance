@@ -117,7 +117,7 @@ def main() -> None:
             {"requirement": "natural receipts never auto-accepted without source support", "status": "PASS"},
             {"requirement": "controlled pixel support proxy Ares/Astage/Aunc", "status": "FAIL", "note": "targets exist but full proxy evaluation is not implemented"},
             {"requirement": "validation-only isotonic calibration and thresholds", "status": "FAIL", "note": "no fitted calibrator or selected policy thresholds"},
-            {"requirement": "mandatory arithmetic consistency gate", "status": "FAIL", "note": "line arithmetic is exported for review but not enforced in routing"},
+            {"requirement": "mandatory arithmetic consistency gate", "status": "PASS", "note": "evaluated inconsistencies block reviewed status; unevaluable receipts remain subject to human comparison"},
             {"requirement": "formal-run conformance checker", "status": "PASS", "note": "checker is implemented; the current formal-run preflight itself remains FAIL until its required manifests and calibration artifacts exist"},
             {"requirement": "held-out test used once after validation lock", "status": "NOT RUN"},
         ],

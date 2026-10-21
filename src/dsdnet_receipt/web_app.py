@@ -43,6 +43,8 @@ COMMON_PASSWORDS = {
     "passwordpassword", "password123456", "qwertyuiop12345", "123456789012345",
     "letmeinletmein123", "adminadminadmin", "receipt-recovery", "thermalreceipt",
 }
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+MAX_IMAGE_PIXELS = 40_000_000
 
 
 def _valid_email(value: str) -> bool:
@@ -91,6 +93,28 @@ def safe_excel_value(value):
     return value
 
 
+def _file_sha256(path: str | Path) -> str | None:
+    target = Path(path)
+    if not target.is_file(): return None
+    digest = hashlib.sha256()
+    with target.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""): digest.update(block)
+    return digest.hexdigest()
+
+
+def _receipt_integrity(receipt: dict) -> dict:
+    audit = receipt.get("audit", {})
+    expected = audit.get("stored_file_sha256", {})
+    if not expected:
+        return {"status": "legacy_unverified", "message": "This record predates stored-file integrity hashes."}
+    observed = {
+        "original": _file_sha256(receipt.get("input_path", "")),
+        "recovered": _file_sha256(receipt.get("restored_path", "")),
+    }
+    matches = {key: bool(observed.get(key)) and observed[key] == value for key, value in expected.items()}
+    return {"status": "verified" if matches and all(matches.values()) else "failed", "files": matches}
+
+
 def _ocr_center(line: dict) -> tuple[float, float]:
     try:
         points = line.get("box", [])
@@ -137,6 +161,37 @@ def accounting_line_items(lines: list[dict]) -> list[list]:
     return rows
 
 
+def arithmetic_consistency(lines: list[dict], total_amount: str | None) -> dict:
+    """Check OCR arithmetic without inventing missing quantities or amounts."""
+    rows = accounting_line_items(lines)
+    checks = []
+    for row in rows:
+        quantity, unit_price, discount, amount = row[2], row[4], row[5], row[6]
+        if not quantity or not unit_price or not amount: continue
+        try:
+            expected = Decimal(str(quantity)) * Decimal(str(unit_price))
+            if discount: expected -= Decimal(str(discount))
+            observed = Decimal(str(amount))
+        except InvalidOperation:
+            continue
+        checks.append({"description": row[1], "expected": f"{expected:.2f}", "observed": f"{observed:.2f}", "passed": abs(expected - observed) <= Decimal("0.02")})
+    total_check = None
+    amounts = []
+    for row in rows:
+        try:
+            if row[6]: amounts.append(Decimal(str(row[6])))
+        except InvalidOperation: pass
+    if total_amount and amounts:
+        try:
+            observed_total = Decimal(str(total_amount)); expected_total = sum(amounts, Decimal("0"))
+            total_check = {"expected": f"{expected_total:.2f}", "observed": f"{observed_total:.2f}", "passed": abs(expected_total - observed_total) <= Decimal("0.02")}
+        except InvalidOperation: pass
+    evaluated = len(checks) + (1 if total_check else 0)
+    failures = sum(not check["passed"] for check in checks) + (1 if total_check and not total_check["passed"] else 0)
+    status = "not_evaluable" if not evaluated else "inconsistent" if failures else "consistent"
+    return {"status": status, "evaluated_checks": evaluated, "failed_checks": failures, "line_checks": checks, "total_check": total_check}
+
+
 def _secret_key(root: Path) -> bytes:
     path = root / "artifacts" / "app_data" / ".session_key"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -157,6 +212,7 @@ def create_app(
         SECRET_KEY=_secret_key(root),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=os.getenv("RECEIPT_HTTPS", "0") == "1",
         PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
         TESTING=testing,
     )
@@ -200,13 +256,27 @@ def create_app(
             if not secrets.compare_digest(supplied, session["csrf_token"]):
                 return jsonify({"error": "Your session changed. Refresh the page and try again."}), 403
 
+    @app.after_request
+    def security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "camera=(self), geolocation=(), microphone=()"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        response.headers["Cache-Control"] = "no-store" if request.path.startswith("/api/") else "no-cache"
+        if app.config["SESSION_COOKIE_SECURE"]:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
     @app.get("/")
     def home():
         return render_template("index.html")
 
     @app.get("/api/health")
     def health():
-        return jsonify({"status": "ok", "service": "receipt-recovery", "database": "ready"})
+        chain = store.verify_event_chain()
+        status = "ok" if chain["status"] == "verified" else "degraded"
+        return jsonify({"status": status, "service": "receipt-recovery", "database": "ready", "audit_chain": chain["status"]}), (200 if status == "ok" else 503)
 
     @app.get("/api/auth")
     def auth_state():
@@ -354,6 +424,8 @@ def create_app(
         if receipt and receipt.get("audit", {}).get("ocr_lines"):
             receipt["audit"]["ocr_lines"] = deduplicate_lines(receipt["audit"]["ocr_lines"])
             receipt["audit"]["ocr_suggestions"] = suggestions_for_lines(receipt["audit"]["ocr_lines"])
+            receipt["audit"]["arithmetic_consistency"] = arithmetic_consistency(receipt["audit"]["ocr_lines"], receipt.get("total_amount"))
+        if receipt: receipt["integrity"] = _receipt_integrity(receipt)
         if receipt: store.log_event(current_user()["id"], "receipt.view", "receipt", receipt_id)
         return jsonify(receipt) if receipt else (jsonify({"error": "Receipt not found."}), 404)
 
@@ -377,6 +449,9 @@ def create_app(
         if payload.get("status") == "reviewed":
             missing = [key for key in ("merchant", "transaction_date", "receipt_number", "total_amount") if not str(proposed.get(key) or "").strip()]
             if missing: errors["status"] = "Complete merchant, date, receipt number and total before marking this receipt reviewed."
+            arithmetic = arithmetic_consistency(existing.get("audit", {}).get("ocr_lines", []), proposed.get("total_amount"))
+            if arithmetic["status"] == "inconsistent":
+                errors["status"] = "Resolve the detected line-amount inconsistency before marking this receipt reviewed."
         if errors: return jsonify({"error": "Correct the highlighted receipt details.", "fields": errors}), 400
         receipt = store.update_receipt(current_user()["id"], receipt_id, payload)
         if receipt: store.log_event(current_user()["id"], "receipt.review_update", "receipt", receipt_id, details={"status": receipt["status"]})
@@ -457,6 +532,7 @@ def create_app(
             ("Review status", status_label_for_export(receipt.get("status"))), ("Record ID", receipt.get("public_id")),
             ("Source file", receipt.get("source_name")), ("Processed at", receipt.get("created_at")),
             ("Reviewer notes", receipt.get("notes")), ("Tags", ", ".join(receipt.get("tags", []))),
+            ("Arithmetic consistency", arithmetic_consistency(lines, receipt.get("total_amount"))["status"].replace("_", " ").title()),
         ]
         for label, value in summary_rows: summary.append([label, safe_excel_value(value or "Not confirmed")])
         summary.column_dimensions["A"].width = 28; summary.column_dimensions["B"].width = 72
@@ -517,10 +593,15 @@ def create_app(
         return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=f"{receipt_id}-audit-accounting.xlsx")
 
     def process_receipt(upload, user):
+        if upload.mimetype and upload.mimetype.casefold() not in ALLOWED_IMAGE_TYPES:
+            raise ValueError(f"{upload.filename}: upload a JPEG, PNG, WebP, HEIC or HEIF receipt image")
         raw_bytes = upload.read()
+        if not raw_bytes: raise ValueError(f"{upload.filename}: the uploaded file is empty")
         raw = np.frombuffer(raw_bytes, dtype=np.uint8)
         image = cv2.imdecode(raw, cv2.IMREAD_COLOR)
         if image is None: raise ValueError(f"{upload.filename}: unreadable receipt image")
+        if int(image.shape[0]) * int(image.shape[1]) > MAX_IMAGE_PIXELS:
+            raise ValueError(f"{upload.filename}: image dimensions are too large")
         started = time.perf_counter(); processed, preprocessing_record = preprocess(image, config)
         from .restoration import make_evidence_preserving_view, make_readability_view
         with inference_lock:
@@ -543,7 +624,7 @@ def create_app(
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
         if restoration.diagnostic_map is not None: write_image(diagnostic_path, restoration.diagnostic_map)
         runtime = time.perf_counter() - started
-        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": "clean_bw_display_transform_from_source_preserving_recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
+        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "stored_file_sha256": {"original": _file_sha256(input_path), "recovered": _file_sha256(restored_path)}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": "clean_bw_display_transform_from_source_preserving_recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
         write_json(audit_root / "audit.json", audit)
         now = utc_now(); retention_days = int(config.get("app", {}).get("retention_days", 2555))
         retention_until = (datetime.now(timezone.utc) + timedelta(days=retention_days)).date().isoformat()
