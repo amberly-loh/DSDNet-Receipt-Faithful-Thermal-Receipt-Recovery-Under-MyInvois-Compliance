@@ -183,7 +183,7 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
         median_tone = float(np.median(normalised[component]))
         broad_unlabelled_mark = (
             width > int(0.60 * image_width)
-            and height > 4
+            and height > 2
             and median_tone > 155.0
             and not protected
         )
@@ -198,13 +198,23 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
     vertical_response = cv2.morphologyEx(
         255 - normalised, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 21))
     ) > 35
-    horizontal_neighbour = np.zeros_like(horizontal_response)
-    horizontal_neighbour[1:] |= horizontal_response[:-1]
-    horizontal_neighbour[:-1] |= horizontal_response[1:]
-    vertical_neighbour = np.zeros_like(vertical_response)
-    vertical_neighbour[:, 1:] |= vertical_response[:, :-1]
-    vertical_neighbour[:, :-1] |= vertical_response[:, 1:]
-    foreground |= (horizontal_response & ~horizontal_neighbour) | (vertical_response & ~vertical_neighbour)
+    # A printed rule remains confined to one or two rows/columns. A fold may
+    # contain locally straight segments, but its complete connected response
+    # wanders across several rows/columns. Classify the complete structure so
+    # those fragments cannot be accidentally painted back into the clean view.
+    thin_rules = np.zeros_like(foreground)
+    for response, horizontal in ((horizontal_response, True), (vertical_response, False)):
+        response_count, response_labels, response_stats, _ = cv2.connectedComponentsWithStats(
+            response.astype(np.uint8), 8
+        )
+        for response_index in range(1, response_count):
+            response_width = int(response_stats[response_index, cv2.CC_STAT_WIDTH])
+            response_height = int(response_stats[response_index, cv2.CC_STAT_HEIGHT])
+            is_uniformly_thin = response_height <= 2 if horizontal else response_width <= 2
+            is_long_enough = response_width >= 21 if horizontal else response_height >= 21
+            if is_uniformly_thin and is_long_enough:
+                thin_rules[response_labels == response_index] = True
+    foreground |= thin_rules
 
     local_mean = cv2.GaussianBlur(normalised, (0, 0), 0.7)
     sharpened = cv2.addWeighted(normalised, 1.7, local_mean, -0.7, 0)

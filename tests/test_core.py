@@ -151,14 +151,14 @@ def test_persisted_ocr_deduplication_handles_rounding_boundary() -> None:
     assert len(result) == 1 and result[0]["confidence"] == .995
 
 
-def test_reading_view_never_erases_observed_receipt_marks() -> None:
+def test_reading_view_suppresses_fold_but_preserves_unrecognised_ink() -> None:
     readable = np.full((80, 160), 255, np.uint8)
-    readable[10:12, 10:150] = 180  # light fold/texture outside OCR localisation
+    readable[9:13, 10:150] = 180   # broad fold outside OCR localisation
     readable[30:34, 20:80] = 105   # unrecognised handwriting/signature
     readable[50:54, 25:130] = 165  # faint OCR-localised printed text
     lines = [{"text":"TOTAL 102.50", "box":[[20,46],[135,46],[135,58],[20,58]], "confidence":.95}]
     output = make_evidence_preserving_view(readable, lines)
-    assert np.count_nonzero(output[10:12, 10:150] < 245) >= 260
+    assert np.count_nonzero(output[9:13, 10:150] < 245) <= 20
     assert np.count_nonzero(output[30:34, 20:80] < 180) >= 220
     assert np.count_nonzero(output[50:54, 25:130] < 220) >= 400
 
