@@ -110,6 +110,7 @@ def _receipt_integrity(receipt: dict) -> dict:
     observed = {
         "original": _file_sha256(receipt.get("input_path", "")),
         "recovered": _file_sha256(receipt.get("restored_path", "")),
+        "source_upload": _file_sha256(Path(receipt.get("input_path", "")).with_name("source_upload.bin")),
     }
     matches = {key: bool(observed.get(key)) and observed[key] == value for key, value in expected.items()}
     return {"status": "verified" if matches and all(matches.values()) else "failed", "files": matches}
@@ -603,7 +604,7 @@ def create_app(
         if int(image.shape[0]) * int(image.shape[1]) > MAX_IMAGE_PIXELS:
             raise ValueError(f"{upload.filename}: image dimensions are too large")
         started = time.perf_counter(); processed, preprocessing_record = preprocess(image, config)
-        from .restoration import make_evidence_preserving_view, make_readability_view
+        from .restoration import make_readability_view
         with inference_lock:
             restoration = restoration_engine.run(processed)
             readability = make_readability_view(processed, restoration.image)
@@ -612,19 +613,21 @@ def create_app(
                 ("source_preserving_recovery", restoration.image),
                 ("readability_view", readability),
             ])
-            display_readability = make_evidence_preserving_view(restoration.image, ocr.lines)
         fields = route_fields(extract_fields(ocr.text, ocr.lines), support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
         run_id = f"USER-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         audit_root = Path(config["artifacts_root"]) / "user_runs" / run_id
         input_path, restored_path, diagnostic_path = audit_root / "input.png", audit_root / "restored.png", audit_root / "diagnostic.png"
-        display_restoration = display_readability
-        write_image(input_path, processed); write_image(restored_path, display_restoration)
+        source_upload_path, rectified_path = audit_root / "source_upload.bin", audit_root / "rectified_input.png"
+        display_restoration = restoration.image
+        audit_root.mkdir(parents=True, exist_ok=True)
+        source_upload_path.write_bytes(raw_bytes)
+        write_image(input_path, image); write_image(rectified_path, processed); write_image(restored_path, display_restoration)
         write_image(audit_root / "ocr_input.png", restoration.image)
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
         if restoration.diagnostic_map is not None: write_image(diagnostic_path, restoration.diagnostic_map)
         runtime = time.perf_counter() - started
-        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "stored_file_sha256": {"original": _file_sha256(input_path), "recovered": _file_sha256(restored_path)}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": "clean_bw_display_transform_from_source_preserving_recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
+        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path)}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": "source_preserving_recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
         write_json(audit_root / "audit.json", audit)
         now = utc_now(); retention_days = int(config.get("app", {}).get("retention_days", 2555))
         retention_until = (datetime.now(timezone.utc) + timedelta(days=retention_days)).date().isoformat()
@@ -638,7 +641,7 @@ def create_app(
             "retention_until": retention_until, "content_sha256": audit["content_sha256"],
         })
         store.log_event(user["id"], "receipt.process", "receipt", run_id, details={"source_name": upload.filename, "restoration_status": restoration.status})
-        return {"run_id": run_id, "receipt": record, "original": _data_url(processed), "restored": _data_url(display_restoration), "diagnostic": _data_url(restoration.diagnostic_map) if restoration.diagnostic_map is not None else None, "ocr_text": ocr.text, "fields": [field.as_dict() for field in fields], "restoration_status": restoration.status, "support_status": "unavailable_for_natural_source", "runtime_seconds": runtime, "audit": audit}
+        return {"run_id": run_id, "receipt": record, "original": _data_url(image), "restored": _data_url(display_restoration), "diagnostic": _data_url(restoration.diagnostic_map) if restoration.diagnostic_map is not None else None, "ocr_text": ocr.text, "fields": [field.as_dict() for field in fields], "restoration_status": restoration.status, "support_status": "unavailable_for_natural_source", "runtime_seconds": runtime, "audit": audit}
 
     @app.post("/api/analyze")
     @require_auth
