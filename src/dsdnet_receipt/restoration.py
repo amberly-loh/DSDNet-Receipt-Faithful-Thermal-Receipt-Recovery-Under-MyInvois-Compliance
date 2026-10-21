@@ -163,10 +163,27 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
     # OCR is used only to protect known text-bearing regions from broad-mark
     # rejection; it never creates foreground on its own.
     localised = np.zeros_like(source, dtype=np.uint8)
+    ocr_foreground = np.zeros_like(source, dtype=bool)
     for line in ocr_lines:
         points = np.asarray(line.get("box", []), dtype=np.int32)
         if points.shape == (4, 2):
             cv2.fillPoly(localised, [points], 255)
+            x, y, width, height = cv2.boundingRect(points)
+            x2, y2 = min(source.shape[1], x + width), min(source.shape[0], y + height)
+            x, y = max(0, x), max(0, y)
+            if x2 > x and y2 > y:
+                region = normalised[y:y2, x:x2]
+                polygon = np.zeros_like(region, dtype=np.uint8)
+                shifted = points - np.array([x, y], dtype=np.int32)
+                cv2.fillPoly(polygon, [shifted], 255)
+                values = region[polygon > 0]
+                if values.size:
+                    threshold, _ = cv2.threshold(values, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                    threshold = min(float(threshold), 205.0)
+                    region_mask = (region <= threshold) & (polygon > 0)
+                    region_mask = cv2.morphologyEx(region_mask.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((2, 2), np.uint8)) > 0
+                    ocr_foreground[y:y2, x:x2] |= region_mask
+    candidates |= ocr_foreground
     localised = cv2.dilate(localised, np.ones((15, 15), np.uint8)) > 0
 
     count, labels, stats, _ = cv2.connectedComponentsWithStats(candidates.astype(np.uint8), 8)
@@ -248,7 +265,10 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
     foreground |= solid_graphics > 0
 
     output = np.full_like(source, 255)
-    # Once a pixel has passed a component-specific support rule, render it as
-    # document ink. This avoids carrying grey paper modulation back into text.
-    output[foreground] = 0
+    # Use measured grayscale stroke strength so small text is not thickened by
+    # the same rendering rule as solid graphics. Logos alone are filled solid.
+    ink_tones = np.clip((normalised.astype(np.float32) - 105.0) * 2.35, 0, 225).astype(np.uint8)
+    output[foreground] = ink_tones[foreground]
+    output[thin_rules] = np.minimum(output[thin_rules], 35)
+    output[solid_graphics > 0] = 0
     return output
