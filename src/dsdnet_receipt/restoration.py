@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any
 
 import numpy as np
@@ -163,6 +164,7 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
     # OCR is used only to protect known text-bearing regions from broad-mark
     # rejection; it never creates foreground on its own.
     localised = np.zeros_like(source, dtype=np.uint8)
+    weak_mark_regions = np.zeros_like(source, dtype=np.uint8)
     ocr_foreground = np.zeros_like(source, dtype=bool)
     for line in ocr_lines:
         points = np.asarray(line.get("box", []), dtype=np.int32)
@@ -187,12 +189,22 @@ def make_evidence_preserving_view(readable: np.ndarray, ocr_lines: list[dict[str
                     if height >= 32:
                         region_mask = cv2.morphologyEx(region_mask.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((2, 2), np.uint8)) > 0
                     ocr_foreground[y:y2, x:x2] |= region_mask
+                line_text = str(line.get("text", ""))
+                confidence = float(line.get("confidence") or 0.0)
+                weak_mark_hint = confidence < 0.90 or bool(re.search(r"(?i)stamp|chop|signature|authori[sz]ed|received|issued|paid", line_text))
+                if weak_mark_hint:
+                    cv2.fillPoly(weak_mark_regions, [points], 255)
     candidates |= ocr_foreground
 
     # Recover coherent weak marks that OCR does not localise, such as stamps
     # and signatures. Component filtering keeps this path local: small paper
     # grain and page-spanning folds are not promoted to document ink.
     weak_binary = cv2.adaptiveThreshold(normalised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 41, 11)
+    # Expand only around OCR-indicated weak marks. This recovers surrounding
+    # seal rings and signature strokes that are not themselves recognised as
+    # text, without lowering the threshold across the whole page.
+    weak_mark_regions = cv2.dilate(weak_mark_regions, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (45, 45))) > 0
+    candidates |= (weak_binary > 0) & weak_mark_regions
     weak_count, weak_labels, weak_stats, _ = cv2.connectedComponentsWithStats(weak_binary, 8)
     weak_structures = np.zeros_like(candidates)
     for weak_index in range(1, weak_count):
