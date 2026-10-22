@@ -264,6 +264,22 @@ def test_source_stroke_enhancement_bridges_only_local_pixel_gaps() -> None:
     assert np.count_nonzero(output[5:15, 20:160] < 250) == 0
 
 
+def test_stroke_fidelity_metrics_separate_deletion_from_false_ink() -> None:
+    from dsdnet_receipt.validation import stroke_fidelity_metrics
+
+    clean = np.full((20, 30), 255, np.uint8)
+    clean[5:10, 5:15] = 80
+    foreground = clean < 128
+    recovered = clean.copy()
+    recovered[5:10, 5:10] = 250  # deleted half of a known stroke
+    recovered[14:17, 20:24] = 100  # invented mark on clean paper
+    metrics = stroke_fidelity_metrics(clean, recovered, foreground)
+
+    assert 0.45 <= metrics["stroke_recall"] <= 0.55
+    assert 0.45 <= metrics["deleted_stroke_rate"] <= 0.55
+    assert metrics["false_stroke_pixels"] == 12
+
+
 def test_thermal_overlay_renders_only_supported_ocr_text() -> None:
     from dsdnet_receipt.restoration import overlay_supported_ocr_text
     image = np.full((100, 260), 250, np.uint8)

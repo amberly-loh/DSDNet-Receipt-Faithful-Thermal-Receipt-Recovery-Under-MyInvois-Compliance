@@ -73,14 +73,20 @@ def crop_and_augment(clean: np.ndarray, degraded: np.ndarray, size: int, rng: ra
 
 
 def add_natural_receipt_degradation(
-    degraded: np.ndarray, settings: dict, seed: int
-) -> tuple[np.ndarray, dict]:
+    degraded: np.ndarray, settings: dict, seed: int, *, return_masks: bool = False
+) -> tuple[np.ndarray, dict] | tuple[np.ndarray, dict, dict[str, np.ndarray]]:
     """Add deterministic paper texture and folds while retaining a clean target."""
     import cv2
 
     rng = np.random.default_rng(seed)
+    empty_masks = {
+        "crease": np.zeros(degraded.shape, dtype=bool),
+        "texture": np.zeros(degraded.shape, dtype=bool),
+        "fade": np.zeros(degraded.shape, dtype=bool),
+    }
     if not settings.get("enabled", False) or rng.random() > float(settings["probability"]):
-        return degraded, {"applied": False}
+        result = (degraded, {"applied": False})
+        return (*result, empty_masks) if return_masks else result
     image = degraded.astype(np.float32) / 255.0
     amplitude = float(rng.uniform(*settings["texture_amplitude"]))
     scale = float(rng.uniform(*settings["texture_scale_pixels"]))
@@ -88,6 +94,8 @@ def add_natural_receipt_degradation(
     texture = cv2.GaussianBlur(noise, (0, 0), scale)
     texture /= max(float(texture.std()), 1e-6)
     image = np.clip(image + amplitude * texture, 0.0, 1.0)
+    texture_mask = np.abs(texture * amplitude) >= max(0.006, amplitude * 0.30)
+    crease_mask = np.zeros(image.shape, dtype=np.uint8)
     crease_count = 0
     if rng.random() < float(settings["crease_probability"]):
         low, high = settings["crease_count"]
@@ -113,7 +121,9 @@ def add_natural_receipt_degradation(
             offset = int(rng.integers(1, max(2, max_offset + 1)))
             shifted = np.roll(fold, offset if polarity < 0 else -offset, axis=0)
             image = np.clip(image - polarity * strength * 0.55 * shifted, 0.0, 1.0)
+            crease_mask |= ((fold + shifted) >= 0.08).astype(np.uint8)
     fade_applied = False
+    fade_mask = np.zeros(image.shape, dtype=bool)
     if rng.random() < float(settings.get("fade_probability", 0.0)):
         fade_applied = True
         h, w = image.shape
@@ -124,10 +134,13 @@ def add_natural_receipt_degradation(
         fade_map /= max(float(fade_map.max()), 1e-6)
         fade_strength = float(rng.uniform(*settings.get("fade_strength", [0.05, 0.18])))
         image = np.clip(image + (1.0 - image) * fade_map * fade_strength, 0.0, 1.0)
-    return (image * 255.0 + 0.5).astype(np.uint8), {
+        fade_mask = fade_map >= 0.55
+    result = (image * 255.0 + 0.5).astype(np.uint8), {
         "applied": True, "texture_amplitude": amplitude, "texture_scale_pixels": scale,
         "crease_count": crease_count, "fade_applied": fade_applied,
     }
+    masks = {"crease": crease_mask.astype(bool), "texture": texture_mask, "fade": fade_mask}
+    return (*result, masks) if return_masks else result
 
 
 def main() -> None:

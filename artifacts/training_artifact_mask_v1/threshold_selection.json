@@ -1,0 +1,48 @@
+{
+  "partition": "validation only",
+  "formal_test_evidence": false,
+  "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_artifact_mask_v1\\best.pt",
+  "threshold_grid": [
+    {
+      "threshold": 0.5,
+      "crease_iou": 0.5906250900730118,
+      "false_positive_rate": 0.2199800541462052
+    },
+    {
+      "threshold": 0.6,
+      "crease_iou": 0.633237017958302,
+      "false_positive_rate": 0.16363889128204326
+    },
+    {
+      "threshold": 0.7,
+      "crease_iou": 0.6628715319573804,
+      "false_positive_rate": 0.12085451274942108
+    },
+    {
+      "threshold": 0.8,
+      "crease_iou": 0.6820875662599886,
+      "false_positive_rate": 0.08397687429673896
+    },
+    {
+      "threshold": 0.85,
+      "crease_iou": 0.6852601229734937,
+      "false_positive_rate": 0.0665529700786086
+    },
+    {
+      "threshold": 0.9,
+      "crease_iou": 0.6821356816944252,
+      "false_positive_rate": 0.048350420455465136
+    },
+    {
+      "threshold": 0.95,
+      "crease_iou": 0.6566873695095204,
+      "false_positive_rate": 0.027621352506415828
+    }
+  ],
+  "selected": {
+    "threshold": 0.95,
+    "crease_iou": 0.6566873695095204,
+    "false_positive_rate": 0.027621352506415828
+  },
+  "deployment_enabled": true
+}

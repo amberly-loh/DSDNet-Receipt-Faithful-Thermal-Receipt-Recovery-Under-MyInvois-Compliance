@@ -20,6 +20,7 @@ from dsdnet_receipt.config import load_config  # noqa: E402
 from dsdnet_receipt.dsdnet_adapter import DSDNetReceiptAdapter, gaussian_kernel  # noqa: E402
 from dsdnet_receipt.images import read_gray  # noqa: E402
 from dsdnet_receipt.metrics import psnr, ssim  # noqa: E402
+from dsdnet_receipt.validation import stroke_fidelity_metrics  # noqa: E402
 
 
 def centre_crop_pair(clean: np.ndarray, degraded: np.ndarray, size: int) -> tuple[np.ndarray, np.ndarray]:
@@ -44,6 +45,9 @@ def source_aggregate(rows: list[dict[str, object]]) -> dict[str, float]:
     source_l1 = [float(np.mean([float(row["l1"]) for row in group])) for group in by_source.values()]
     mean_ssim = float(np.mean(source_ssim))
     mean_l1 = float(np.mean(source_l1))
+    stroke_recall = [float(np.mean([float(row["stroke_recall"]) for row in group])) for group in by_source.values()]
+    deleted_rate = [float(np.mean([float(row["deleted_stroke_rate"]) for row in group])) for group in by_source.values()]
+    false_rate = [float(np.mean([float(row["false_stroke_rate"]) for row in group])) for group in by_source.values()]
     return {
         "sources": len(by_source),
         "variants": len(rows),
@@ -51,6 +55,9 @@ def source_aggregate(rows: list[dict[str, object]]) -> dict[str, float]:
         "mean_ssim": mean_ssim,
         "mean_l1": mean_l1,
         "mean_validation_objective": mean_l1 + 0.2 * (1.0 - mean_ssim),
+        "mean_stroke_recall": float(np.mean(stroke_recall)),
+        "mean_deleted_stroke_rate": float(np.mean(deleted_rate)),
+        "mean_false_stroke_rate": float(np.mean(false_rate)),
     }
 
 
@@ -92,15 +99,26 @@ def main() -> None:
             read_gray(variant["degraded_path"]),
             crop_size,
         )
+        foreground_path = variant.get("clean_foreground") or str(
+            Path(variant["degraded_path"]).with_name("clean_foreground.png")
+        )
+        foreground, _ = centre_crop_pair(
+            read_gray(foreground_path),
+            read_gray(foreground_path),
+            crop_size,
+        )
+        foreground = foreground > 127
         for method_id, method in BASELINES.items():
             started = time.perf_counter()
             restored = method(degraded)
+            fidelity = stroke_fidelity_metrics(clean, restored, foreground)
             rows.append({
                 "source_id": variant["source_id"], "variant_id": variant["variant_id"],
                 "severity": variant["severity"], "method": method_id,
                 "psnr": psnr(clean, restored), "ssim": ssim(clean, restored),
                 "l1": float(np.mean(np.abs(clean.astype(np.float32) - restored.astype(np.float32))) / 255.0),
                 "seconds": time.perf_counter() - started,
+                **fidelity,
             })
         observed = torch.from_numpy(degraded).float().div_(255).unsqueeze(0).unsqueeze(0).to(device)
         kernel = gaussian_kernel(float(variant["parameters"]["blur_sigma"])).to(device)
@@ -108,12 +126,14 @@ def main() -> None:
         with torch.inference_mode():
             restored_tensor = model(observed, kernel, retain_diagnostics=False)["restored"].clamp(0, 1)
         restored = (restored_tensor.squeeze().cpu().numpy() * 255.0).round().astype(np.uint8)
+        fidelity = stroke_fidelity_metrics(clean, restored, foreground)
         rows.append({
             "source_id": variant["source_id"], "variant_id": variant["variant_id"],
             "severity": variant["severity"], "method": "Proposed_DSDNet_Receipt",
             "psnr": psnr(clean, restored), "ssim": ssim(clean, restored),
             "l1": float(F.l1_loss(restored_tensor, torch.from_numpy(clean).float().div_(255).unsqueeze(0).unsqueeze(0).to(device)).cpu()),
             "seconds": time.perf_counter() - started,
+            **fidelity,
         })
         print(f"Validated {index}/{len(variants)} variants", flush=True)
 

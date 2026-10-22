@@ -595,7 +595,12 @@ def create_app(
         source_image = cv2.imread(str(source_path if source_path.is_file() else existing["input_path"]), cv2.IMREAD_GRAYSCALE)
         recovery_image = cv2.imread(str(recovery_path), cv2.IMREAD_GRAYSCALE)
         if source_image is not None and recovery_image is not None:
-            faithful_content = make_faithful_content_view(source_image, recovery_image, lines)
+            mask_config = config.get("artifact_mask", {})
+            faithful_content = make_faithful_content_view(
+                source_image, recovery_image, lines,
+                mask_config.get("checkpoint") if mask_config.get("enabled") else None,
+                float(mask_config.get("threshold", 0.95)),
+            )
             faithful_path = run_root / "faithful_content.png"
             write_image(faithful_path, faithful_content)
             readable = make_readability_view(source_image, recovery_image)
@@ -793,7 +798,12 @@ def create_app(
                 ("source_preserving_recovery", restoration.image),
                 ("readability_view", readability),
             ])
-            faithful_content = make_faithful_content_view(processed, restoration.image, ocr.lines)
+            mask_config = config.get("artifact_mask", {})
+            faithful_content = make_faithful_content_view(
+                processed, restoration.image, ocr.lines,
+                mask_config.get("checkpoint") if mask_config.get("enabled") else None,
+                float(mask_config.get("threshold", 0.95)),
+            )
             document_view, display_mode = make_adaptive_document_view(readability, ocr.lines, processed)
             rendered_readings = 0
             if display_mode.startswith("faint_thermal"):

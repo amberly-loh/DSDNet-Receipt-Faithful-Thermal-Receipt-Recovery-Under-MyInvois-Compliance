@@ -149,6 +149,8 @@ def make_faithful_content_view(
     source: np.ndarray,
     restored: np.ndarray,
     ocr_lines: list[dict[str, Any]] | None = None,
+    artifact_mask_checkpoint: str | Path | None = None,
+    artifact_mask_threshold: float = 0.95,
 ) -> np.ndarray:
     """Suppress paper texture while retaining only image-derived receipt content.
 
@@ -208,10 +210,75 @@ def make_faithful_content_view(
         source_flattened = cv2.fastNlMeansDenoising(
             source_flattened, None, h=4, templateWindowSize=7, searchWindowSize=21
         )
-        return enhance_supported_source_strokes(
+        source_supported = enhance_supported_source_strokes(
             source_flattened, source_u8, ocr_lines or [], minimum_confidence=0.70
         )
+        if artifact_mask_checkpoint and Path(artifact_mask_checkpoint).is_file():
+            source_supported = suppress_learned_paper_artifacts(
+                source_supported,
+                source_u8,
+                ocr_lines or [],
+                artifact_mask_checkpoint,
+                artifact_mask_threshold,
+            )
+        return source_supported
     return faithful
+
+
+def suppress_learned_paper_artifacts(
+    image: np.ndarray,
+    evidence_source: np.ndarray,
+    ocr_lines: list[dict[str, Any]],
+    checkpoint: str | Path,
+    threshold: float = 0.95,
+) -> np.ndarray:
+    """Lighten learned crease pixels only outside protected content regions."""
+    import cv2
+
+    from .artifact_mask import predict_artifact_mask
+
+    artifact = predict_artifact_mask(evidence_source, checkpoint, threshold)
+    protected = np.zeros(image.shape, dtype=np.uint8)
+    for line in ocr_lines:
+        if float(line.get("confidence") or 0.0) < 0.50:
+            continue
+        points = np.asarray(line.get("box", []), dtype=np.int32)
+        if points.shape == (4, 2):
+            cv2.fillConvexPoly(protected, points, 1)
+    protected = cv2.dilate(protected, np.ones((5, 5), np.uint8))
+
+    # Protect source-supported solid graphics such as merchant logos and seals.
+    local_background = cv2.GaussianBlur(evidence_source, (0, 0), 15)
+    darkness = np.maximum(
+        local_background.astype(np.int16) - evidence_source.astype(np.int16), 0
+    ).astype(np.uint8)
+    solid = (darkness >= 35).astype(np.uint8)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(solid, 8)
+    for label in range(1, count):
+        x, y, width, height, area = stats[label]
+        if area >= 24 and width >= 3 and height >= 3:
+            protected[labels == label] = 1
+
+    # Protect straight table/rule geometry. Curved or irregular folds are not
+    # promoted to content merely because they are long.
+    edges = cv2.Canny(evidence_source, 40, 100)
+    lines = cv2.HoughLinesP(
+        edges, 1, np.pi / 180, threshold=45,
+        minLineLength=max(30, min(image.shape) // 7), maxLineGap=4,
+    )
+    if lines is not None:
+        for x1, y1, x2, y2 in lines[:, 0]:
+            angle = abs(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
+            if angle <= 2.0 or angle >= 88.0:
+                cv2.line(protected, (x1, y1), (x2, y2), 1, 3)
+
+    removable = artifact & (protected == 0)
+    if not removable.any():
+        return image
+    paper_estimate = cv2.GaussianBlur(image, (0, 0), 9)
+    output = image.copy()
+    output[removable] = np.maximum(output[removable], paper_estimate[removable])
+    return output
 
 
 def make_faint_thermal_view(readable: np.ndarray) -> np.ndarray:

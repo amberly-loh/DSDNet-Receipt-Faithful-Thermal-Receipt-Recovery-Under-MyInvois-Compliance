@@ -49,5 +49,11 @@
     "tile_batch_size": 2,
     "restoration_blend_alpha": 1.0,
     "checkpoint": "../artifacts/training_foreground_dev_v4/checkpoint_0000500.pt"
+  },
+  "artifact_mask": {
+    "enabled": true,
+    "checkpoint": "../artifacts/training_artifact_mask_v1/best.pt",
+    "threshold": 0.95,
+    "selection_evidence": "validation-only threshold selection; test partition untouched"
   }
 }

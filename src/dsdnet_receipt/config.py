@@ -15,6 +15,10 @@ def load_config(path: str | Path) -> tuple[dict[str, Any], Path]:
     checkpoint = config["dsdnet"].get("checkpoint")
     if checkpoint:
         config["dsdnet"]["checkpoint"] = str((base / checkpoint).resolve())
+    artifact_mask = config.get("artifact_mask", {})
+    artifact_checkpoint = artifact_mask.get("checkpoint")
+    if artifact_checkpoint:
+        artifact_mask["checkpoint"] = str((base / artifact_checkpoint).resolve())
     return config, config_path
 
 

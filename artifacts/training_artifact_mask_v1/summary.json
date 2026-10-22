@@ -1,0 +1,13 @@
+{
+  "partition": "validation only",
+  "formal_test_evidence": false,
+  "train_records": 1290,
+  "validation_records": 258,
+  "best": {
+    "crease_iou": 0.6183445361522306,
+    "false_positive_rate": 0.17658320265794608,
+    "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_artifact_mask_v1\\checkpoint_0000750.pt",
+    "iteration": 750
+  },
+  "deployment_enabled": false
+}
