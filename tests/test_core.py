@@ -236,6 +236,21 @@ def test_source_stroke_enhancement_never_typesets_missing_text() -> None:
     assert np.count_nonzero(output[5:15, 20:220] < 250) == 0
 
 
+def test_source_stroke_enhancement_bridges_only_local_pixel_gaps() -> None:
+    from dsdnet_receipt.restoration import enhance_supported_source_strokes
+    source = np.full((70, 180), 245, np.uint8)
+    # Two measured pieces separated by a one-pixel dropout.
+    source[34, 60:85] = 205
+    source[34, 86:112] = 205
+    base = np.full_like(source, 255)
+    lines = [{"text":"supported", "confidence":.99,
+              "box":[[50,20],[125,20],[125,50],[50,50]]}]
+    output = enhance_supported_source_strokes(base, source, lines)
+    assert output[34, 85] < 250
+    # No distant pixels are created merely because OCR supplied a word.
+    assert np.count_nonzero(output[5:15, 20:160] < 250) == 0
+
+
 def test_thermal_overlay_renders_only_supported_ocr_text() -> None:
     from dsdnet_receipt.restoration import overlay_supported_ocr_text
     image = np.full((100, 260), 250, np.uint8)

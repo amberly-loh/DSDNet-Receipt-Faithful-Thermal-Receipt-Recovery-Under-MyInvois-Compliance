@@ -189,7 +189,22 @@ def enhance_supported_source_strokes(
         measured_darkness = np.maximum(
             local_background.astype(np.int16) - roi.astype(np.int16), 0
         ).astype(np.float32)
-        boosted = np.clip(255.0 - np.maximum(measured_darkness - 1.0, 0.0) * 3.0, 0, 255).astype(np.uint8)
+        stroke_response = np.maximum(measured_darkness - 1.0, 0.0)
+        # Join only one-pixel discontinuities already bounded by measured ink.
+        # Closing cannot invent a word or substitute a glyph; it merely bridges
+        # tiny scanner/dropout gaps between neighbouring source-supported pixels.
+        closed_horizontal = cv2.morphologyEx(
+            stroke_response, cv2.MORPH_CLOSE, np.ones((1, 3), np.uint8)
+        )
+        closed_vertical = cv2.morphologyEx(
+            stroke_response, cv2.MORPH_CLOSE, np.ones((3, 1), np.uint8)
+        )
+        repaired_response = np.maximum(closed_horizontal, closed_vertical)
+        # Keep the repair conservative: a closed pixel may be no stronger than
+        # the strongest measured response in its immediate 3x3 neighbourhood.
+        local_support = cv2.dilate(stroke_response, np.ones((3, 3), np.uint8))
+        repaired_response = np.minimum(repaired_response, local_support)
+        boosted = np.clip(255.0 - repaired_response * 3.0, 0, 255).astype(np.uint8)
         output[y1:y2, x1:x2] = np.minimum(output[y1:y2, x1:x2], boosted)
     return output
 
