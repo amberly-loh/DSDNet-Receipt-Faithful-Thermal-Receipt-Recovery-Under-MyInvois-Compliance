@@ -316,9 +316,9 @@ def make_adaptive_document_view(readable: np.ndarray, ocr_lines: list[dict[str, 
     normalised = cv2.divide(detection_source, np.maximum(background, 1), scale=245)
     faint_thermal = float(normalised.std()) < 25.0 and float(np.mean(normalised < 200)) < 0.03
     if faint_thermal:
-        # Start from the rectified source when available. The intermediate
-        # denoiser is useful for ordinary documents but can soften already
-        # weak thermal strokes before this specialised contrast step.
+        # Start from the rectified evidence for faint thermal paper. Model-led
+        # cleanup can amplify fold edges on this material; authentic source
+        # strokes are strengthened conservatively below instead.
         thermal = make_faint_thermal_view(evidence_source if evidence_source is not None else source)
         if evidence_source is not None and ocr_lines:
             thermal = enhance_supported_source_strokes(thermal, evidence_source, ocr_lines)

@@ -99,11 +99,34 @@ def add_natural_receipt_degradation(
             strength = float(rng.uniform(*settings["crease_strength"]))
             thickness = int(rng.integers(int(settings["crease_thickness"][0]), int(settings["crease_thickness"][1]) + 1))
             overlay = np.zeros_like(image)
-            cv2.line(overlay, (0, y), (w - 1, int(np.clip(y + slope * w, 0, h - 1))), 1.0, thickness)
-            image = np.clip(image - strength * cv2.GaussianBlur(overlay, (0, 0), 1.2), 0.0, 1.0)
+            end_y = int(np.clip(y + slope * w, 0, h - 1))
+            mid_y = int(np.clip((y + end_y) / 2 + rng.uniform(-h * .06, h * .06), 0, h - 1))
+            points = np.asarray([[0, y], [w // 2, mid_y], [w - 1, end_y]], np.int32)
+            cv2.polylines(overlay, [points], False, 1.0, thickness, cv2.LINE_AA)
+            blur_range = settings.get("crease_blur_sigma", [1.0, 2.5])
+            blur_sigma = float(rng.uniform(*blur_range))
+            fold = cv2.GaussianBlur(overlay, (0, 0), blur_sigma)
+            polarity = -1.0 if rng.random() < 0.5 else 1.0
+            image = np.clip(image + polarity * strength * fold, 0.0, 1.0)
+            # Real folds commonly have a neighbouring highlight/shadow pair.
+            max_offset = int(settings.get("crease_shadow_offset", 4))
+            offset = int(rng.integers(1, max(2, max_offset + 1)))
+            shifted = np.roll(fold, offset if polarity < 0 else -offset, axis=0)
+            image = np.clip(image - polarity * strength * 0.55 * shifted, 0.0, 1.0)
+    fade_applied = False
+    if rng.random() < float(settings.get("fade_probability", 0.0)):
+        fade_applied = True
+        h, w = image.shape
+        fade_noise = rng.normal(0.0, 1.0, image.shape).astype(np.float32)
+        fade_scale = float(rng.uniform(*settings.get("fade_scale_pixels", [18.0, 48.0])))
+        fade_map = cv2.GaussianBlur(fade_noise, (0, 0), fade_scale)
+        fade_map -= float(fade_map.min())
+        fade_map /= max(float(fade_map.max()), 1e-6)
+        fade_strength = float(rng.uniform(*settings.get("fade_strength", [0.05, 0.18])))
+        image = np.clip(image + (1.0 - image) * fade_map * fade_strength, 0.0, 1.0)
     return (image * 255.0 + 0.5).astype(np.uint8), {
         "applied": True, "texture_amplitude": amplitude, "texture_scale_pixels": scale,
-        "crease_count": crease_count,
+        "crease_count": crease_count, "fade_applied": fade_applied,
     }
 
 
