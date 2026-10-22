@@ -595,7 +595,7 @@ def create_app(
         source_image = cv2.imread(str(source_path if source_path.is_file() else existing["input_path"]), cv2.IMREAD_GRAYSCALE)
         recovery_image = cv2.imread(str(recovery_path), cv2.IMREAD_GRAYSCALE)
         if source_image is not None and recovery_image is not None:
-            faithful_content = make_faithful_content_view(source_image, recovery_image)
+            faithful_content = make_faithful_content_view(source_image, recovery_image, lines)
             faithful_path = run_root / "faithful_content.png"
             write_image(faithful_path, faithful_content)
             readable = make_readability_view(source_image, recovery_image)
@@ -787,13 +787,13 @@ def create_app(
         from .restoration import make_adaptive_document_view, make_faithful_content_view, make_readability_view, overlay_supported_ocr_text
         with inference_lock:
             restoration = restoration_engine.run(processed)
-            faithful_content = make_faithful_content_view(processed, restoration.image)
             readability = make_readability_view(processed, restoration.image)
             ocr = ocr_engine.run_views([
                 ("rectified_input", processed),
                 ("source_preserving_recovery", restoration.image),
                 ("readability_view", readability),
             ])
+            faithful_content = make_faithful_content_view(processed, restoration.image, ocr.lines)
             document_view, display_mode = make_adaptive_document_view(readability, ocr.lines, processed)
             rendered_readings = 0
             if display_mode.startswith("faint_thermal"):

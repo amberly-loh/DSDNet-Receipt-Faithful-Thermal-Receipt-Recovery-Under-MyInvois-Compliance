@@ -145,7 +145,11 @@ def make_readability_view(source: np.ndarray, restored: np.ndarray) -> np.ndarra
     return readable
 
 
-def make_faithful_content_view(source: np.ndarray, restored: np.ndarray) -> np.ndarray:
+def make_faithful_content_view(
+    source: np.ndarray,
+    restored: np.ndarray,
+    ocr_lines: list[dict[str, Any]] | None = None,
+) -> np.ndarray:
     """Suppress paper texture while retaining only image-derived receipt content.
 
     This is a presentation transform, not OCR reconstruction: it neither draws
@@ -178,6 +182,35 @@ def make_faithful_content_view(source: np.ndarray, restored: np.ndarray) -> np.n
     content_mask = content_darkness >= 3.0
     faithful = flattened.copy()
     faithful[content_mask] = np.minimum(faithful[content_mask], content[content_mask])
+
+    # On faint thermal paper, long fold edges can be darker than the printed
+    # ink and therefore survive ordinary background flattening. Identify only
+    # long, near-horizontal bands and attenuate them outside OCR-localised text
+    # regions. Intersections with text remain untouched: filling those pixels
+    # would be reconstruction rather than faithful enhancement.
+    normalised_source = cv2.divide(
+        source_u8, np.maximum(cv2.GaussianBlur(source_u8, (0, 0), 31), 1), scale=245
+    )
+    faint_thermal = (
+        float(normalised_source.std()) < 25.0
+        and float(np.mean(normalised_source < 200)) < 0.03
+    )
+    if faint_thermal:
+        # Do not feed the learned recovery's fold response into the displayed
+        # faithful view. Start from the source-normalised paper instead, then
+        # strengthen only measured strokes inside confident OCR regions. This
+        # reduces crease emphasis without painting across hidden characters.
+        source_flattened = cv2.divide(
+            source_u8,
+            np.maximum(cv2.GaussianBlur(source_u8, (0, 0), 31), 1),
+            scale=248,
+        )
+        source_flattened = cv2.fastNlMeansDenoising(
+            source_flattened, None, h=4, templateWindowSize=7, searchWindowSize=21
+        )
+        return enhance_supported_source_strokes(
+            source_flattened, source_u8, ocr_lines or [], minimum_confidence=0.70
+        )
     return faithful
 
 
