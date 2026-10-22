@@ -159,6 +159,41 @@ def make_faint_thermal_view(readable: np.ndarray) -> np.ndarray:
     return np.clip(255.0 - np.maximum(darkness - 2.0, 0.0) * 2.0, 0, 255).astype(np.uint8)
 
 
+def enhance_supported_source_strokes(
+    image: np.ndarray,
+    evidence_source: np.ndarray,
+    ocr_lines: list[dict[str, Any]],
+    minimum_confidence: float = 0.70,
+) -> np.ndarray:
+    """Strengthen measured ink inside OCR regions without drawing new glyphs."""
+    import cv2
+
+    output = image.copy()
+    source = evidence_source.astype(np.uint8)
+    for line in ocr_lines:
+        if float(line.get("confidence") or 0.0) < minimum_confidence:
+            continue
+        points = np.asarray(line.get("box", []), dtype=np.float32)
+        if points.shape != (4, 2):
+            continue
+        x, y, width, height = cv2.boundingRect(points.astype(np.int32))
+        if width < 4 or height < 4:
+            continue
+        x1, y1 = max(0, x - 1), max(0, y - 1)
+        x2, y2 = min(source.shape[1], x + width + 1), min(source.shape[0], y + height + 1)
+        roi = source[y1:y2, x1:x2]
+        # A local low-frequency estimate separates measured ink strokes from
+        # paper tone. The soft response retains anti-aliasing and the receipt's
+        # original typeface, spacing, baseline and imperfections.
+        local_background = cv2.GaussianBlur(roi, (0, 0), max(2.0, height / 3.0))
+        measured_darkness = np.maximum(
+            local_background.astype(np.int16) - roi.astype(np.int16), 0
+        ).astype(np.float32)
+        boosted = np.clip(255.0 - np.maximum(measured_darkness - 1.0, 0.0) * 3.0, 0, 255).astype(np.uint8)
+        output[y1:y2, x1:x2] = np.minimum(output[y1:y2, x1:x2], boosted)
+    return output
+
+
 def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]], minimum_confidence: float = 0.85) -> tuple[np.ndarray, int]:
     """Render only high-confidence OCR readings over their measured regions."""
     import cv2
@@ -270,8 +305,9 @@ def make_adaptive_document_view(readable: np.ndarray, ocr_lines: list[dict[str, 
         # denoiser is useful for ordinary documents but can soften already
         # weak thermal strokes before this specialised contrast step.
         thermal = make_faint_thermal_view(evidence_source if evidence_source is not None else source)
-        reconstructed, count = overlay_supported_ocr_text(thermal, ocr_lines)
-        return reconstructed, "faint_thermal_ocr_assisted" if count else "faint_thermal_grayscale"
+        if evidence_source is not None and ocr_lines:
+            thermal = enhance_supported_source_strokes(thermal, evidence_source, ocr_lines)
+        return thermal, "faint_thermal_source_enhanced"
     return make_evidence_preserving_view(source, ocr_lines), "component_aware_document"
 
 

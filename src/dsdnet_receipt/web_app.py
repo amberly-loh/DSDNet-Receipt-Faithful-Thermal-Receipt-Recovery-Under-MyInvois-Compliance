@@ -601,10 +601,10 @@ def create_app(
             audit = existing["audit"]
             audit["display_image"] = display_mode
             audit["display_component_policy"] = ({
-                "text": "continuous grayscale source evidence plus high-confidence OCR-rendered text",
+                "text": "continuous grayscale source evidence with locally amplified measured strokes",
                 "background": "locally normalised",
                 "selection": "low-contrast thermal receipt",
-                "ocr_overlay_minimum_confidence": 0.85,
+                "synthetic_text_rendering": False,
             } if display_mode.startswith("faint_thermal") else {
                 "text": "OCR-localised source pixels", "rules": "thin linear structures",
                 "marks": "dark connected source components", "background": "white",
@@ -800,7 +800,7 @@ def create_app(
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
         if restoration.diagnostic_map is not None: write_image(diagnostic_path, restoration.diagnostic_map)
         runtime = time.perf_counter() - started
-        policy = ({"text": "continuous grayscale source evidence plus high-confidence OCR-rendered text", "background": "locally normalised", "selection": "low-contrast thermal receipt", "ocr_overlay_minimum_confidence": 0.85} if display_mode.startswith("faint_thermal") else {"text": "OCR-localised source pixels", "rules": "thin linear structures", "marks": "dark connected source components", "background": "white"})
+        policy = ({"text": "continuous grayscale source evidence with locally amplified measured strokes", "background": "locally normalised", "selection": "low-contrast thermal receipt", "synthetic_text_rendering": False} if display_mode.startswith("faint_thermal") else {"text": "OCR-localised source pixels", "rules": "thin linear structures", "marks": "dark connected source components", "background": "white"})
         audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path)}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": display_mode, "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
         write_json(audit_root / "audit.json", audit)
         now = utc_now(); retention_days = int(config.get("app", {}).get("retention_days", 2555))

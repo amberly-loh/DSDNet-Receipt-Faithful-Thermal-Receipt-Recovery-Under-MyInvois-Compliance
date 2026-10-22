@@ -218,9 +218,22 @@ def test_adaptive_view_preserves_faint_thermal_text_without_binarising() -> None
     cv2.putText(receipt, "HARDWARE 1 10.00", (20, 100), cv2.FONT_HERSHEY_SIMPLEX, .55, 218, 1, cv2.LINE_AA)
     cv2.putText(receipt, "Net Amt 12.00", (20, 145), cv2.FONT_HERSHEY_SIMPLEX, .7, 175, 2, cv2.LINE_AA)
     output, mode = make_adaptive_document_view(receipt, [])
-    assert mode == "faint_thermal_grayscale"
+    assert mode == "faint_thermal_source_enhanced"
     assert np.count_nonzero(output[35:110] < 245) >= 200
     assert len(np.unique(output)) > 16
+
+
+def test_source_stroke_enhancement_never_typesets_missing_text() -> None:
+    from dsdnet_receipt.restoration import enhance_supported_source_strokes
+    source = np.full((80, 240), 245, np.uint8)
+    cv2.line(source, (40, 35), (120, 35), 220, 1)
+    base = np.full_like(source, 255)
+    lines = [{"text":"A completely different OCR reading", "confidence":.99,
+              "box":[[30,20],[210,20],[210,50],[30,50]]}]
+    output = enhance_supported_source_strokes(base, source, lines)
+    # Only measured source pixels can become dark; blank areas stay blank.
+    assert np.count_nonzero(output[34:37, 39:122] < 250) > 20
+    assert np.count_nonzero(output[5:15, 20:220] < 250) == 0
 
 
 def test_thermal_overlay_renders_only_supported_ocr_text() -> None:
