@@ -243,7 +243,7 @@ async function openReceipt(id) {
     $('detailTitle').textContent = currentReceipt.merchant || currentReceipt.source_name;
     $('detailMeta').textContent = `${formatDate(currentReceipt.created_at)} · ${currentReceipt.public_id}`;
     $('detailStatus').textContent = statusLabel(currentReceipt.status); $('detailStatus').className = `status-pill ${currentReceipt.status}`;
-    $('originalImage').src = currentReceipt.original_url; $('restoredImage').src = currentReceipt.restored_url;
+    $('originalImage').src = currentReceipt.original_url; $('restoredImage').src = currentReceipt.faithful_url;
     $('merchantField').value = currentReceipt.merchant || ''; $('dateField').value = currentReceipt.transaction_date || '';
     $('numberField').value = currentReceipt.receipt_number || ''; $('totalField').value = currentReceipt.total_amount || '';
     $('reviewStatus').value = currentReceipt.status; $('tagsField').value = currentReceipt.tags.join(', '); $('notesField').value = currentReceipt.notes || '';
@@ -269,7 +269,7 @@ async function openReceipt(id) {
     const suggestions = new Map((currentReceipt.audit?.ocr_suggestions || []).map(item => [Number(item.line_index), item]));
     $('ocrTable').innerHTML = lines.length ? `<table><thead><tr><th>#</th><th>Scanner reading</th><th>Possible correction</th><th>Confidence</th></tr></thead><tbody>${lines.map((line, index) => { const suggestion = suggestions.get(index); return `<tr><td>${index + 1}</td><td>${escapeHtml(line.text)}</td><td>${suggestion ? `<span class="suggested-reading">${escapeHtml(suggestion.suggested)}</span><small>Verify against original</small>` : '<span class="no-suggestion">—</span>'}</td><td>${line.confidence == null ? '—' : `${(Number(line.confidence) * 100).toFixed(1)}%`}</td></tr>`; }).join('')}</tbody></table>` : '<p class="empty-copy">No text was recognised. Enter the receipt details manually.</p>';
     $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.pdf`; $('accountingDownload').href = `/api/receipts/${encodeURIComponent(id)}/ocr.xlsx`; $('technicalDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`; $('documentDownload').href = currentReceipt.restored_url;
-    setImageMode('improved'); route('detail');
+    setImageMode('faithful'); route('detail');
   } catch (error) { toast(error.message, true); }
 }
 
@@ -331,15 +331,19 @@ $('compareSlider').oninput = event => updateComparison(event.target.value);
 
 function setImageMode(mode) {
   const comparison = $('comparison');
-  comparison.classList.remove('improved-mode','original-mode','compare-mode'); comparison.classList.add(`${mode}-mode`);
-  for (const [name,id] of [['improved','improvedViewButton'],['original','originalViewButton'],['compare','compareViewButton']]) $(''+id).classList.toggle('active', name === mode);
+  comparison.classList.remove('improved-mode','original-mode','compare-mode');
+  comparison.classList.add(`${mode === 'original' ? 'original' : mode === 'compare' ? 'compare' : 'improved'}-mode`);
+  for (const [name,id] of [['faithful','faithfulViewButton'],['reading','readingViewButton'],['original','originalViewButton'],['compare','compareViewButton']]) $(''+id).classList.toggle('active', name === mode);
+  if (mode === 'faithful' || mode === 'compare') $('restoredImage').src = currentReceipt?.faithful_url || currentReceipt?.restored_url || '';
+  if (mode === 'reading') $('restoredImage').src = currentReceipt?.restored_url || '';
   if (mode === 'compare') { $('compareSlider').value = 50; updateComparison(50); }
   const thermalAssisted = String(currentReceipt?.audit?.display_image || '').includes('ocr_assisted');
-  $('comparisonViewLabel').textContent = mode === 'improved' ? (thermalAssisted ? 'OCR-assisted thermal reading view · verify wording' : 'Document reading view · complete image') : mode === 'original' ? 'Original upload · unchanged content' : 'Original and document comparison';
-  $('comparisonNote').textContent = thermalAssisted ? 'High-confidence scanner readings are typeset over the faint thermal source. This makes supported text readable but may reproduce OCR errors; compare every important value with Original before use.' : 'Text, thin form lines and supported marks are separated from paper texture and placed on a white reading background. Original remains the audit source; reconstructed content must still be verified.';
+  $('comparisonViewLabel').textContent = mode === 'faithful' ? 'Faithful DSDNet recovery · thesis output' : mode === 'reading' ? (thermalAssisted ? 'Optional OCR-assisted reading copy · not evidence' : 'Optional clean reading copy · not formal evidence') : mode === 'original' ? 'Original upload · unchanged audit source' : 'Original and faithful DSDNet recovery';
+  $('comparisonNote').textContent = mode === 'faithful' || mode === 'compare' ? 'This is the source-preserving DSDNet output used for research comparison. It does not typeset OCR guesses or invert document logos.' : mode === 'reading' ? (thermalAssisted ? 'High-confidence OCR readings may be typeset for readability. This copy can contain recognition errors and must never replace the original or faithful recovery.' : 'This source-derived view improves readability but is excluded from formal restoration and evidence metrics.') : 'The original upload is preserved as the audit source.';
   $('comparisonHelp').textContent = mode === 'compare' ? 'Drag the divider' : 'Select Compare for the split view';
 }
-$('improvedViewButton').onclick = () => setImageMode('improved');
+$('faithfulViewButton').onclick = () => setImageMode('faithful');
+$('readingViewButton').onclick = () => setImageMode('reading');
 $('originalViewButton').onclick = () => setImageMode('original');
 $('compareViewButton').onclick = () => setImageMode('compare');
 
@@ -350,7 +354,8 @@ function updateFullImageZoom() {
 }
 function openFullImage() {
   if (!currentReceipt) return;
-  $('fullImage').src = currentReceipt.restored_url;
+  const readingSelected = $('readingViewButton').classList.contains('active');
+  $('fullImage').src = readingSelected ? currentReceipt.restored_url : ($('originalViewButton').classList.contains('active') ? currentReceipt.original_url : currentReceipt.faithful_url);
   imageZoom = 1; updateFullImageZoom(); $('imageDialog').showModal();
 }
 $('fullImageButton').onclick = openFullImage;

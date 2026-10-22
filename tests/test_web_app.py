@@ -126,10 +126,13 @@ def test_review_rejects_missing_required_fields_and_invalid_values(tmp_path: Pat
     assert set(result.get_json()["fields"]) == {"transaction_date", "total_amount", "status"}
 
 
-def test_receipt_view_defaults_to_complete_improved_image(tmp_path: Path) -> None:
+def test_receipt_view_defaults_to_faithful_recovery_and_separates_reading_copy(tmp_path: Path) -> None:
     config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
     app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
     html = app.test_client().get("/").get_data(as_text=True)
     assert 'class="comparison improved-mode"' in html
-    assert 'id="improvedViewButton" class="active"' in html
+    assert 'id="faithfulViewButton" class="active"' in html
+    assert 'id="readingViewButton"' in html
+    assert 'Faithful DSDNet recovery · thesis output' in html
+    assert 'Optional reading copy' not in html  # runtime label depends on the receipt
     assert 'id="compareViewButton"' in html

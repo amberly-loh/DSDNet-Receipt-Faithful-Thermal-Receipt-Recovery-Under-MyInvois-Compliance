@@ -627,10 +627,13 @@ def create_app(
     @require_auth
     def receipt_image(receipt_id: str, kind: str):
         receipt = store.get_receipt(current_user()["id"], receipt_id)
-        if not receipt or kind not in {"original", "restored", "diagnostic"}:
+        if not receipt or kind not in {"original", "restored", "faithful", "diagnostic"}:
             return jsonify({"error": "Image not found."}), 404
         store.log_event(current_user()["id"], "receipt.image_view", "receipt", receipt_id, details={"kind": kind})
         path = receipt["input_path"] if kind == "original" else receipt["restored_path"]
+        if kind == "faithful":
+            candidate = Path(receipt["restored_path"]).with_name("ocr_input.png")
+            path = str(candidate if candidate.is_file() else Path(receipt["restored_path"]))
         if kind == "diagnostic": path = str(Path(receipt["restored_path"]).with_name("diagnostic.png"))
         if not Path(path).is_file(): return jsonify({"error": "Image not found."}), 404
         return send_file(path, mimetype="image/png", conditional=True)
@@ -773,7 +776,7 @@ def create_app(
         if int(image.shape[0]) * int(image.shape[1]) > MAX_IMAGE_PIXELS:
             raise ValueError(f"{upload.filename}: image dimensions are too large")
         started = time.perf_counter(); processed, preprocessing_record = preprocess(image, config)
-        from .restoration import make_adaptive_document_view, make_readability_view
+        from .restoration import make_adaptive_document_view, make_readability_view, overlay_supported_ocr_text
         with inference_lock:
             restoration = restoration_engine.run(processed)
             readability = make_readability_view(processed, restoration.image)
@@ -783,6 +786,12 @@ def create_app(
                 ("readability_view", readability),
             ])
             document_view, display_mode = make_adaptive_document_view(readability, ocr.lines, processed)
+            rendered_readings = 0
+            if display_mode.startswith("faint_thermal"):
+                document_view, rendered_readings = overlay_supported_ocr_text(
+                    document_view, ocr.lines, minimum_confidence=0.85
+                )
+                display_mode = "ocr_assisted_reading_copy"
         fields = route_fields(extract_fields(ocr.text, ocr.lines), support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
         run_id = f"USER-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
@@ -800,7 +809,17 @@ def create_app(
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
         if restoration.diagnostic_map is not None: write_image(diagnostic_path, restoration.diagnostic_map)
         runtime = time.perf_counter() - started
-        policy = ({"text": "continuous grayscale source evidence with locally amplified measured strokes", "background": "locally normalised", "selection": "low-contrast thermal receipt", "synthetic_text_rendering": False} if display_mode.startswith("faint_thermal") else {"text": "OCR-localised source pixels", "rules": "thin linear structures", "marks": "dark connected source components", "background": "white"})
+        policy = ({
+            "text": "high-confidence OCR readings rendered over a source-derived document view",
+            "background": "locally normalised", "selection": "low-contrast thermal receipt",
+            "synthetic_text_rendering": True, "rendered_ocr_regions": rendered_readings,
+            "role": "optional reading copy; excluded from restoration and evidence evaluation",
+        } if display_mode == "ocr_assisted_reading_copy" else {
+            "text": "OCR-localised source pixels", "rules": "thin linear structures",
+            "marks": "dark connected source components", "background": "white",
+            "synthetic_text_rendering": False,
+            "role": "source-derived reading view; excluded from formal restoration metrics",
+        })
         audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path)}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": display_mode, "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
         write_json(audit_root / "audit.json", audit)
         now = utc_now(); retention_days = int(config.get("app", {}).get("retention_days", 2555))

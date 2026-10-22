@@ -301,6 +301,7 @@ class ReceiptStore:
         }
         row["original_url"] = f"/api/receipts/{row['public_id']}/image/original"
         row["restored_url"] = f"/api/receipts/{row['public_id']}/image/restored"
+        row["faithful_url"] = f"/api/receipts/{row['public_id']}/image/faithful"
         row["diagnostic_url"] = f"/api/receipts/{row['public_id']}/image/diagnostic"
         if compact:
             for key in ("audit_json", "ocr_text", "input_path", "restored_path", "deleted_at", "user_id", "id"):
