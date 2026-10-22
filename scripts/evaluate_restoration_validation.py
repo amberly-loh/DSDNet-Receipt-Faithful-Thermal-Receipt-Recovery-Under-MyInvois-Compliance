@@ -117,7 +117,9 @@ def main() -> None:
         })
         print(f"Validated {index}/{len(variants)} variants", flush=True)
 
-    output = REPO / "artifacts" / "validation_restoration" / args.checkpoint.stem
+    # Include the run directory so checkpoints with the same iteration number
+    # from different experiments never overwrite one another's evidence.
+    output = REPO / "artifacts" / "validation_restoration" / f"{args.checkpoint.parent.name}_{args.checkpoint.stem}"
     output.mkdir(parents=True, exist_ok=True)
     with (output / "records.csv").open("w", newline="", encoding="utf-8-sig") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]))

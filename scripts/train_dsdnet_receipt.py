@@ -39,6 +39,21 @@ def ssim_loss(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
     return 1.0 - score.mean()
 
 
+def stroke_gradient_loss(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
+    """Penalise broken character edges without requiring OCR in the train loop."""
+    sobel_x = left.new_tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]).view(1, 1, 3, 3) / 8.0
+    sobel_y = sobel_x.transpose(2, 3)
+    left_x = F.conv2d(left, sobel_x, padding=1); right_x = F.conv2d(right, sobel_x, padding=1)
+    left_y = F.conv2d(left, sobel_y, padding=1); right_y = F.conv2d(right, sobel_y, padding=1)
+    return F.l1_loss(left_x, right_x) + F.l1_loss(left_y, right_y)
+
+
+def foreground_text_loss(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
+    """Weight errors on dark printed strokes more than white paper."""
+    foreground_weight = (1.0 - right).pow(1.5)
+    return (torch.abs(left - right) * foreground_weight).sum() / foreground_weight.sum().clamp_min(1e-6)
+
+
 def crop_and_augment(clean: np.ndarray, degraded: np.ndarray, size: int, rng: random.Random) -> tuple[np.ndarray, np.ndarray]:
     height, width = clean.shape
     if height < size or width < size:
@@ -99,6 +114,7 @@ def main() -> None:
     parser.add_argument("--development-iterations", type=int, help="Run a non-formal development budget without changing the locked formal total")
     parser.add_argument("--development-checkpoint-interval", type=int, default=500)
     parser.add_argument("--resume", type=Path)
+    parser.add_argument("--initial-weights", type=Path, help="Start a new development run from model weights only")
     parser.add_argument("--resume-learning-rate", type=float)
     parser.add_argument("--output-name", default=None)
     args = parser.parse_args()
@@ -133,6 +149,11 @@ def main() -> None:
     use_checkpointing = bool(locked["training"].get("gradient_checkpointing", False))
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
     start = 0
+    if args.initial_weights and args.resume:
+        raise SystemExit("Use either --initial-weights or --resume, not both")
+    if args.initial_weights:
+        state = torch.load(args.initial_weights, map_location=device)
+        model.load_state_dict(state.get("model", state.get("model_state_dict", state)))
     if args.resume:
         state = torch.load(args.resume, map_location=device)
         model.load_state_dict(state["model"])
@@ -175,7 +196,9 @@ def main() -> None:
             )["restored"]
             l1 = F.l1_loss(restored, target)
             structural = ssim_loss(restored, target)
-            loss = l1 + float(locked["objective"]["ssim_coefficient"]) * structural
+            stroke = stroke_gradient_loss(restored, target)
+            foreground = foreground_text_loss(restored, target)
+            loss = l1 + float(locked["objective"]["ssim_coefficient"]) * structural + float(locked["objective"].get("stroke_gradient_coefficient", 0.0)) * stroke + float(locked["objective"].get("foreground_text_coefficient", 0.0)) * foreground
         scaler.scale(loss).backward()
         if locked["training"].get("gradient_clipping", False):
             scaler.unscale_(optimizer)
@@ -190,6 +213,8 @@ def main() -> None:
             "loss": float(loss.detach()),
             "l1": float(l1.detach()),
             "ssim_loss": float(structural.detach()),
+            "stroke_gradient_loss": float(stroke.detach()),
+            "foreground_text_loss": float(foreground.detach()),
             "lr": optimizer.param_groups[0]["lr"],
             "seconds": time.perf_counter() - started,
             "peak_cuda_memory_bytes": torch.cuda.max_memory_allocated(device),

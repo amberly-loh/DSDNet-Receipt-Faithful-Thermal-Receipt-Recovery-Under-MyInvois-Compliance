@@ -235,8 +235,9 @@ def make_adaptive_document_view(readable: np.ndarray, ocr_lines: list[dict[str, 
     import cv2
 
     source = readable.astype(np.uint8)
-    background = cv2.GaussianBlur(source, (0, 0), 31)
-    normalised = cv2.divide(source, np.maximum(background, 1), scale=245)
+    detection_source = (evidence_source if evidence_source is not None else source).astype(np.uint8)
+    background = cv2.GaussianBlur(detection_source, (0, 0), 31)
+    normalised = cv2.divide(detection_source, np.maximum(background, 1), scale=245)
     faint_thermal = float(normalised.std()) < 25.0 and float(np.mean(normalised < 200)) < 0.03
     if faint_thermal:
         # Start from the rectified source when available. The intermediate
