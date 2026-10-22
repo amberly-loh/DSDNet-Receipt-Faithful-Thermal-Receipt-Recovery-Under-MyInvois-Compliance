@@ -133,6 +133,6 @@ def test_receipt_view_defaults_to_faithful_recovery_and_separates_reading_copy(t
     assert 'class="comparison improved-mode"' in html
     assert 'id="faithfulViewButton" class="active"' in html
     assert 'id="readingViewButton"' in html
-    assert 'Faithful DSDNet recovery · thesis output' in html
+    assert 'Faithful content recovery · thesis-safe view' in html
     assert 'Optional reading copy' not in html  # runtime label depends on the receipt
     assert 'id="compareViewButton"' in html

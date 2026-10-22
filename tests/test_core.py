@@ -223,6 +223,19 @@ def test_adaptive_view_preserves_faint_thermal_text_without_binarising() -> None
     assert len(np.unique(output)) > 16
 
 
+def test_faithful_content_view_suppresses_paper_shading_without_drawing_text() -> None:
+    from dsdnet_receipt.restoration import make_faithful_content_view
+
+    source = np.full((80, 120), 232, dtype=np.uint8)
+    source[:, 54:66] = 205  # broad fold/crease shading
+    source[30:34, 18:46] = 80  # measured printed stroke
+    output = make_faithful_content_view(source, source)
+
+    assert float(output[:, 54:66].mean()) > float(source[:, 54:66].mean())
+    assert float(output[30:34, 18:46].mean()) < 180
+    assert output.shape == source.shape
+
+
 def test_source_stroke_enhancement_never_typesets_missing_text() -> None:
     from dsdnet_receipt.restoration import enhance_supported_source_strokes
     source = np.full((80, 240), 245, np.uint8)

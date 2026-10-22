@@ -145,6 +145,42 @@ def make_readability_view(source: np.ndarray, restored: np.ndarray) -> np.ndarra
     return readable
 
 
+def make_faithful_content_view(source: np.ndarray, restored: np.ndarray) -> np.ndarray:
+    """Suppress paper texture while retaining only image-derived receipt content.
+
+    This is a presentation transform, not OCR reconstruction: it neither draws
+    glyphs nor changes logos.  Broad, low-frequency paper shading is removed
+    from the recovery while dark content from the source/recovery is retained.
+    """
+    import cv2
+
+    source_u8 = source.astype(np.uint8)
+    restored_u8 = restored.astype(np.uint8)
+    background = cv2.GaussianBlur(restored_u8, (0, 0), 31)
+    flattened = cv2.divide(restored_u8, np.maximum(background, 1), scale=248)
+    flattened = cv2.fastNlMeansDenoising(
+        flattened, None, h=4, templateWindowSize=7, searchWindowSize=21
+    )
+
+    # Preserve foreground that is measurably darker than its immediate paper
+    # neighbourhood. This protects printed text, rules, signatures and solid
+    # logos without copying broad fold shadows into the clean background.
+    source_background = cv2.GaussianBlur(source_u8, (0, 0), 15)
+    source_darkness = np.maximum(
+        source_background.astype(np.int16) - source_u8.astype(np.int16), 0
+    )
+    recovery_background = cv2.GaussianBlur(restored_u8, (0, 0), 15)
+    recovery_darkness = np.maximum(
+        recovery_background.astype(np.int16) - restored_u8.astype(np.int16), 0
+    )
+    content_darkness = np.maximum(source_darkness, recovery_darkness).astype(np.float32)
+    content = np.clip(255.0 - content_darkness * 1.45, 0, 255).astype(np.uint8)
+    content_mask = content_darkness >= 3.0
+    faithful = flattened.copy()
+    faithful[content_mask] = np.minimum(faithful[content_mask], content[content_mask])
+    return faithful
+
+
 def make_faint_thermal_view(readable: np.ndarray) -> np.ndarray:
     """Preserve faint thermal strokes using continuous, non-binary contrast."""
     import cv2
