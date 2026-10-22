@@ -236,6 +236,18 @@ def test_thermal_overlay_renders_only_supported_ocr_text() -> None:
     assert np.count_nonzero(output[58:85] < 245) == 0
 
 
+def test_thermal_overlay_deduplicates_same_region_with_different_readings() -> None:
+    from dsdnet_receipt.restoration import overlay_supported_ocr_text
+    image = np.full((100, 300), 250, np.uint8)
+    lines = [
+        {"text":"Gross Amt", "confidence":.96, "box":[[80,20],[190,20],[190,42],[80,42]]},
+        {"text":"Gross Arnt", "confidence":.91, "box":[[84,21],[184,21],[184,43],[84,43]]},
+        {"text":"12.00", "confidence":.98, "box":[[220,20],[280,20],[280,42],[220,42]]},
+    ]
+    _, count = overlay_supported_ocr_text(image, lines)
+    assert count == 2
+
+
 def test_receipt_language_assistance_is_conservative_and_auditable() -> None:
     suggestion = suggest_receipt_text("Total PayabIE")
     assert suggestion is not None

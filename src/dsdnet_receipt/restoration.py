@@ -173,7 +173,12 @@ def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]
         a, b = bounds(first), bounds(second)
         if a is None or b is None: return False
         aw, ah = max(a[2]-a[0],1), max(a[3]-a[1],1); bw, bh = max(b[2]-b[0],1), max(b[3]-b[1],1)
-        return abs((a[0]+a[2]-b[0]-b[2])/2) <= max(12,.18*max(aw,bw)) and abs((a[1]+a[3]-b[1]-b[3])/2) <= max(8,.45*max(ah,bh))
+        vertical_overlap = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+        horizontal_overlap = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+        same_band = vertical_overlap / min(ah, bh) >= 0.55
+        same_span = horizontal_overlap / min(aw, bw) >= 0.35
+        centres_close = abs((a[0]+a[2]-b[0]-b[2])/2) <= max(12,.28*max(aw,bw))
+        return same_band and (same_span or centres_close)
 
     # OCR views often disagree by one character. Group by geometry first so
     # only one reading is typeset at each physical line.
@@ -189,7 +194,10 @@ def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]
         selected.append(max(group, key=lambda item: float(item.get("confidence") or 0.0)))
 
     output = image.copy()
+    valid_heights = [max(1.0, (box[3] - box[1])) for item in selected if (box := bounds(item)) is not None]
+    median_height = float(np.median(valid_heights)) if valid_heights else 18.0
     rendered = 0
+    occupied: list[tuple[int, int, int, int]] = []
     for line in sorted(selected, key=lambda item: (bounds(item) or (0,0,0,0))[1]):
         text = str(line.get("text", "")).strip()
         confidence = float(line.get("confidence") or 0.0)
@@ -217,15 +225,28 @@ def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]
         # Preserve nearby rules by clearing only the central text band.
         output[y1:y2, x1:x2] = 255
         font = cv2.FONT_HERSHEY_SIMPLEX
-        target_height = max(8, int(height * 0.72))
+        # A noisy OCR box can span two thermal rows. Cap glyph height using the
+        # document median so one bad box cannot typeset oversized, overlapping
+        # text (for example Gross Amt / Svr Charge / Discount).
+        target_height = max(8, min(int(height * 0.62), int(median_height * 0.78)))
         scale = max(0.25, target_height / 22.0)
         thickness = 1 if target_height < 22 else 2
         measured = cv2.getTextSize(text, font, scale, thickness)[0]
         if measured[0] > max(width, 1):
             scale *= width / measured[0]
             measured = cv2.getTextSize(text, font, scale, thickness)[0]
-        baseline_y = min(output.shape[0]-2, y + max(height-2, measured[1]+1))
+        baseline_y = min(output.shape[0]-2, y + max(min(height-2, target_height+2), measured[1]+1))
+        text_rect = (x, max(0, baseline_y-measured[1]), min(output.shape[1], x+measured[0]), min(output.shape[0], baseline_y+3))
+        collision = any(
+            max(0, min(text_rect[2], old[2]) - max(text_rect[0], old[0]))
+            * max(0, min(text_rect[3], old[3]) - max(text_rect[1], old[1]))
+            > 0.20 * max(1, (text_rect[2]-text_rect[0]) * (text_rect[3]-text_rect[1]))
+            for old in occupied
+        )
+        if collision:
+            continue
         cv2.putText(output, text, (x, baseline_y), font, scale, 25, thickness, cv2.LINE_AA)
+        occupied.append(text_rect)
         rendered += 1
     return output, rendered
 
