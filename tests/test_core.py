@@ -248,6 +248,19 @@ def test_thermal_overlay_deduplicates_same_region_with_different_readings() -> N
     assert count == 2
 
 
+def test_thermal_overlay_preserves_detected_box_centre() -> None:
+    from dsdnet_receipt.restoration import overlay_supported_ocr_text
+    image = np.full((90, 320), 250, np.uint8)
+    box = [[100,25],[260,25],[260,55],[100,55]]
+    output, count = overlay_supported_ocr_text(
+        image, [{"text":"Cash", "confidence":.99, "box":box}]
+    )
+    ys, xs = np.where(output < 100)
+    assert count == 1
+    assert abs(float(xs.mean()) - 180.0) < 12.0
+    assert abs(float(ys.mean()) - 40.0) < 8.0
+
+
 def test_receipt_language_assistance_is_conservative_and_auditable() -> None:
     suggestion = suggest_receipt_text("Total PayabIE")
     assert suggestion is not None

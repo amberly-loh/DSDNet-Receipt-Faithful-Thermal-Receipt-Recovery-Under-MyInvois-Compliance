@@ -235,8 +235,13 @@ def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]
         if measured[0] > max(width, 1):
             scale *= width / measured[0]
             measured = cv2.getTextSize(text, font, scale, thickness)[0]
-        baseline_y = min(output.shape[0]-2, y + max(min(height-2, target_height+2), measured[1]+1))
-        text_rect = (x, max(0, baseline_y-measured[1]), min(output.shape[1], x+measured[0]), min(output.shape[0], baseline_y+3))
+        # Preserve the detected line centre instead of left-anchoring a
+        # narrower substitute font. This keeps columns and labels aligned with
+        # their positions in the evidence image.
+        draw_x = max(0, min(output.shape[1] - measured[0], x + (width - measured[0]) // 2))
+        draw_top = max(0, y + (height - measured[1]) // 2)
+        baseline_y = min(output.shape[0]-2, draw_top + measured[1])
+        text_rect = (draw_x, max(0, baseline_y-measured[1]), min(output.shape[1], draw_x+measured[0]), min(output.shape[0], baseline_y+3))
         collision = any(
             max(0, min(text_rect[2], old[2]) - max(text_rect[0], old[0]))
             * max(0, min(text_rect[3], old[3]) - max(text_rect[1], old[1]))
@@ -245,7 +250,7 @@ def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]
         )
         if collision:
             continue
-        cv2.putText(output, text, (x, baseline_y), font, scale, 25, thickness, cv2.LINE_AA)
+        cv2.putText(output, text, (draw_x, baseline_y), font, scale, 25, thickness, cv2.LINE_AA)
         occupied.append(text_rect)
         rendered += 1
     return output, rendered
