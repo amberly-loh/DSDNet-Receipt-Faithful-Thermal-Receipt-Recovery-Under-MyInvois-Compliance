@@ -1,0 +1,23 @@
+{
+  "status": "REJECTED",
+  "selection_partition": "validation only",
+  "test_partition_accessed": false,
+  "candidate": "training_production_generalist_v1/checkpoint_0000500.pt",
+  "incumbent": "training_foreground_dev_v4/checkpoint_0000500.pt",
+  "candidate_metrics": {
+    "ssim": 0.9008734298513246,
+    "l1": 0.04032823249838467,
+    "stroke_recall": 0.8595923106097466,
+    "deleted_stroke_rate": 0.08226815450653237,
+    "false_stroke_rate": 0.032109444104890805
+  },
+  "incumbent_metrics": {
+    "ssim": 0.904893474805751,
+    "l1": 0.036232351478599954,
+    "stroke_recall": 0.8776117215784385,
+    "deleted_stroke_rate": 0.06424874353784066,
+    "false_stroke_rate": 0.04184109390602719
+  },
+  "decision": "Keep the incumbent as the application default. The candidate's lower false-stroke rate does not compensate for its lower fidelity and greater deletion of genuine strokes.",
+  "thesis_effect": "None. This was a post-formal production experiment and does not replace the locked thesis checkpoint or test evidence."
+}
