@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import sys
 import time
@@ -62,22 +63,32 @@ def source_aggregate(rows: list[dict[str, object]]) -> dict[str, float]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Validation-only restoration comparison for checkpoint selection")
+    parser = argparse.ArgumentParser(description="Locked restoration comparison")
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, default=REPO / "artifacts" / "protocol_lock" / "generation_manifest_611_sources.jsonl")
     parser.add_argument("--max-sources", type=int)
+    parser.add_argument("--partition", choices=("validation", "test"), default="validation")
     args = parser.parse_args()
     training = json.loads((REPO / "configs" / "dsdnet_receipt_train.json").read_text(encoding="utf-8"))
     protocol, _ = load_config(REPO / "configs" / "default.json")
     manifest = args.manifest.resolve()
     variants = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines() if line]
-    variants = [row for row in variants if row["project_partition"] == "validation"]
+    variants = [row for row in variants if row["project_partition"] == args.partition]
     source_ids = sorted({row["source_id"] for row in variants})
     if args.max_sources:
         source_ids = source_ids[: args.max_sources]
         variants = [row for row in variants if row["source_id"] in source_ids]
     if not variants:
-        raise SystemExit("No validation variants are available")
+        raise SystemExit(f"No {args.partition} variants are available")
+
+    calibration_path = REPO / "artifacts/formal_run/support_calibration.json"
+    if args.partition == "test":
+        if not calibration_path.is_file():
+            raise SystemExit("Locked validation calibration is required before opening test")
+        calibration = json.loads(calibration_path.read_text(encoding="utf-8"))
+        checkpoint_digest = hashlib.sha256(args.checkpoint.resolve().read_bytes()).hexdigest()
+        if calibration.get("checkpoint_sha256") != checkpoint_digest:
+            raise SystemExit("Checkpoint differs from the validation-locked checkpoint")
 
     network = training["network"]
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -135,11 +146,14 @@ def main() -> None:
             "seconds": time.perf_counter() - started,
             **fidelity,
         })
-        print(f"Validated {index}/{len(variants)} variants", flush=True)
+        print(f"Evaluated {index}/{len(variants)} {args.partition} variants", flush=True)
 
     # Include the run directory so checkpoints with the same iteration number
     # from different experiments never overwrite one another's evidence.
-    output = REPO / "artifacts" / "validation_restoration" / f"{args.checkpoint.parent.name}_{args.checkpoint.stem}"
+    output_root = "formal_test_restoration" if args.partition == "test" else "validation_restoration"
+    output = REPO / "artifacts" / output_root / f"{args.checkpoint.parent.name}_{args.checkpoint.stem}"
+    if args.partition == "test" and (output / "summary.json").exists():
+        raise SystemExit("Formal test output already exists; refusing an accidental second test pass")
     output.mkdir(parents=True, exist_ok=True)
     with (output / "records.csv").open("w", newline="", encoding="utf-8-sig") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
@@ -149,8 +163,8 @@ def main() -> None:
     for row in rows:
         grouped[str(row["method"])].append(row)
     summary = {
-        "partition": "validation only",
-        "formal_test_evidence": False,
+        "partition": args.partition,
+        "formal_test_evidence": args.partition == "test",
         "checkpoint": str(args.checkpoint.resolve()),
         "checkpoint_iteration": int(payload.get("iteration", -1)),
         "manifest": str(manifest),

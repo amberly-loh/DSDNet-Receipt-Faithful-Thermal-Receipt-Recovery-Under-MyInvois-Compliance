@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import re
 import sys
@@ -64,17 +65,25 @@ def source_summary(rows: list[dict[str, object]]) -> dict[str, float | int | Non
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Validation-only fixed-OCR comparison of baselines and proposed DSDNet-Receipt")
+    parser = argparse.ArgumentParser(description="Fixed-OCR comparison of baselines and proposed DSDNet-Receipt")
     parser.add_argument("--checkpoint", type=Path, required=True)
-    parser.add_argument("--sources", type=int, default=10)
+    parser.add_argument("--sources", type=int)
+    parser.add_argument("--partition", choices=("validation", "test"), default="validation")
     parser.add_argument("--manifest", type=Path, default=REPO / "artifacts" / "protocol_lock" / "generation_manifest_611_sources.jsonl")
     args = parser.parse_args()
     config, _ = load_config(REPO / "configs" / "default.json")
     config["dsdnet"]["checkpoint"] = str(args.checkpoint.resolve())
+    if args.partition == "test":
+        calibration = json.loads((REPO / "artifacts/formal_run/support_calibration.json").read_text(encoding="utf-8"))
+        digest = hashlib.sha256(args.checkpoint.resolve().read_bytes()).hexdigest()
+        if calibration.get("checkpoint_sha256") != digest:
+            raise SystemExit("Checkpoint differs from validation-locked checkpoint")
     with (DATASET / "sroie_protocol_manifest.csv").open("r", newline="", encoding="utf-8-sig") as stream:
         references = {row["source_id"]: row for row in csv.DictReader(stream)}
     variants = [json.loads(line) for line in args.manifest.resolve().read_text(encoding="utf-8").splitlines() if line]
-    source_ids = sorted({row["source_id"] for row in variants if row["project_partition"] == "validation"})[: args.sources]
+    source_ids = sorted({row["source_id"] for row in variants if row["project_partition"] == args.partition})
+    if args.sources:
+        source_ids = source_ids[: args.sources]
     selected = [row for row in variants if row["source_id"] in source_ids]
     ocr = PaddleOCRAdapter(config)
     restoration = RestorationEngine(config)
@@ -109,8 +118,11 @@ def main() -> None:
                 "processing_seconds": process_times[method_id], "ocr_seconds": ocr_seconds,
                 "ocr_status": prediction.status, "ocr_error": prediction.error or "",
             })
-        print(f"Evaluated {index}/{len(selected)} validation variants", flush=True)
-    output = REPO / "artifacts" / "validation_fixed_ocr" / args.checkpoint.stem
+        print(f"Evaluated {index}/{len(selected)} {args.partition} variants", flush=True)
+    output_root = "formal_test_fixed_ocr" if args.partition == "test" else "validation_fixed_ocr"
+    output = REPO / "artifacts" / output_root / args.checkpoint.stem
+    if args.partition == "test" and (output / "summary.json").exists():
+        raise SystemExit("Formal OCR test already exists; refusing an accidental second pass")
     output.mkdir(parents=True, exist_ok=True)
     with (output / "records.csv").open("w", newline="", encoding="utf-8-sig") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
@@ -119,7 +131,7 @@ def main() -> None:
     for row in rows:
         grouped[str(row["method"])].append(row)
     payload = {
-        "partition": "validation only", "formal_test_evidence": False,
+        "partition": args.partition, "formal_test_evidence": args.partition == "test",
         "checkpoint": str(args.checkpoint.resolve()), "sources": len(source_ids),
         "manifest": str(args.manifest.resolve()),
         "field_accuracy_scope": "transaction date, total amount, and receipt/invoice number when annotated",

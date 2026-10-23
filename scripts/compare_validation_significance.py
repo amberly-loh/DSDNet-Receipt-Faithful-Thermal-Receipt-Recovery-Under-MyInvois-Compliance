@@ -55,6 +55,7 @@ def main() -> None:
         "--records", type=Path,
         default=ROOT / "artifacts/validation_restoration/training_foreground_dev_v4_checkpoint_0000500/records.csv",
     )
+    parser.add_argument("--partition", choices=("validation", "test"), default="validation")
     args = parser.parse_args()
     with args.records.open(encoding="utf-8-sig", newline="") as stream:
         rows = list(csv.DictReader(stream))
@@ -92,8 +93,8 @@ def main() -> None:
             value < .05 and row["benefit_95pct_bootstrap_ci"][0] > 0
         )
     report = {
-        "partition": "validation only",
-        "formal_test_evidence": False,
+        "partition": args.partition,
+        "formal_test_evidence": args.partition == "test",
         "unit_of_analysis": "source group (three degradation variants averaged per source)",
         "test": "one-sided paired Wilcoxon signed-rank with Holm family-wise correction",
         "interval": "10,000-draw paired source bootstrap CI for mean benefit",
@@ -102,9 +103,10 @@ def main() -> None:
             row["significantly_better"] for row in comparisons
         ),
         "comparisons": comparisons,
-        "warning": "Validation evidence supports selection only; confirm once on the locked held-out test.",
+        "warning": "No post-test tuning is permitted." if args.partition == "test" else "Validation evidence supports selection only; confirm once on the locked held-out test.",
     }
-    output = ROOT / "artifacts/formal_run/validation_significance.json"
+    filename = "formal_test_significance.json" if args.partition == "test" else "validation_significance.json"
+    output = ROOT / "artifacts/formal_run" / filename
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
