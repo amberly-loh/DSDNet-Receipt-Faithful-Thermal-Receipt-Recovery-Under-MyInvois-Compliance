@@ -222,7 +222,16 @@ def make_faithful_content_view(
                 artifact_mask_threshold,
             )
         return source_supported
-    return faithful
+    # Character-gap repair must not be limited to the faint-thermal branch.
+    # Ordinary receipts can also contain one-pixel stroke dropouts even when
+    # their global contrast is high. Use the darker measured response from the
+    # source/model only inside OCR-localised regions; OCR text itself is never
+    # rendered into this faithful view.
+    evidence = np.minimum(source_u8, restored_u8)
+    return enhance_supported_source_strokes(
+        faithful, evidence, ocr_lines or [], minimum_confidence=0.70,
+        maximum_gap=1,
+    )
 
 
 def suppress_learned_paper_artifacts(
@@ -300,6 +309,7 @@ def enhance_supported_source_strokes(
     evidence_source: np.ndarray,
     ocr_lines: list[dict[str, Any]],
     minimum_confidence: float = 0.70,
+    maximum_gap: int = 1,
 ) -> np.ndarray:
     """Strengthen measured ink inside OCR regions without drawing new glyphs."""
     import cv2
@@ -329,16 +339,19 @@ def enhance_supported_source_strokes(
         # Join only one-pixel discontinuities already bounded by measured ink.
         # Closing cannot invent a word or substitute a glyph; it merely bridges
         # tiny scanner/dropout gaps between neighbouring source-supported pixels.
+        kernel_size = max(3, min(5, int(maximum_gap) * 2 + 1))
         closed_horizontal = cv2.morphologyEx(
-            stroke_response, cv2.MORPH_CLOSE, np.ones((1, 3), np.uint8)
+            stroke_response, cv2.MORPH_CLOSE, np.ones((1, kernel_size), np.uint8)
         )
         closed_vertical = cv2.morphologyEx(
-            stroke_response, cv2.MORPH_CLOSE, np.ones((3, 1), np.uint8)
+            stroke_response, cv2.MORPH_CLOSE, np.ones((kernel_size, 1), np.uint8)
         )
         repaired_response = np.maximum(closed_horizontal, closed_vertical)
         # Keep the repair conservative: a closed pixel may be no stronger than
         # the strongest measured response in its immediate 3x3 neighbourhood.
-        local_support = cv2.dilate(stroke_response, np.ones((3, 3), np.uint8))
+        local_support = cv2.dilate(
+            stroke_response, np.ones((kernel_size, kernel_size), np.uint8)
+        )
         repaired_response = np.minimum(repaired_response, local_support)
         boosted = np.clip(255.0 - repaired_response * 3.0, 0, 255).astype(np.uint8)
         output[y1:y2, x1:x2] = np.minimum(output[y1:y2, x1:x2], boosted)

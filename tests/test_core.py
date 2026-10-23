@@ -264,6 +264,18 @@ def test_source_stroke_enhancement_bridges_only_local_pixel_gaps() -> None:
     assert np.count_nonzero(output[5:15, 20:160] < 250) == 0
 
 
+def test_faithful_view_repairs_supported_gap_on_non_faint_receipt() -> None:
+    from dsdnet_receipt.restoration import make_faithful_content_view
+
+    source = np.full((80, 220), 242, np.uint8)
+    source[38, 55:85] = 80
+    source[38, 86:118] = 80
+    lines = [{"text": "supported", "confidence": .96,
+              "box": [[45, 24], [130, 24], [130, 54], [45, 54]]}]
+    output = make_faithful_content_view(source, source, lines)
+    assert output[38, 85] < 230
+
+
 def test_stroke_fidelity_metrics_separate_deletion_from_false_ink() -> None:
     from dsdnet_receipt.validation import stroke_fidelity_metrics
 
