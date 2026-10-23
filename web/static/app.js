@@ -382,7 +382,8 @@ $('reviewForm').onsubmit = async event => {
   } catch (error) { $('saveMessage').textContent = error.message; }
 };
 
-$('qualityForm').onsubmit = async event => {
+const qualityForm = $('qualityForm');
+if (qualityForm) qualityForm.onsubmit = async event => {
   event.preventDefault(); if (!currentReceipt) return;
   const payload = {receipt_type:$('qualityType').value, source_condition:$('qualityCondition').value, faithful_rating:$('qualityRating').value, readability_score:$('qualityReadability').value, issues:[...document.querySelectorAll('.quality-issues input:checked')].map(input => input.value), notes:$('qualityNotes').value.trim()};
   try {
