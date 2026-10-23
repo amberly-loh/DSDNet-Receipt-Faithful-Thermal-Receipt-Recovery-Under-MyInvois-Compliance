@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import json
 import re
 from typing import Any
 
@@ -39,6 +40,7 @@ class RestorationEngine:
             import torch
 
             from .dsdnet_adapter import DSDNetReceiptAdapter, gaussian_kernel
+            from .evidence_support import SupportScales, evidence_support_from_output
 
             if self._model is None or self._loaded_checkpoint != checkpoint:
                 self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -88,6 +90,14 @@ class RestorationEngine:
             diagnostic_accumulated = np.zeros_like(padded, dtype=np.float32)
             positions = [(top, left) for top in tops for left in lefts]
             batch_size = max(1, int(self.config["dsdnet"].get("tile_batch_size", 1)))
+            calibration_path = Path(self.config["dsdnet"].get("evidence_support_calibration", ""))
+            if calibration_path.is_file():
+                calibration = json.loads(calibration_path.read_text(encoding="utf-8"))
+                scales = SupportScales(**calibration["scales"])
+                support_threshold = float(calibration["decision_threshold"])
+            else:
+                scales = SupportScales(.32, .32, .32)
+                support_threshold = None
             with torch.inference_mode():
                 for start in range(0, len(positions), batch_size):
                     batch_positions = positions[start : start + batch_size]
@@ -99,14 +109,9 @@ class RestorationEngine:
                     batch_kernel = kernel.expand(len(batch_positions), -1, -1)
                     output = model(observed, batch_kernel, retain_diagnostics=True, summarize_diagnostics=True)
                     restored_batch = output["restored"]
-                    stages = output["stage_states"]
-                    summaries = output["diagnostic_summaries"]
-                    stage_change = (stages[-1] - stages[-2]).abs().squeeze(1)
-                    branch_disagreement = torch.stack([
-                        item["prior_disagreement"].squeeze(1) + item["data_disagreement"].squeeze(1)
-                        for item in summaries
-                    ]).mean(dim=0)
-                    diagnostic_batch = torch.exp(-4.0 * stage_change - 2.0 * branch_disagreement)
+                    diagnostic_batch = evidence_support_from_output(
+                        model, observed, batch_kernel, output, scales
+                    )["combined"].squeeze(1)
                     restored_batch = restored_batch.detach().clamp(0, 1).squeeze(1).cpu().numpy()
                     diagnostic_batch = diagnostic_batch.detach().clamp(0, 1).cpu().numpy()
                     for restored_tile, diagnostic_tile, (top, left) in zip(restored_batch, diagnostic_batch, batch_positions):
@@ -124,7 +129,7 @@ class RestorationEngine:
             restored = blend_alpha * restored + (1.0 - blend_alpha) * source
             diagnostic = (diagnostic_accumulated / np.maximum(weights, 1e-8))[:height, :width]
             diagnostic_u8 = (diagnostic * 255.0).round().astype(np.uint8)
-            return RestorationResult((restored * 255.0).round().astype(np.uint8), True, "ok", None, str(checkpoint), int(self.config["dsdnet"]["stages"]), diagnostic_u8, {"mode": "stage-stability-and-branch-agreement", "formal_source_support": False, "mean": float(diagnostic.mean()), "display_output": "raw_x8", "ocr_input": f"source_preserving_fusion_alpha_{blend_alpha:.2f}"}, model_output)
+            return RestorationResult((restored * 255.0).round().astype(np.uint8), True, "ok", None, str(checkpoint), int(self.config["dsdnet"]["stages"]), diagnostic_u8, {"mode": "calibrated-residual-stage-branch-evidence", "formal_source_support": False, "natural_source_gate": "human_review_required", "validation_threshold_reference": support_threshold, "mean": float(diagnostic.mean()), "display_output": "raw_x8", "ocr_input": f"source_preserving_fusion_alpha_{blend_alpha:.2f}"}, model_output)
         except Exception as error:
             return RestorationResult(image.copy(), False, "restoration_failed", f"{type(error).__name__}: {error}", str(checkpoint))
 

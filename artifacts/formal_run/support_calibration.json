@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "partition": "validation only",
+  "formal_test_evidence": false,
+  "selection_rule": "maximise equal-per-variant tuning-subsample ROC AUC; then maximise source-macro Trace-F1",
+  "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_foreground_dev_v4\\checkpoint_0000500.pt",
+  "checkpoint_sha256": "7d2cbedf176ff91544379f0503eb8e85bd4fc64a5ff3cb8c5fda2997f54a6144",
+  "manifest": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\generation_manifest_611_sources.jsonl",
+  "source_groups": 86,
+  "variants": 258,
+  "sampled_pixels_per_variant": 4096,
+  "scales": {
+    "residual": 0.32,
+    "stage": 0.32,
+    "uncertainty": 0.32
+  },
+  "decision_threshold": 0.32499999999999996,
+  "validation_metrics": {
+    "tuning_subsample_roc_auc": 0.9390197938809772,
+    "combined_roc_auc": 0.9156428906963959,
+    "combined_trace_f1": 0.4993287080735742,
+    "residual_roc_auc": 0.9146832833208852,
+    "stage_roc_auc": 0.9123260399980967,
+    "uncertainty_roc_auc": 0.9100023097537303
+  },
+  "warning": "These are model-selection results, not held-out test claims."
+}

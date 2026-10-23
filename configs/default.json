@@ -48,6 +48,7 @@
     "tile_overlap": 32,
     "tile_batch_size": 2,
     "restoration_blend_alpha": 1.0,
+    "evidence_support_calibration": "../artifacts/formal_run/support_calibration.json",
     "checkpoint": "../artifacts/training_foreground_dev_v4/checkpoint_0000500.pt"
   },
   "artifact_mask": {

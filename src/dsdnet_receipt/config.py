@@ -15,6 +15,9 @@ def load_config(path: str | Path) -> tuple[dict[str, Any], Path]:
     checkpoint = config["dsdnet"].get("checkpoint")
     if checkpoint:
         config["dsdnet"]["checkpoint"] = str((base / checkpoint).resolve())
+    support_calibration = config["dsdnet"].get("evidence_support_calibration")
+    if support_calibration:
+        config["dsdnet"]["evidence_support_calibration"] = str((base / support_calibration).resolve())
     artifact_mask = config.get("artifact_mask", {})
     artifact_checkpoint = artifact_mask.get("checkpoint")
     if artifact_checkpoint:

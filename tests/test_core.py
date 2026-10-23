@@ -330,6 +330,42 @@ def test_thermal_overlay_preserves_detected_box_centre() -> None:
     assert abs(float(ys.mean()) - 40.0) < 8.0
 
 
+def test_evidence_support_rewards_agreement_and_stability() -> None:
+    import torch
+    from dsdnet_receipt.evidence_support import SupportScales, support_components
+
+    observed = torch.full((1, 1, 64, 64), 0.9)
+    observed[:, :, 28:36, 12:52] = 0.2
+    restored = observed.clone()
+    stable = restored.clone()
+    unstable = restored.clone()
+    unstable[:, :, 28:36, 12:52] = 0.8
+    quiet = torch.zeros((1, 1, 64, 64))
+    noisy = quiet.clone()
+    noisy[:, :, 28:36, 12:52] = 1.0
+
+    def identity_blur(value, kernel, padding):
+        return value
+
+    maps = support_components(
+        observed,
+        torch.ones((1, 1, 1)),
+        {
+            "restored": restored,
+            "stage_states": [unstable, stable],
+            "diagnostic_summaries": [
+                {"prior_disagreement": noisy, "data_disagreement": noisy}
+            ],
+        },
+        identity_blur,
+        "replicate",
+        SupportScales(residual=.1, stage=.1, uncertainty=.1),
+    )
+    assert float(maps["combined"][0, 0, 0, 0]) < .05
+    assert float(maps["combined"][0, 0, 31, 20]) > .3
+    assert all(value.shape == observed.shape for value in maps.values())
+
+
 def test_receipt_language_assistance_is_conservative_and_auditable() -> None:
     suggestion = suggest_receipt_text("Total PayabIE")
     assert suggestion is not None
