@@ -34,3 +34,11 @@
 .image-view-selector{display:inline-flex;margin-top:14px;padding:3px;border:1px solid var(--line);border-radius:10px;background:#f5f7f6}.image-view-selector button{border:0;background:transparent;color:var(--muted);padding:7px 13px;border-radius:7px;font:inherit;font-size:.74rem;font-weight:700;cursor:pointer}.image-view-selector button.active{background:#fff;color:var(--green);box-shadow:0 2px 7px rgba(13,70,60,.12)}.comparison:not(.compare-mode) #compareLine,.comparison:not(.compare-mode) #compareSlider{display:none}.comparison.original-mode #restoredWrap{display:none}.comparison.improved-mode #restoredWrap{clip-path:none!important}.comparison.improved-mode>img{visibility:hidden}
 .ocr-table td small{display:block;margin-top:3px;color:var(--amber);font-size:.62rem}.suggested-reading{color:var(--green-dark);font-weight:750}.no-suggestion{color:#a5b0ad}
 .status-pill.integrity-verified{background:var(--mint);color:var(--green)}.status-pill.integrity-failed{background:#fff0f0;color:var(--danger)}.status-pill.integrity-legacy_unverified{background:#edf0ef;color:#66736f}
+
+/* Keep every history thumbnail inside its fixed preview area. */
+.gallery{align-items:start}
+.receipt-card{display:grid;grid-template-rows:190px auto;min-width:0}
+.card-image{height:190px;min-width:0;min-height:0;overflow:hidden}
+.card-image img{display:block;width:100%;height:100%;min-width:0;min-height:0;object-fit:contain}
+.receipt-card-copy{min-width:0}
+@media(max-width:650px){.receipt-card{grid-template-rows:150px auto}.card-image{height:150px}}
