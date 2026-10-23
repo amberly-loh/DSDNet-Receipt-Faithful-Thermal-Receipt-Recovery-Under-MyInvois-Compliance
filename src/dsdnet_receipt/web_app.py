@@ -53,7 +53,8 @@ COMMON_PASSWORDS = {
     "passwordpassword", "password123456", "qwertyuiop12345", "123456789012345",
     "letmeinletmein123", "adminadminadmin", "receipt-recovery", "thermalreceipt",
 }
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/bmp", "image/tiff"}
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_PIXELS = 40_000_000
 
 
@@ -568,6 +569,53 @@ def create_app(
         if receipt: store.log_event(current_user()["id"], "receipt.review_update", "receipt", receipt_id, details={"status": receipt["status"]})
         return jsonify(receipt) if receipt else (jsonify({"error": "Receipt not found."}), 404)
 
+    @app.post("/api/receipts/<receipt_id>/quality-assessment")
+    @require_auth
+    def quality_assessment(receipt_id: str):
+        user = current_user()
+        receipt = store.get_receipt(user["id"], receipt_id)
+        if not receipt:
+            return jsonify({"error": "Receipt not found."}), 404
+        payload = request.get_json(silent=True) or {}
+        receipt_types = {"printed", "thermal", "invoice", "photograph", "other"}
+        conditions = {"clear", "moderate", "faded", "severe"}
+        ratings = {"better", "same", "worse"}
+        permitted_issues = {"missing_text", "false_strokes", "logo_damage", "layout_shift", "texture_remaining", "overcleaned"}
+        errors = {}
+        if payload.get("receipt_type") not in receipt_types: errors["receipt_type"] = "Choose a receipt type."
+        if payload.get("source_condition") not in conditions: errors["source_condition"] = "Choose the original condition."
+        if payload.get("faithful_rating") not in ratings: errors["faithful_rating"] = "Choose better, the same or worse."
+        try:
+            readability = int(payload.get("readability_score"))
+            if readability not in range(1, 6): raise ValueError
+        except (TypeError, ValueError):
+            errors["readability_score"] = "Choose a readability score from 1 to 5."
+            readability = 0
+        issues = payload.get("issues", [])
+        if not isinstance(issues, list) or any(issue not in permitted_issues for issue in issues):
+            errors["issues"] = "One or more quality issues are invalid."
+        if errors:
+            return jsonify({"error": "Complete the receipt quality assessment.", "fields": errors}), 400
+        assessment = {
+            "receipt_type": payload["receipt_type"],
+            "source_condition": payload["source_condition"],
+            "faithful_rating": payload["faithful_rating"],
+            "readability_score": readability,
+            "issues": sorted(set(issues)),
+            "notes": str(payload.get("notes") or "").strip()[:1000],
+            "assessed_at": utc_now(),
+            "assessor_user_id": user["public_id"],
+            "checkpoint": receipt.get("audit", {}).get("checkpoint"),
+        }
+        audit = receipt.get("audit", {})
+        audit["quality_assessment"] = assessment
+        if not store.update_receipt_audit(user["id"], receipt_id, audit):
+            return jsonify({"error": "The assessment could not be saved."}), 500
+        audit_path = Path(receipt["restored_path"]).parent / "audit.json"
+        write_json(audit_path, audit)
+        store.log_event(user["id"], "receipt.quality_assessment", "receipt", receipt_id, details=assessment)
+        return jsonify(assessment)
+
     @app.post("/api/receipts/<receipt_id>/reextract")
     @require_auth
     def reextract_receipt(receipt_id: str):
@@ -681,6 +729,33 @@ def create_app(
         store.log_event(current_user()["id"], "receipt.export_xlsx", "receipt_collection", details={"count": len(rows)})
         return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name="receipt-register.xlsx")
 
+    @app.get("/api/quality-evaluation.csv")
+    @require_auth
+    def export_quality_evaluation():
+        rows = []
+        user_id = current_user()["id"]
+        for summary in store.list_receipts(user_id):
+            receipt = store.get_receipt(user_id, summary["public_id"])
+            assessment = receipt.get("audit", {}).get("quality_assessment")
+            if not assessment:
+                continue
+            rows.append({
+                "receipt_id": receipt["public_id"], "source_name": receipt["source_name"],
+                "receipt_type": assessment.get("receipt_type", ""),
+                "source_condition": assessment.get("source_condition", ""),
+                "faithful_rating": assessment.get("faithful_rating", ""),
+                "readability_score": assessment.get("readability_score", ""),
+                "issues": ";".join(assessment.get("issues", [])),
+                "notes": assessment.get("notes", ""),
+                "assessed_at": assessment.get("assessed_at", ""),
+                "checkpoint": assessment.get("checkpoint", ""),
+            })
+        stream = io.StringIO()
+        fields = ["receipt_id", "source_name", "receipt_type", "source_condition", "faithful_rating", "readability_score", "issues", "notes", "assessed_at", "checkpoint"]
+        writer = csv.DictWriter(stream, fieldnames=fields); writer.writeheader(); writer.writerows(rows)
+        store.log_event(current_user()["id"], "receipt.export_quality_evaluation", "receipt_collection", details={"assessments": len(rows)})
+        return send_file(io.BytesIO(stream.getvalue().encode("utf-8-sig")), mimetype="text/csv", as_attachment=True, download_name="receipt-quality-evaluation.csv")
+
     @app.get("/api/receipts/<receipt_id>/audit.json")
     @require_auth
     def export_audit(receipt_id: str):
@@ -783,6 +858,7 @@ def create_app(
             raise ValueError(f"{upload.filename}: upload a JPEG, PNG, WebP, HEIC or HEIF receipt image")
         raw_bytes = upload.read()
         if not raw_bytes: raise ValueError(f"{upload.filename}: the uploaded file is empty")
+        if len(raw_bytes) > MAX_UPLOAD_BYTES: raise ValueError(f"{upload.filename}: the image exceeds the 20 MB limit")
         raw = np.frombuffer(raw_bytes, dtype=np.uint8)
         image = cv2.imdecode(raw, cv2.IMREAD_COLOR)
         if image is None: raise ValueError(f"{upload.filename}: unreadable receipt image")

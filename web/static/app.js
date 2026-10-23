@@ -269,6 +269,12 @@ async function openReceipt(id) {
     const suggestions = new Map((currentReceipt.audit?.ocr_suggestions || []).map(item => [Number(item.line_index), item]));
     $('ocrTable').innerHTML = lines.length ? `<table><thead><tr><th>#</th><th>Scanner reading</th><th>Possible correction</th><th>Confidence</th></tr></thead><tbody>${lines.map((line, index) => { const suggestion = suggestions.get(index); return `<tr><td>${index + 1}</td><td>${escapeHtml(line.text)}</td><td>${suggestion ? `<span class="suggested-reading">${escapeHtml(suggestion.suggested)}</span><small>Verify against original</small>` : '<span class="no-suggestion">—</span>'}</td><td>${line.confidence == null ? '—' : `${(Number(line.confidence) * 100).toFixed(1)}%`}</td></tr>`; }).join('')}</tbody></table>` : '<p class="empty-copy">No text was recognised. Enter the receipt details manually.</p>';
     $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.pdf`; $('accountingDownload').href = `/api/receipts/${encodeURIComponent(id)}/ocr.xlsx`; $('technicalDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`; $('documentDownload').href = currentReceipt.restored_url;
+    const assessment = currentReceipt.audit?.quality_assessment || {};
+    $('qualityType').value = assessment.receipt_type || ''; $('qualityCondition').value = assessment.source_condition || '';
+    $('qualityRating').value = assessment.faithful_rating || ''; $('qualityReadability').value = assessment.readability_score || '';
+    $('qualityNotes').value = assessment.notes || '';
+    const savedIssues = new Set(assessment.issues || []); document.querySelectorAll('.quality-issues input').forEach(input => input.checked = savedIssues.has(input.value));
+    $('qualityMessage').textContent = assessment.assessed_at ? `Saved ${formatDate(assessment.assessed_at)}` : '';
     setImageMode('faithful'); route('detail');
   } catch (error) { toast(error.message, true); }
 }
@@ -374,6 +380,16 @@ $('reviewForm').onsubmit = async event => {
     $('detailTitle').textContent = currentReceipt.merchant || currentReceipt.source_name;
     $('saveMessage').textContent = 'Saved successfully.'; toast('Receipt review saved.'); setTimeout(() => $('saveMessage').textContent = '', 2500);
   } catch (error) { $('saveMessage').textContent = error.message; }
+};
+
+$('qualityForm').onsubmit = async event => {
+  event.preventDefault(); if (!currentReceipt) return;
+  const payload = {receipt_type:$('qualityType').value, source_condition:$('qualityCondition').value, faithful_rating:$('qualityRating').value, readability_score:$('qualityReadability').value, issues:[...document.querySelectorAll('.quality-issues input:checked')].map(input => input.value), notes:$('qualityNotes').value.trim()};
+  try {
+    const saved = await api(`/api/receipts/${encodeURIComponent(currentReceipt.public_id)}/quality-assessment`, {method:'POST', body:payload});
+    currentReceipt.audit = currentReceipt.audit || {}; currentReceipt.audit.quality_assessment = saved;
+    $('qualityMessage').textContent = 'Assessment saved.'; toast('Receipt quality assessment saved.');
+  } catch (error) { $('qualityMessage').textContent = error.message; }
 };
 
 $('addLineItemButton').onclick = () => { const rows = collectLineItems(); rows.push({item:'',description:'',quantity:'',unit:'',unit_price:'',discount:'',amount:'',review_note:''}); renderLineItems(rows); };

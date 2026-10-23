@@ -67,6 +67,16 @@ def test_account_and_owned_receipt_workflow(tmp_path: Path) -> None:
     assert update.get_json()["status"] == "reviewed"
     assert update.get_json()["line_items"][0]["description"] == "Office paper"
     assert client.get("/api/export.csv").status_code == 200
+    assessment = client.post(
+        "/api/receipts/USER-TEST-001/quality-assessment",
+        json={"receipt_type":"thermal","source_condition":"moderate","faithful_rating":"better","readability_score":4,"issues":["texture_remaining"],"notes":"Fold remains near total"},
+        headers={"X-CSRF-Token": token},
+    )
+    assert assessment.status_code == 200
+    assert assessment.get_json()["faithful_rating"] == "better"
+    evaluation = client.get("/api/quality-evaluation.csv")
+    assert evaluation.status_code == 200
+    assert b"thermal" in evaluation.data and b"better" in evaluation.data
 
     assert client.post("/api/logout", headers={"X-CSRF-Token": token}).status_code == 200
     assert client.get("/api/dashboard").status_code == 401
@@ -136,3 +146,5 @@ def test_receipt_view_defaults_to_faithful_recovery_and_separates_reading_copy(t
     assert 'Faithful content recovery · thesis-safe view' in html
     assert 'Optional reading copy' not in html  # runtime label depends on the receipt
     assert 'id="compareViewButton"' in html
+    assert 'id="qualityForm"' in html
+    assert '/api/quality-evaluation.csv' in html
