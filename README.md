@@ -1,6 +1,6 @@
 # DSDNet Receipt Recovery
 
-Research prototype for local receipt restoration and review. This archive contains application source, configuration, tests, selected experiment scripts and the upstream DSDNet architecture and licence.
+Research prototype for local receipt restoration and review. The repository folders and optional source archive contain application source, configuration, tests, selected experiment scripts and the upstream DSDNet architecture and licence.
 
 ## Setup
 
@@ -14,4 +14,4 @@ This prototype does not submit to MyInvois. Research results and deployment read
 
 ## Handwriting dataset
 
-The exploratory handwriting pilot used ORAND-CAR-2014, distributed by its creator at https://www.orand.cl/icfhr2014-hdsr/ under CC BY-NC-ND 4.0. Download the original archive from the official source and retain its attribution and licence. It is for non-commercial use. The local original archive SHA-256 is 7c4b3d9e820bbcdfd291f5679b74013bd055b4f771dc64ebdb8ce599ff4a61a. This exploratory dataset does not establish accuracy on receipt handwriting.
+The exploratory handwriting pilot used ORAND-CAR-2014, distributed by its creator at https://www.orand.cl/icfhr2014-hdsr/ under CC BY-NC-ND 4.0. Download the original archive from the official source and retain its attribution and licence. It is for non-commercial use. The local original archive SHA-256 is 7c4b3d9e820bbcdfd291f5679b74013bd055b4f771dc64ebd8b8ce599ff4a61a. This exploratory dataset does not establish accuracy on receipt handwriting.
