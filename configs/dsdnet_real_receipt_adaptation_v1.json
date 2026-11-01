@@ -1,0 +1,41 @@
+{
+  "seed": 56,
+  "generation_manifest": "../artifacts/real_receipt_adaptation/generation_manifest_real_receipts.jsonl",
+  "network": {"stages": 8, "maxout_branches": 4, "prior_channels": 16, "data_channels": 16},
+  "objective": {"pixel": "L1", "structural": "1-SSIM", "ssim_coefficient": 0.20, "stroke_gradient_coefficient": 0.20, "foreground_text_coefficient": 0.40},
+  "optimizer": {"type": "AdamW", "learning_rate": 0.000002, "beta1": 0.9, "beta2": 0.999, "epsilon": 1e-8, "weight_decay": 0.0001},
+  "schedule": {"type": "CosineAnnealingLR", "t_max_iterations": 750, "eta_min": 0.0000002},
+  "training": {
+    "total_iterations": 750,
+    "crop_height": 128,
+    "crop_width": 128,
+    "batch_size_per_device": 1,
+    "mixed_precision": true,
+    "gradient_checkpointing": false,
+    "gradient_clipping": true,
+    "gradient_clip_norm": 1.0,
+    "checkpoint_interval": 250,
+    "validation_interval": 250,
+    "text_crop_probability": 0.90
+  },
+  "natural_receipt_augmentation": {
+    "enabled": true,
+    "probability": 1.0,
+    "texture_amplitude": [0.005, 0.035],
+    "texture_scale_pixels": [5.0, 28.0],
+    "crease_probability": 0.75,
+    "crease_count": [1, 4],
+    "crease_strength": [0.015, 0.10],
+    "crease_thickness": [1, 4],
+    "crease_blur_sigma": [0.8, 2.4],
+    "crease_shadow_offset": 4,
+    "fade_probability": 0.85,
+    "fade_scale_pixels": [16.0, 52.0],
+    "fade_strength": [0.025, 0.14],
+    "blur_probability": 0.65,
+    "blur_sigma": [0.25, 1.35]
+  },
+  "checkpoint_selection": ["minimum_validation_objective", "maximum_validation_ssim", "maximum_stroke_recall", "minimum_false_stroke_rate"],
+  "test_access_policy": "excluded from adaptation and checkpoint selection",
+  "adaptation_scope": "all unique saved receipt formats participate in the workflow; only the train partition updates weights"
+}

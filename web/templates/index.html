@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123c35">
+  <title>ResitTrace</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='20261101-1') }}">
+  <script defer src="{{ url_for('static', filename='app.js', v='20261101-1') }}"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <section id="authView" class="auth-view hidden">
+    <div class="auth-story">
+      <a class="brand brand-light" href="/" aria-label="Receipt Recovery home">
+        <span class="brand-mark">R</span><span><b>ResitTrace</b><small>Receipt recovery workspace</small></span>
+      </a>
+      <div class="auth-copy">
+        <p class="eyebrow">THERMAL RECEIPT RECOVERY</p>
+        <h1>Recover the image.<br>Keep the evidence.</h1>
+        <p>Recover receipt images, check extracted details and organise records for accounting.</p>
+        <div class="trust-list">
+          <span>Local processing</span><span>Human review</span><span>Traceable audit</span>
+        </div>
+      </div>
+    </div>
+    <div class="auth-panel">
+      <form id="authForm" class="auth-card">
+        <p class="eyebrow dark">YOUR PRIVATE WORKSPACE</p>
+        <h2 id="authTitle">Welcome back</h2>
+        <p id="authSubtitle">Sign in to access your saved receipts.</p>
+        <label id="nameLabel" class="field hidden">Name<input id="authName" autocomplete="name" minlength="2"><small id="nameError" class="field-error"></small></label>
+        <label class="field">Email<input id="authEmail" type="email" autocomplete="email" required><small id="emailError" class="field-error"></small></label>
+        <label class="field">Password<input id="authPassword" type="password" autocomplete="current-password" minlength="15" maxlength="128" required><small id="passwordHint" class="hidden">Use at least 15 characters. Spaces are allowed; forced symbols or capitals are not required.</small><small id="passwordError" class="field-error"></small></label>
+        <label id="confirmationLabel" class="field hidden">Confirm password<input id="authConfirmation" type="password" autocomplete="new-password" minlength="15" maxlength="128"><small id="confirmationError" class="field-error"></small></label>
+        <label id="policyLabel" class="policy-check hidden"><input id="policyAccepted" type="checkbox"> <span>I understand that receipt images and extracted information are stored locally for authorised review and audit purposes.</span></label><small id="policyError" class="field-error"></small>
+        <p id="authError" class="form-error hidden" role="alert"></p>
+        <button id="authSubmit" class="button primary wide" type="submit">Sign in</button>
+        <button id="guestButton" class="button secondary wide" type="button">Continue as guest</button>
+        <p class="provider-note">Guest records are stored on this computer and remain accessible in this browser session. Export before signing out; guest records cannot be reopened after sign-out. Files remain on this computer.</p>
+        <div class="auth-divider"><span>or</span></div>
+        <a id="googleLogin" class="button google wide" href="/auth/google"><b>G</b> Continue with Google</a>
+        <p id="googleStatus" class="provider-note"></p>
+        <p class="provider-note">This prototype stores data on the computer running the app; accounts do not provide cloud sync. Password reset and email verification are not yet available. Google sign-in, when configured, only provides identity.</p>
+        <p class="auth-switch"><span id="authSwitchText">New here?</span> <button id="authSwitch" type="button">Create an account</button></p>
+      </form>
+    </div>
+  </section>
+
+  <div id="workspace" class="workspace hidden">
+    <aside class="sidebar">
+      <a class="brand brand-light" href="#overview" data-route="overview">
+        <span class="brand-mark">R</span><span><b>ResitTrace</b><small>Receipt recovery workspace</small></span>
+      </a>
+      <nav class="side-nav" aria-label="Main navigation">
+        <button data-route="overview" class="active"><span>⌂</span>Overview</button>
+        <button data-route="scan"><span>⊕</span>Scan receipt</button>
+        <button data-route="history"><span>▦</span>Receipt history</button>
+        <button id="adminNav" data-route="admin" class="hidden"><span>⚙</span>Administration</button>
+      </nav>
+      <div class="side-note"><b>Review before use</b><p>Recovered text can still be wrong. Confirm important values against the receipt image.</p></div>
+      <div class="profile-block">
+        <span id="avatar" class="avatar">A</span><span><b id="profileName">Account</b><small id="profileEmail"></small></span>
+        <button id="logoutButton" title="Sign out" aria-label="Sign out">↪</button>
+      </div>
+    </aside>
+
+    <div class="app-area">
+      <header class="topbar">
+        <button id="menuButton" class="menu-button" aria-label="Open navigation">☰</button>
+        <div><h1 id="pageTitle">Overview</h1><p id="pageSubtitle">Your receipt recovery workspace</p></div>
+      </header>
+
+      <main id="main" class="content">
+        <section id="overviewPage" class="page">
+          <div class="welcome-card">
+            <div><p class="eyebrow">GOOD TO SEE YOU</p><h2 id="welcomeName">Ready to recover a receipt?</h2><p>Scan a faded receipt, review the recovered values, and keep the result in your private history.</p><button class="button light" data-route="scan">Scan a receipt</button></div>
+            <div class="receipt-art" aria-hidden="true"><span></span><span></span><span></span><b>✓</b></div>
+          </div>
+          <div class="stat-grid">
+            <article><span class="stat-icon green">▦</span><div><small>Total receipts</small><strong id="statTotal">0</strong></div></article>
+            <article><span class="stat-icon amber">◌</span><div><small>To verify</small><strong id="statReview">0</strong></div></article>
+            <article><span class="stat-icon blue">✓</span><div><small>Reviewed</small><strong id="statReviewed">0</strong></div></article>
+          </div>
+          <div class="section-head"><div><h2>Recent receipts</h2><p>Your latest scans and review status.</p></div><button class="text-button" data-route="history">View all →</button></div>
+          <div id="recentList" class="receipt-list"></div>
+        </section>
+
+        <section id="scanPage" class="page hidden">
+          <div class="scan-intro"><p class="eyebrow dark">NEW RECEIPT</p><h2>Scan or upload a receipt</h2><p>For the clearest result, keep the receipt flat, fill the frame, and avoid shadows.</p></div>
+          <div id="uploadPanel" class="scan-grid">
+            <label id="dropZone" class="upload-card" for="fileInput">
+              <input id="fileInput" type="file" accept="image/jpeg,image/png,image/bmp,image/tiff">
+              <span class="upload-icon">↥</span><h3>Drop a receipt image here</h3><p>or click to browse your device</p><small>JPG, PNG, BMP or TIFF · maximum 20 MB</small>
+            </label>
+            <div class="camera-card"><span class="camera-icon">◉</span><h3>Use your camera</h3><p>Capture a receipt directly from this device.</p><button id="cameraButton" class="button secondary" type="button">Open camera</button></div>
+          </div>
+          <div id="bulkCard" class="bulk-card"><div><span class="upload-icon">▤</span><div><h3>Process a batch</h3><p>Select up to 25 receipt images. Each receipt receives its own record, review state and audit package.</p></div></div><label class="button secondary" for="bulkInput">Choose multiple images<input id="bulkInput" type="file" accept="image/jpeg,image/png,image/bmp,image/tiff" multiple hidden></label><button id="bulkButton" class="button primary" disabled>Process batch</button><p id="bulkSelection"></p></div>
+          <div id="previewPanel" class="preview-card hidden">
+            <div class="preview-image-wrap"><img id="previewImage" alt="Selected receipt preview"></div>
+            <div class="preview-info"><span class="success-pill">Ready to process</span><h3 id="fileName">Receipt image</h3><p id="fileSize"></p><div class="tip"><b>Before continuing</b><p>Make sure the full receipt is visible and the image is not heavily blurred.</p></div><div class="button-row"><button id="changeButton" class="button secondary">Choose another</button><button id="analyseButton" class="button primary">Recover receipt</button></div></div>
+          </div>
+          <div id="processingPanel" class="processing-card hidden" aria-live="polite">
+            <div class="spinner"></div><h2 id="processingTitle">Preparing your image…</h2><p>Keep this page open while the receipt is processed.</p>
+            <ol><li class="done">Preparing image</li><li id="restoreStep">Recovering faded text</li><li id="fieldStep">Finding receipt fields</li><li>Saving audit record</li></ol>
+          </div>
+          <div id="scanError" class="error-card hidden"><span>!</span><div><h3>We could not process this receipt</h3><p id="errorMessage"></p><button id="tryAgainButton" class="button secondary">Try another image</button></div></div>
+        </section>
+
+        <section id="historyPage" class="page hidden">
+          <div class="history-toolbar">
+            <label class="search-box"><span>⌕</span><input id="historySearch" type="search" placeholder="Search merchant, receipt number or amount"></label>
+            <select id="statusFilter" aria-label="Filter by status"><option value="all">All statuses</option><option value="needs_review">To verify</option><option value="reviewed">Reviewed</option><option value="archived">Archived</option></select>
+            <a class="button secondary" href="/api/export.xlsx" download>Export Excel</a><a class="button secondary" href="/api/quality-evaluation.csv" download>Evaluation CSV</a>
+            <div class="view-toggle"><button id="gridViewButton" class="active" aria-label="Grid view">▦</button><button id="listViewButton" aria-label="List view">☷</button></div>
+          </div>
+          <div id="historyCount" class="history-count"></div>
+          <div class="history-selection"><label><input id="selectVisibleReceipts" type="checkbox"> Select all shown</label><span id="selectionCount" aria-live="polite">0 selected</span><button id="deleteSelectedReceipts" class="button danger" type="button" disabled>Delete selected</button></div>
+          <p id="selectionSummary" class="selection-summary" aria-live="polite"></p>
+          <div id="historyGallery" class="gallery"></div>
+        </section>
+
+        <section id="detailPage" class="page hidden">
+          <button id="backButton" class="back-button">← Back to history</button>
+          <div class="detail-heading"><div><p id="detailStatus" class="status-pill">To verify</p><h2 id="detailTitle">Receipt details</h2><p id="detailMeta"></p></div><div class="button-row"><button id="copyFieldsButton" class="button secondary" type="button">Copy details</button><a id="accountingDownload" class="button primary" download>Export Excel</a><details class="detail-actions"><summary class="button secondary">More actions</summary><div><button id="reextractButton" class="button secondary" type="button">Re-read fields</button><a id="auditDownload" class="button secondary" download>Audit report (PDF)</a><a id="documentDownload" class="button secondary" download>Download image</a><button id="deleteButton" class="button danger" type="button">Delete</button></div></details></div></div>
+          <div class="detail-grid">
+            <div class="comparison-card">
+              <div class="comparison-head"><h3>Receipt image</h3><button id="fullImageButton" class="button secondary compact" type="button">View full size</button></div>
+              <div class="image-view-selector" role="group" aria-label="Choose receipt image view"><button id="faithfulViewButton" class="active" type="button">Faithful recovery</button><button id="originalViewButton" type="button">Original</button><button id="compareViewButton" type="button">Compare</button></div>
+              <div id="comparison" class="comparison improved-mode" title="Double-click to view the receipt full size"><img id="originalImage" alt="Original receipt"><div id="restoredWrap"><img id="restoredImage" alt="Faithful receipt recovery"></div><div id="compareLine"></div><input id="compareSlider" type="range" min="0" max="100" value="50" aria-label="Drag to compare original and faithful recovery"></div>
+              <div class="comparison-labels"><span id="comparisonViewLabel">Faithful recovery</span><span id="comparisonHelp">Select Compare for the split view</span></div><p id="comparisonNote" class="comparison-note">Compare recovered content against the preserved original.</p>
+            </div>
+            <form id="reviewForm" class="review-card">
+              <div class="card-title"><div><h3>Verify extracted details</h3><p>Checking every new receipt is a normal step. Compare values with the original, then save them for accounting.</p></div><span class="human-badge">Verify</span></div>
+              <div id="duplicateWarning" class="reading-message hidden"></div>
+              <div class="form-grid"><label class="field full">Merchant<input id="merchantField" maxlength="160"><small id="merchantEvidence"></small></label><label class="field">Transaction date<input id="dateField" type="date"><small id="dateEvidence"></small></label><label class="field">Receipt / invoice number (if shown)<input id="numberField" maxlength="100"><small id="numberEvidence"></small></label><label class="field">Total amount<input id="totalField" inputmode="decimal" placeholder="e.g. 12.50" maxlength="18"><small id="totalEvidence"></small></label><label class="field">Review status<select id="reviewStatus"><option value="needs_review">To verify</option><option value="reviewed">Reviewed</option><option value="archived">Archived</option></select></label><label class="field full">Tags<input id="tagsField" placeholder="e.g. fuel, office, claim"></label><label class="field full">Notes<textarea id="notesField" rows="3" maxlength="4000" placeholder="Add a private note"></textarea></label></div>
+              <div class="ocr-toolbar"><strong>Line items</strong><button id="addLineItemButton" class="button secondary compact" type="button">Add row</button></div><div id="lineItemEditor" class="table-wrap"></div>
+              <p id="saveMessage" class="save-message"></p><button class="button primary wide" type="submit">Save review</button>
+            </form>
+          </div>
+          <details class="technical-card quality-card"><summary>Research: assess recovery quality (optional)</summary><p>Help evaluate how the recovery compares with the original. This is not required for accounting.</p><form id="qualityForm"><div class="quality-grid"><label class="field">Receipt type<select id="qualityType"><option value="">Choose…</option><option value="printed">Printed receipt</option><option value="thermal">Thermal receipt</option><option value="invoice">Invoice / document</option><option value="photograph">Phone photograph</option><option value="other">Other</option></select></label><label class="field">Original condition<select id="qualityCondition"><option value="">Choose…</option><option value="clear">Clear</option><option value="moderate">Moderately degraded</option><option value="faded">Faded but readable</option><option value="severe">Severely faded</option></select></label><label class="field">Faithful recovery<select id="qualityRating"><option value="">Choose…</option><option value="better">Better than original</option><option value="same">About the same</option><option value="worse">Worse than original</option></select></label><label class="field">Readability<select id="qualityReadability"><option value="">Choose…</option><option value="1">1 · unreadable</option><option value="2">2 · poor</option><option value="3">3 · usable with effort</option><option value="4">4 · readable</option><option value="5">5 · very clear</option></select></label></div><fieldset class="quality-issues"><legend>Observed problems</legend><label><input type="checkbox" value="missing_text"> Missing or broken text</label><label><input type="checkbox" value="false_strokes"> False or invented strokes</label><label><input type="checkbox" value="logo_damage"> Logo/mark damaged</label><label><input type="checkbox" value="layout_shift"> Spacing/layout shifted</label><label><input type="checkbox" value="texture_remaining"> Crease/texture remains</label><label><input type="checkbox" value="overcleaned"> Over-cleaned content</label></fieldset><label class="field">Evaluation notes<textarea id="qualityNotes" rows="2" placeholder="Record the exact area or text that failed"></textarea></label><p id="qualityMessage" class="save-message"></p><button class="button primary" type="submit">Save assessment</button></form></details>
+          <details class="technical-card"><summary>Using this receipt with MyInvois</summary><p>Keep the original as supporting evidence. If you need an individual e-Invoice, request it from the supplier and check their validated e-Invoice. This app does not submit or validate e-Invoices.</p><div id="myinvoisChecklist" class="table-wrap"></div></details>
+          <section class="technical-card"><div class="card-title"><div><h3>Reading results</h3><p>Check unclear or handwritten details against the original image.</p></div><span id="integrityStatus" class="status-pill">Checking integrity</span></div><p id="readingMessage" class="reading-message"></p><details><summary>Show text found by the scanner</summary><div class="ocr-toolbar"><span>Text is shown in receipt reading order with its scan confidence.</span><a id="technicalDownload" class="button secondary" download>Technical record (JSON)</a></div><div id="ocrTable" class="table-wrap ocr-table"></div></details><div class="record-meta"><span>Processed in <b id="runtimeStatus"></b></span><span>Record <b id="recordId"></b></span></div></section>
+        </section>
+
+        <section id="adminPage" class="page hidden">
+          <div class="section-head"><div><h2>Account and audit administration</h2><p>Approve access, suspend accounts and review system activity.</p></div><button id="refreshAdmin" class="button secondary">Refresh</button></div>
+          <div class="stat-grid"><article><span class="stat-icon green">♙</span><div><small>Accounts</small><strong id="adminUsers">0</strong></div></article><article><span class="stat-icon amber">!</span><div><small>Suspended</small><strong id="adminPending">0</strong></div></article><article><span class="stat-icon blue">▦</span><div><small>Stored receipts</small><strong id="adminReceipts">0</strong></div></article></div>
+          <div class="admin-grid"><div class="admin-card"><h3>User accounts</h3><div id="userTable" class="table-wrap"></div></div><div class="admin-card"><h3>Audit activity</h3><div id="eventList" class="event-list"></div></div></div>
+          <div class="policy-card"><h3>Data-handling controls</h3><ul><li>Primary records are stored in local SQLite; images remain in local audit folders under internal IDs.</li><li>Accounts are available after consent. Administrators may suspend abusive accounts but do not approve every registration.</li><li>Access, review changes, image views, exports and verified deletions are logged.</li><li>The configured default retention period is seven years; earlier deletion remains appropriate when the purpose ends and no legal requirement applies.</li><li>Exports are derived copies and must be protected by the person downloading them.</li></ul></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="cameraDialog" class="camera-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close camera">×</button></form><h2>Photograph your receipt</h2><p>Keep all four edges inside the frame.</p><video id="cameraVideo" autoplay playsinline></video><canvas id="cameraCanvas" class="hidden"></canvas><button id="captureButton" class="button primary wide">Capture receipt</button></dialog>
+  <dialog id="imageDialog" class="image-dialog"><div class="image-dialog-head"><div><h2>Improved receipt</h2><p>Use the controls or your browser zoom to inspect small print.</p></div><button id="closeImageButton" class="dialog-close" type="button" aria-label="Close full-size image">×</button></div><div class="image-zoom-controls"><button id="zoomOutButton" class="button secondary compact" type="button" aria-label="Zoom out">−</button><output id="zoomLevel">100%</output><button id="zoomInButton" class="button secondary compact" type="button" aria-label="Zoom in">+</button><button id="zoomResetButton" class="button secondary compact" type="button">Fit</button></div><div id="fullImageViewport" class="full-image-viewport"><img id="fullImage" alt="Improved receipt at full size"></div></dialog>
+  <div id="toast" class="toast hidden" role="status"></div>
+</body>
+</html>

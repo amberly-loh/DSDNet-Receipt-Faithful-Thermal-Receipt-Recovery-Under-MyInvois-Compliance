@@ -1,0 +1,14 @@
+# Locked OCR environment. Install with Python 3.10.13 in an isolated environment.
+numpy==1.26.4
+opencv-python==4.6.0.66
+Pillow==10.2.0
+pandas==2.2.1
+scipy==1.12.0
+scikit-image==0.22.0
+PyYAML==6.0.1
+einops==0.7.0
+torch==2.1.2
+torchvision==0.16.2
+paddlepaddle==2.5.2
+paddleocr==2.7.0.3
+PyQt6==6.6.1
