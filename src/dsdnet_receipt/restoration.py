@@ -1925,9 +1925,22 @@ def enhance_supported_source_strokes(
 
 
 def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]], minimum_confidence: float = 0.85) -> tuple[np.ndarray, int]:
-    """Render only high-confidence OCR readings over their measured regions."""
+    """Render a clean, prominent reading copy from high-confidence OCR boxes."""
     import cv2
     from .language_assistance import suggest_receipt_text
+
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:  # pragma: no cover - OpenCV remains a safe fallback
+        Image = ImageDraw = ImageFont = None
+
+    def font_path(text: str) -> Path | None:
+        candidates = (
+            [Path("C:/Windows/Fonts/msyh.ttc"), Path("C:/Windows/Fonts/simsun.ttc")]
+            if any(ord(character) > 127 for character in text)
+            else [Path("C:/Windows/Fonts/arial.ttf"), Path("C:/Windows/Fonts/calibri.ttf")]
+        )
+        return next((candidate for candidate in candidates if candidate.is_file()), None)
 
     def bounds(line):
         points = np.asarray(line.get("box", []), dtype=np.float32)
@@ -1974,7 +1987,7 @@ def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]
             text = suggestion["suggested"]
         # Do not typeset isolated uncertain punctuation or extremely small
         # fragments; these are more likely to be paper damage than content.
-        if len(re.sub(r"[^A-Za-z0-9]", "", text)) < 2:
+        if sum(character.isalnum() for character in text) < 2:
             continue
         x, y, width, height = cv2.boundingRect(points.astype(np.int32))
         if width < 12 or height < 8:
@@ -1987,17 +2000,28 @@ def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]
         pad_x, pad_y = 2, 2
         x1, y1 = max(0, x-pad_x), max(0, y-pad_y)
         x2, y2 = min(output.shape[1], x+width+pad_x), min(output.shape[0], y+height+pad_y)
-        # Preserve nearby rules by clearing only the central text band.
-        output[y1:y2, x1:x2] = 255
-        font = cv2.FONT_HERSHEY_SIMPLEX
         # A noisy OCR box can span two thermal rows. Cap glyph height using the
         # document median so one bad box cannot typeset oversized, overlapping
         # text (for example Gross Amt / Svr Charge / Discount).
-        target_height = max(8, min(int(height * 0.62), int(median_height * 0.78)))
-        scale = max(0.25, target_height / 22.0)
-        thickness = 1 if target_height < 22 else 2
-        measured = cv2.getTextSize(text, font, scale, thickness)[0]
-        if measured[0] > max(width, 1):
+        target_height = max(10, min(int(height * 0.82), int(median_height * 0.92)))
+        selected_font_path = font_path(text)
+        pil_font = None
+        pil_bbox = None
+        if ImageFont is not None and selected_font_path is not None:
+            font_size = target_height
+            while font_size >= 7:
+                candidate_font = ImageFont.truetype(str(selected_font_path), font_size)
+                candidate_bbox = ImageDraw.Draw(Image.new("L", (1, 1))).textbbox((0, 0), text, font=candidate_font)
+                if candidate_bbox[2] - candidate_bbox[0] <= max(width, 1) or font_size == 7:
+                    pil_font, pil_bbox = candidate_font, candidate_bbox
+                    break
+                font_size -= 1
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = max(0.32, target_height / 22.0)
+        thickness = 1 if target_height < 16 else 2
+        measured = ((pil_bbox[2] - pil_bbox[0], pil_bbox[3] - pil_bbox[1])
+                    if pil_bbox is not None else cv2.getTextSize(text, font, scale, thickness)[0])
+        if pil_bbox is None and measured[0] > max(width, 1):
             scale *= width / measured[0]
             measured = cv2.getTextSize(text, font, scale, thickness)[0]
         # Preserve the detected line centre instead of left-anchoring a
@@ -2015,7 +2039,18 @@ def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]
         )
         if collision:
             continue
-        cv2.putText(output, text, (draw_x, baseline_y), font, scale, 25, thickness, cv2.LINE_AA)
+        # Clear only after collision checks; skipped boxes must never erase
+        # genuine rules or marks. The reading copy intentionally uses near-black
+        # glyphs so faint receipts remain legible at normal viewing size.
+        output[y1:y2, x1:x2] = 255
+        if pil_font is not None and pil_bbox is not None:
+            pil_image = Image.fromarray(output)
+            draw = ImageDraw.Draw(pil_image)
+            draw_y = y + (height - measured[1]) // 2 - pil_bbox[1]
+            draw.text((draw_x, draw_y), text, font=pil_font, fill=8)
+            output = np.asarray(pil_image).copy()
+        else:
+            cv2.putText(output, text, (draw_x, baseline_y), font, scale, 8, thickness, cv2.LINE_AA)
         occupied.append(text_rect)
         rendered += 1
     return output, rendered

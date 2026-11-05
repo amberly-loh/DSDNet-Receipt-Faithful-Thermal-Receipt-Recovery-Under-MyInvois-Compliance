@@ -818,6 +818,7 @@ def create_app(
             audit["stored_file_sha256"]["reading_copy"] = _file_sha256(reading_path)
             audit["reading_copy"] = {
                 "image": "reading_copy.png",
+                "renderer_version": 2,
                 "synthetic_text_rendering": True,
                 "rendered_ocr_regions": rendered_readings,
                 "minimum_confidence": 0.70,
@@ -869,14 +870,25 @@ def create_app(
         if kind == "reading":
             root = Path(receipt["restored_path"]).parent
             candidate = root / "reading_copy.png"
-            if not candidate.is_file():
+            audit = receipt.get("audit") or {}
+            if not candidate.is_file() or (audit.get("reading_copy") or {}).get("renderer_version") != 2:
                 from .restoration import overlay_supported_ocr_text
                 base_path = root / "faithful_content.png"
                 base = cv2.imread(str(base_path if base_path.is_file() else Path(receipt["restored_path"])), cv2.IMREAD_GRAYSCALE)
                 lines = (receipt.get("audit") or {}).get("ocr_lines") or []
                 if base is not None and lines:
-                    reading_copy, _ = overlay_supported_ocr_text(base, lines, minimum_confidence=0.70)
+                    reading_copy, rendered_readings = overlay_supported_ocr_text(base, lines, minimum_confidence=0.70)
                     write_image(candidate, reading_copy)
+                    audit.setdefault("stored_file_sha256", {})["reading_copy"] = _file_sha256(candidate)
+                    audit["reading_copy"] = {
+                        "image": "reading_copy.png", "renderer_version": 2,
+                        "synthetic_text_rendering": True,
+                        "rendered_ocr_regions": rendered_readings,
+                        "minimum_confidence": 0.70,
+                        "role": "optional reconstructed reading; excluded from faithful evidence and restoration metrics",
+                    }
+                    write_json(root / "audit.json", audit)
+                    store.update_receipt_audit(current_user()["id"], receipt_id, audit)
             path = str(candidate)
         if kind == "diagnostic": path = str(Path(receipt["restored_path"]).with_name("diagnostic.png"))
         if kind == "faithful_reference":
@@ -1174,6 +1186,7 @@ def create_app(
         audit["stored_file_sha256"]["reading_copy"] = _file_sha256(audit_root / "reading_copy.png")
         audit["reading_copy"] = {
             "image": "reading_copy.png",
+            "renderer_version": 2,
             "synthetic_text_rendering": True,
             "rendered_ocr_regions": rendered_readings,
             "minimum_confidence": 0.70,

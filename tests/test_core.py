@@ -845,6 +845,19 @@ def test_thermal_overlay_preserves_detected_box_centre() -> None:
     assert abs(float(ys.mean()) - 40.0) < 8.0
 
 
+def test_thermal_overlay_renders_unicode_prominently_when_font_available() -> None:
+    from dsdnet_receipt.restoration import overlay_supported_ocr_text
+
+    image = np.full((100, 360), 250, np.uint8)
+    output, count = overlay_supported_ocr_text(
+        image,
+        [{"text": "現沽單 CASH SALE", "confidence": .99,
+          "box": [[40, 25], [320, 25], [320, 60], [40, 60]]}],
+    )
+    assert count == 1
+    assert np.count_nonzero(output[22:64] < 80) > 40
+
+
 def test_evidence_support_rewards_agreement_and_stability() -> None:
     import torch
     from dsdnet_receipt.evidence_support import SupportScales, support_components
