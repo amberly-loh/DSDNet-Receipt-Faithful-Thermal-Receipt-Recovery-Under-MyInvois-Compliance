@@ -197,6 +197,15 @@ def test_frontend_refreshes_stale_csrf_token_once() -> None:
     assert "return api(path, options, false)" in script
 
 
+def test_frontend_supports_large_additive_batch_queue() -> None:
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "web" / "static" / "app.js").read_text(encoding="utf-8")
+    html = (root / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+    assert ".slice(0, 100)" in script
+    assert "100 receipt images" in html
+    assert "timeoutMs: 330000" in script
+
+
 def test_guest_selection_validation_and_isolation(tmp_path: Path) -> None:
     config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
     app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")

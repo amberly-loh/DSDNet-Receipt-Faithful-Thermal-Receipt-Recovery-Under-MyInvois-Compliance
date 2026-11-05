@@ -77,9 +77,9 @@ def test_invalid_upload_empty_bulk_and_bulk_limit_are_safe(tmp_path: Path) -> No
     response = client.post("/api/analyze", data=bad, headers={"X-CSRF-Token":token}, content_type="multipart/form-data")
     assert response.status_code == 400 and ("unreadable" in response.get_json()["error"] or "upload a JPEG" in response.get_json()["error"])
     assert client.post("/api/bulk-analyze", data={}, headers={"X-CSRF-Token":token}).status_code == 400
-    too_many = {"receipts": [(io.BytesIO(b"x"), f"r{i}.png") for i in range(26)]}
+    too_many = {"receipts": [(io.BytesIO(b"x"), f"r{i}.png") for i in range(101)]}
     response = client.post("/api/bulk-analyze", data=too_many, headers={"X-CSRF-Token":token}, content_type="multipart/form-data")
-    assert response.status_code == 400 and "25" in response.get_json()["error"]
+    assert response.status_code == 400 and "100" in response.get_json()["error"]
 
 
 def test_excel_and_csv_exports_neutralise_formula_injection(tmp_path: Path) -> None:

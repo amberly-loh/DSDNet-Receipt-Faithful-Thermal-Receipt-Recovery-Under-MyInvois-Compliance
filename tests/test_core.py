@@ -424,6 +424,22 @@ def test_faithful_view_does_not_repair_missing_source_pixels() -> None:
     assert output[38, 85] >= 230
 
 
+def test_gap_repair_uses_endpoints_and_independent_candidate_support() -> None:
+    from dsdnet_receipt.restoration import repair_evidence_constrained_gaps
+
+    source = np.full((80, 220), 242, np.uint8)
+    source[38, 55:85] = 80
+    source[38, 86:118] = 80
+    candidate = source.copy()
+    candidate[38, 85] = 85
+    base = np.full_like(source, 255)
+    lines = [{"text": "", "confidence": .96,
+              "box": [[45, 24], [130, 24], [130, 54], [45, 54]]}]
+    output = repair_evidence_constrained_gaps(base, source, candidate, lines)
+    assert output[38, 85] < 200
+    assert np.count_nonzero(output[5:15, 20:160] < 250) == 0
+
+
 def test_faithfulness_gate_rejects_unsupported_ink_and_returns_source() -> None:
     from dsdnet_receipt.restoration import select_faithful_recovery
     source = np.full((100, 160), 245, np.uint8)

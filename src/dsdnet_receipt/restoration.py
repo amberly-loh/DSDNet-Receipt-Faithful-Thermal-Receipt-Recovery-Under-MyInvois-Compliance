@@ -403,7 +403,22 @@ def make_faithful_content_view(
     preservation_mode = complete_document_preservation_mode(preservation_source)
     if preservation_mode:
         small_broad_print = preservation_mode == 'broad_document_preservation' and source_u8.shape[1] < 500
-        return make_complete_document_view(preservation_source, thermal=small_broad_print, ocr_lines=ocr_lines)
+        complete = make_complete_document_view(preservation_source, thermal=small_broad_print, ocr_lines=ocr_lines)
+        # Structured invoices used to return before source-supported stroke
+        # repair.  Repair only tiny gaps bracketed by measured endpoints and
+        # independently supported by the model; OCR supplies geometry, never
+        # replacement characters.
+        if complete.ndim == 2:
+            complete = repair_evidence_constrained_gaps(
+                complete, source_u8, restored.astype(np.uint8), ocr_lines or []
+            )
+            complete = normalize_localized_source_stroke_contrast(
+                complete, source_u8, ocr_lines or [],
+                target_darkness=72.0 if small_broad_print else 64.0,
+                sharpen_strength=0.65,
+            )
+            complete = sharpen_measured_print_edges(complete)
+        return complete
     if source_u8.shape[1] / source_u8.shape[0] < 0.70:
         # Use one continuous tone transfer for thermal print. Repeated
         # component-wise darkness floors made only selected words bold.
@@ -1640,12 +1655,29 @@ def repair_evidence_constrained_gaps(
     output = image.astype(np.uint8).copy()
     source_u8 = source.astype(np.uint8)
     candidate_u8 = dsdnet_candidate.astype(np.uint8)
+    regions: list[tuple[np.ndarray, bool]] = []
     for line in ocr_lines:
         if float(line.get("confidence") or 0.0) < minimum_confidence:
             continue
         points = np.asarray(line.get("box", []), dtype=np.int32)
         if points.shape != (4, 2):
             continue
+        regions.append((points, True))
+
+    # Crusty or broken print is precisely where OCR localization may fail.
+    # Add source-derived text groups that are not already covered. These boxes
+    # contain no recognised wording; they only allow the same endpoint/model
+    # evidence test to run on missed lines.
+    source_text = detect_source_text_mask(source_u8, protection="wide")
+    grouped = cv2.dilate(source_text.astype(np.uint8), np.ones((3, 9), np.uint8))
+    count, _, stats, _ = cv2.connectedComponentsWithStats(grouped, 8)
+    for gx, gy, gw, gh, area in stats[1:count]:
+        if area < 12 or gw < 4 or gh < 2 or gw > source_u8.shape[1] * .95:
+            continue
+        box = np.asarray([[gx, gy], [gx + gw, gy], [gx + gw, gy + gh], [gx, gy + gh]], np.int32)
+        regions.append((box, False))
+
+    for points, ocr_localised in regions:
         x, y, width, height = cv2.boundingRect(points)
         x1, y1 = max(0, x - 1), max(0, y - 1)
         x2, y2 = min(source_u8.shape[1], x + width + 1), min(source_u8.shape[0], y + height + 1)
@@ -1658,6 +1690,10 @@ def repair_evidence_constrained_gaps(
         endpoints = src_darkness >= 5
         candidate_support = cand_darkness >= 5
         missing = src_darkness < 3
+        if not ocr_localised:
+            local_text = source_text[y1:y2, x1:x2]
+            endpoints &= local_text
+            candidate_support &= cv2.dilate(local_text.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
         repair = np.zeros(src.shape, bool)
         for gap in range(1, min(maximum_gap, 2) + 1):
             span = gap + 1

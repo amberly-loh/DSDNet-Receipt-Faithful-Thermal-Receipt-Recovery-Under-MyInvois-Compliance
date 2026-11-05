@@ -8,7 +8,7 @@
   "base_seed": 56,
   "app": {
     "retention_days": 2555,
-    "max_bulk_files": 25,
+    "max_bulk_files": 100,
     "storage_mode": "local_sqlite"
   },
   "dataset_root": "../../FYP datasets/Real life",

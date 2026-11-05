@@ -14,13 +14,23 @@ function escapeHtml(value) {
 }
 
 async function api(path, options = {}, allowSessionRetry = true) {
+  const timeoutMs = Number(options.timeoutMs || 0);
   const config = {...options, headers: {...(options.headers || {})}};
+  delete config.timeoutMs;
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  if (controller) config.signal = controller.signal;
   if (['POST', 'PATCH', 'DELETE'].includes((config.method || 'GET').toUpperCase())) config.headers['X-CSRF-Token'] = csrf;
   if (config.body && !(config.body instanceof FormData)) {
     config.headers['Content-Type'] = 'application/json';
     if (typeof config.body !== 'string') config.body = JSON.stringify(config.body);
   }
-  const response = await fetch(path, config);
+  let response;
+  try { response = await fetch(path, config); }
+  catch (error) {
+    if (error?.name === 'AbortError') throw new Error('Processing timed out. The file remains queued for retry.');
+    throw error;
+  } finally { if (timeout) clearTimeout(timeout); }
   const type = response.headers.get('content-type') || '';
   const data = type.includes('application/json') ? await response.json() : null;
   if (data?.csrf_token) csrf = data.csrf_token;
@@ -276,8 +286,11 @@ $('changeButton').onclick = resetScan; $('tryAgainButton').onclick = resetScan;
 
 let bulkFiles = [];
 $('bulkInput').onchange = event => {
-  bulkFiles = [...event.target.files].slice(0, 25);
-  $('bulkSelection').textContent = bulkFiles.length ? `${bulkFiles.length} receipt${bulkFiles.length === 1 ? '' : 's'} selected` : '';
+  const known = new Set(bulkFiles.map(file => `${file.name}:${file.size}:${file.lastModified}`));
+  const additions = [...event.target.files].filter(file => !known.has(`${file.name}:${file.size}:${file.lastModified}`));
+  bulkFiles = [...bulkFiles, ...additions].slice(0, 100);
+  event.target.value = '';
+  $('bulkSelection').textContent = bulkFiles.length ? `${bulkFiles.length}/100 receipts queued` : '';
   $('bulkButton').disabled = bulkFiles.length === 0;
 };
 $('bulkButton').onclick = async () => {
@@ -293,7 +306,7 @@ $('bulkButton').onclick = async () => {
       $('bulkSelection').textContent = `${completed} saved; processing ${pending[index].name}`;
       const body = new FormData(); body.append('receipts', pending[index]);
       try {
-        const result = await api('/api/bulk-analyze', {method: 'POST', body});
+        const result = await api('/api/bulk-analyze', {method: 'POST', body, timeoutMs: 330000});
         completed += result.summary.completed;
         if (result.summary.failed) {
           failed.push(pending[index]);
@@ -301,10 +314,12 @@ $('bulkButton').onclick = async () => {
           toast($('bulkSelection').textContent, true);
         }
       } catch (error) {
-        failed.push(...pending.slice(index));
-        toast(`${completed} saved. Batch paused: ${error.message}. Remaining files are kept for retry.`, true);
-        break;
+        failed.push(pending[index]);
+        toast(`${pending[index].name}: ${error.message}`, true);
       }
+      // Yield between expensive receipts so progress, navigation and cancel
+      // events remain responsive even for a 100-image queue.
+      await new Promise(resolve => requestAnimationFrame(() => resolve()));
     }
     bulkFiles = failed;
     $('bulkSelection').textContent = failed.length ? `${failed.length} receipt(s) remain for retry` : '';

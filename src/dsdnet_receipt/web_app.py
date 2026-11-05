@@ -1190,7 +1190,7 @@ def create_app(
     def bulk_analyze():
         uploads = [item for item in request.files.getlist("receipts") if item.filename]
         if not uploads: return jsonify({"error": "Choose one or more receipt images."}), 400
-        maximum = int(config.get("app", {}).get("max_bulk_files", 25))
+        maximum = int(config.get("app", {}).get("max_bulk_files", 100))
         if len(uploads) > maximum: return jsonify({"error": f"Process at most {maximum} receipts in one batch."}), 400
         completed, failed = [], []
         for upload in uploads:
