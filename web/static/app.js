@@ -440,23 +440,25 @@ function updateComparison(value) { $('restoredWrap').style.clipPath = `inset(0 $
 $('compareSlider').oninput = event => updateComparison(event.target.value);
 
 function setImageMode(mode) {
-  if (!['faithful','original','compare'].includes(mode)) mode = 'faithful';
+  if (!['faithful','reading','original','compare'].includes(mode)) mode = 'faithful';
   const comparison = $('comparison');
   $('originalImage').src = mode === 'compare' ? (currentReceipt?.faithful_reference_url || currentReceipt?.original_url || '') : (currentReceipt?.original_url || '');
   comparison.classList.remove('improved-mode','original-mode','compare-mode');
   comparison.classList.add(`${mode === 'original' ? 'original' : mode === 'compare' ? 'compare' : 'improved'}-mode`);
-  for (const [name,id] of [['faithful','faithfulViewButton'],['original','originalViewButton'],['compare','compareViewButton']]) $(''+id).classList.toggle('active', name === mode);
+  for (const [name,id] of [['faithful','faithfulViewButton'],['reading','readingViewButton'],['original','originalViewButton'],['compare','compareViewButton']]) $(''+id).classList.toggle('active', name === mode);
   if (mode === 'faithful' || mode === 'compare') $('restoredImage').src = currentReceipt?.faithful_url || currentReceipt?.restored_url || '';
+  if (mode === 'reading') $('restoredImage').src = currentReceipt?.reading_url || currentReceipt?.faithful_url || '';
   if (mode === 'compare') { setValue('compareSlider', 50); updateComparison(50); }
   const gate = currentReceipt?.audit?.faithfulness_gate;
   const audit = currentReceipt?.audit || {};
   const sourceView = Boolean(audit.release_content_fix || audit.faithful_processing || audit.native_refinement?.applied || audit.display_image === 'faithful_recovery');
   const rejected = gate?.accepted === false && !sourceView;
-  $('comparisonViewLabel').textContent = mode === 'faithful' ? (rejected ? 'Original retained' : 'Faithful recovery') : mode === 'original' ? 'Original upload' : 'Original and faithful recovery';
-  $('comparisonNote').textContent = mode === 'original' ? 'The original upload is preserved.' : rejected ? 'The recovery was rejected. Review the retained original.' : 'Review text, signatures, logos and faint details against the original. Unreadable characters cannot be confirmed by enhancement.';
+  $('comparisonViewLabel').textContent = mode === 'faithful' ? (rejected ? 'Original retained' : 'Faithful recovery') : mode === 'reading' ? 'OCR-assisted reconstructed reading' : mode === 'original' ? 'Original upload' : 'Original and faithful recovery';
+  $('comparisonNote').textContent = mode === 'reading' ? 'High-confidence scanner readings are typeset in their detected positions. This readability aid is reconstructed content, not the original evidence image.' : mode === 'original' ? 'The original upload is preserved.' : rejected ? 'The recovery was rejected. Review the retained original.' : 'Review text, signatures, logos and faint details against the original. Unreadable characters cannot be confirmed by enhancement.';
   $('comparisonHelp').textContent = mode === 'compare' ? 'Drag the divider' : 'Select Compare for the split view';
 }
 $('faithfulViewButton').onclick = () => setImageMode('faithful');
+$('readingViewButton').onclick = () => setImageMode('reading');
 $('originalViewButton').onclick = () => setImageMode('original');
 $('compareViewButton').onclick = () => setImageMode('compare');
 
@@ -467,7 +469,7 @@ function updateFullImageZoom() {
 }
 function openFullImage() {
   if (!currentReceipt) return;
-  $('fullImage').src = $('originalViewButton').classList.contains('active') ? currentReceipt.original_url : currentReceipt.faithful_url;
+  $('fullImage').src = $('originalViewButton').classList.contains('active') ? currentReceipt.original_url : $('readingViewButton').classList.contains('active') ? currentReceipt.reading_url : currentReceipt.faithful_url;
   imageZoom = 1; updateFullImageZoom(); $('imageDialog').showModal();
 }
 $('fullImageButton').onclick = openFullImage;
