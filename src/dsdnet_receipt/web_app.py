@@ -38,12 +38,13 @@ from reportlab.platypus import Image as PdfImage
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from .config import load_config, write_json
-from .fields import extract_fields, route_fields
+from .fields import extract_fields, infer_receipt_tags, route_fields
 from .images import write_image
 from .language_assistance import suggestions_for_lines
 from .ocr import PaddleOCRAdapter, deduplicate_lines
 from .preprocessing import preprocess
 from .restoration import RestorationEngine
+from .semantic import LINE_ITEM_KEYS, extract_accounting_fields, extract_line_items
 from .storage import ReceiptStore, utc_now
 
 
@@ -99,6 +100,7 @@ def build_audit_pdf(receipt: dict, reviewer: dict, integrity: dict, events: list
         canvas.drawRightString(A4[0] - 16 * mm, 9 * mm, f"Page {document.page}"); canvas.restoreState()
 
     generated_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    primary_complete = all(receipt.get(key) for key in ("merchant", "transaction_date", "receipt_number", "total_amount"))
     status = status_label_for_export(receipt.get("status"))
     integrity_label = {"verified": "Verified", "failed": "FAILED", "legacy_unverified": "Not available for legacy record"}.get(integrity.get("status"), "Not available")
     lines = deduplicate_lines(receipt.get("audit", {}).get("ocr_lines", []))
@@ -107,6 +109,13 @@ def build_audit_pdf(receipt: dict, reviewer: dict, integrity: dict, events: list
     if not items:
         keys = ("item", "description", "quantity", "unit", "unit_price", "discount", "amount", "review_note")
         items = [dict(zip(keys, row)) for row in accounting_line_items(lines)]
+    accounting = receipt.get("accounting_fields") or extract_accounting_fields(
+        receipt.get("ocr_text", ""), lines,
+        {"merchant": receipt.get("merchant"), "transaction_date": receipt.get("transaction_date"),
+         "receipt_invoice_number": receipt.get("receipt_number"), "total_amount": receipt.get("total_amount")},
+    )
+    if status != "Reviewed" and primary_complete and items:
+        status = "Ready to confirm"
 
     story = [Paragraph("Receipt Audit Report", title),
              Table([[p("Record ID", small), p(receipt["public_id"], small), p("Generated", small), p(generated_at, right)]], colWidths=[24*mm, 58*mm, 22*mm, 72*mm],
@@ -115,7 +124,14 @@ def build_audit_pdf(receipt: dict, reviewer: dict, integrity: dict, events: list
     missing = [label for key, label in (("merchant","merchant"),("transaction_date","transaction date"),("receipt_number","receipt / invoice number"),("total_amount","total amount")) if not receipt.get(key)]
     conclusion = ("This record was reviewed and its key fields are complete." if status == "Reviewed" and not missing else "This record still requires human review" + (f"; missing: {', '.join(missing)}." if missing else "."))
     story.append(Table([[p("Review status", small), p(status), p("File integrity", small), p(integrity_label)], [p("Arithmetic check", small), p(arithmetic["status"].replace("_", " ").title()), p("Reviewer", small), p(reviewer.get("name") or reviewer.get("email"))], [p("Conclusion", small), Paragraph(escape(conclusion), body), "", ""]], colWidths=[30*mm,58*mm,30*mm,58*mm], style=TableStyle([("GRID",(0,0),(-1,1),.4,colors.HexColor("#CBD8D5")),("SPAN",(1,2),(-1,2)),("BOX",(0,2),(-1,2),.4,colors.HexColor("#CBD8D5")),("BACKGROUND",(0,0),(0,-1),colors.HexColor("#F1F6F5")),("BACKGROUND",(2,0),(2,1),colors.HexColor("#F1F6F5")),("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6),("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)])))
-    story += [Paragraph("Verified receipt details", heading), Table([[p("Merchant", small), p(receipt.get("merchant")), p("Transaction date", small), p(receipt.get("transaction_date"))], [p("Receipt / invoice no.", small), p(receipt.get("receipt_number")), p("Total amount", small), p("RM " + str(receipt.get("total_amount")) if receipt.get("total_amount") else None)], [p("Tags", small), p(", ".join(receipt.get("tags", [])) or None), p("Source file", small), p(receipt.get("source_name"))], [p("Reviewer notes", small), p(receipt.get("notes")), p("Last updated", small), p(receipt.get("updated_at"))]], colWidths=[30*mm,58*mm,30*mm,58*mm], style=TableStyle([("GRID",(0,0),(-1,-1),.4,colors.HexColor("#CBD8D5")),("BACKGROUND",(0,0),(0,-1),colors.HexColor("#F1F6F5")),("BACKGROUND",(2,0),(2,-1),colors.HexColor("#F1F6F5")),("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6),("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)])), Paragraph("Receipt evidence", heading)]
+    story += [Paragraph("Verified receipt details", heading), Table([[p("Merchant", small), p(receipt.get("merchant")), p("Transaction date", small), p(receipt.get("transaction_date"))], [p("Receipt / invoice no.", small), p(receipt.get("receipt_number")), p("Total amount", small), p("RM " + str(receipt.get("total_amount")) if receipt.get("total_amount") else None)], [p("Tags", small), p(", ".join(receipt.get("tags", [])) or None), p("Source file", small), p(receipt.get("source_name"))], [p("Reviewer notes", small), p(receipt.get("notes")), p("Last updated", small), p(receipt.get("updated_at"))]], colWidths=[30*mm,58*mm,30*mm,58*mm], style=TableStyle([("GRID",(0,0),(-1,-1),.4,colors.HexColor("#CBD8D5")),("BACKGROUND",(0,0),(0,-1),colors.HexColor("#F1F6F5")),("BACKGROUND",(2,0),(2,-1),colors.HexColor("#F1F6F5")),("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6),("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)])),
+              Paragraph("Accounting and MyInvois supporting evidence", heading),
+              Table([[p("Document type", small), p(accounting.get("document_type")), p("Currency", small), p(accounting.get("currency"))],
+                     [p("Supplier registration", small), p(accounting.get("supplier_registration_number")), p("Supplier tax no.", small), p(accounting.get("supplier_tax_number"))],
+                     [p("Supplier address", small), p(accounting.get("supplier_address")), p("Supplier phone / email", small), p(" / ".join(filter(None, (accounting.get("supplier_phone"), accounting.get("supplier_email")))) or None)],
+                     [p("Payment method", small), p(accounting.get("payment_method")), p("Subtotal / tax / discount", small), p(" / ".join(str(accounting.get(key)) for key in ("subtotal","tax_amount","discount") if accounting.get(key)) or None)]],
+                    colWidths=[30*mm,58*mm,30*mm,58*mm], style=TableStyle([("GRID",(0,0),(-1,-1),.4,colors.HexColor("#CBD8D5")),("BACKGROUND",(0,0),(0,-1),colors.HexColor("#F1F6F5")),("BACKGROUND",(2,0),(2,-1),colors.HexColor("#F1F6F5")),("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6),("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)])),
+              Paragraph("Receipt evidence", heading)]
     image_cells = []
     for label, path in (("Original audit source", receipt.get("input_path")), ("Clean document view", receipt.get("restored_path"))):
         try:
@@ -182,7 +198,7 @@ def status_label_for_export(status: str | None) -> str:
 
 
 def safe_excel_value(value):
-    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
         return "'" + value
     return value
 
@@ -201,12 +217,20 @@ def _receipt_integrity(receipt: dict) -> dict:
     expected = audit.get("stored_file_sha256", {})
     if not expected:
         return {"status": "legacy_unverified", "message": "This record predates stored-file integrity hashes."}
-    observed = {
-        "original": _file_sha256(receipt.get("input_path", "")),
-        "recovered": _file_sha256(receipt.get("restored_path", "")),
-        "source_upload": _file_sha256(Path(receipt.get("input_path", "")).with_name("source_upload.bin")),
+    root = Path(receipt.get("input_path", "")).parent
+    paths = {
+        "original": Path(receipt.get("input_path", "")),
+        "recovered": Path(receipt.get("restored_path", "")),
+        "source_upload": root / "source_upload.bin",
+        "rectified_input": root / "rectified_input.png",
+        "faithful_content": root / "faithful_content.png",
+        "faithful_reference": root / "faithful_reference.png",
     }
-    matches = {key: bool(observed.get(key)) and observed[key] == value for key, value in expected.items()}
+    # Compare every declared evidence file with the corresponding stored file.
+    # The earlier implementation loaded only three files, so a valid
+    # faithful_content hash was incorrectly reported as a failure.
+    matches = {key: bool(paths.get(key) and paths[key].is_file()) and _file_sha256(paths[key]) == value
+               for key, value in expected.items() if key in paths}
     return {"status": "verified" if matches and all(matches.values()) else "failed", "files": matches}
 
 
@@ -219,41 +243,8 @@ def _ocr_center(line: dict) -> tuple[float, float]:
 
 
 def accounting_line_items(lines: list[dict]) -> list[list]:
-    """Build conservative accounting rows from OCR geometry without inventing values."""
-    headers: dict[str, tuple[float, float]] = {}
-    terms = {"item": "ITEM", "description": "DESCRIPTION", "quantity": "QUANTITY", "unit_price": "UNIT PRICE", "discount": "DISC", "amount": "AMOUNT"}
-    for key, term in terms.items():
-        match = next((line for line in lines if term in str(line.get("text", "")).upper()), None)
-        if match: headers[key] = _ocr_center(match)
-    if not all(key in headers for key in ("item", "description", "quantity")):
-        return []
-    header_y = headers["description"][1]
-    total_ys = [_ocr_center(line)[1] for line in lines if re.search(r"(?i)total\s*(?:payable|amount|amt)?", str(line.get("text", "")))]
-    total_y = min((y for y in total_ys if y > header_y), default=float("inf"))
-    descriptions = []
-    for line in lines:
-        text = str(line.get("text", "")).strip(); x, y = _ocr_center(line)
-        if header_y + 18 < y < total_y - 18 and headers["item"][0] + 20 < x < headers["quantity"][0] - 35 and any(ch.isalpha() for ch in text):
-            if not re.search(r"(?i)notes?|bank|cheque|receipt\s+by|signature|customer\s+sign", text):
-                existing = next((item for item in descriptions if abs(_ocr_center(item)[1] - y) <= 10), None)
-                if existing is None: descriptions.append(line)
-                elif float(line.get("confidence") or 0) > float(existing.get("confidence") or 0): descriptions[descriptions.index(existing)] = line
-    rows = []
-    for description in descriptions:
-        _, row_y = _ocr_center(description)
-        nearby = [line for line in lines if line is not description and abs(_ocr_center(line)[1] - row_y) <= 20]
-        values = {"item": None, "quantity": None, "unit": None, "unit_price": None, "discount": None, "amount": None}
-        for line in nearby:
-            text = str(line.get("text", "")).strip(); x, _ = _ocr_center(line)
-            if re.fullmatch(r"\d+", text) and x < headers["description"][0]: values["item"] = text
-            elif re.fullmatch(r"\d+(?:\.\d{1,3})?", text):
-                columns = [(key, pos[0]) for key, pos in headers.items() if key in {"quantity", "unit_price", "discount", "amount"}]
-                if columns: values[min(columns, key=lambda pair: abs(pair[1] - x))[0]] = text
-            elif x > headers["quantity"][0] and x < headers.get("unit_price", (float("inf"), 0))[0]: values["unit"] = text
-        missing = [label for key, label in (("quantity", "quantity"), ("unit_price", "unit price"), ("amount", "amount")) if not values[key]]
-        note = "Verify " + ", ".join(missing) if missing else "Check against receipt before posting"
-        rows.append([values["item"], description.get("text"), values["quantity"], values["unit"], values["unit_price"], values["discount"], values["amount"], note])
-    return rows
+    """Compatibility wrapper around the layout-aware semantic extractor."""
+    return [[row.get(key, "") for key in LINE_ITEM_KEYS] for row in extract_line_items(lines)]
 
 
 def arithmetic_consistency(lines: list[dict], total_amount: str | None) -> dict:
@@ -299,6 +290,7 @@ def create_app(
     config_path: str | Path,
     testing: bool = False,
     database_path: str | Path | None = None,
+    isolated_worker: bool = False,
 ) -> Flask:
     root = Path(__file__).resolve().parents[2]
     app = Flask(__name__, template_folder=str(root / "web" / "templates"), static_folder=str(root / "web" / "static"))
@@ -320,7 +312,11 @@ def create_app(
 
     def current_user():
         user_id = session.get("user_id")
-        return store.user_by_id(int(user_id)) if user_id else None
+        user = store.user_by_id(int(user_id)) if user_id else None
+        if user:
+            user["is_guest"] = user["email"].endswith("@guest.local.invalid")
+            if user["is_guest"]: user["email"] = ""
+        return user
 
     def require_auth(fn):
         @wraps(fn)
@@ -358,7 +354,10 @@ def create_app(
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = "camera=(self), geolocation=(), microphone=()"
         response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-        response.headers["Cache-Control"] = "no-store" if request.path.startswith("/api/") else "no-cache"
+        # The SPA shell and JavaScript must be updated together.  Keeping an
+        # older cached DOM with newer JavaScript caused null-field errors after
+        # schema/UI releases, so local app assets are deliberately not cached.
+        response.headers["Cache-Control"] = "no-store"
         if app.config["SESSION_COOKIE_SECURE"]:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
@@ -381,6 +380,21 @@ def create_app(
     def auth_providers():
         return jsonify({"google": {"enabled": bool(os.getenv("GOOGLE_CLIENT_ID") and os.getenv("GOOGLE_CLIENT_SECRET")), "login_url": "/auth/google"}})
 
+    @app.post("/api/guest")
+    def guest_login():
+        # Guest workspaces are confined to local sessions. A public deployment
+        # requires a separate privacy, abuse-prevention and lifecycle design.
+        import ipaddress
+        try: local = ipaddress.ip_address(request.remote_addr or "").is_loopback
+        except ValueError: local = False
+        if not local or os.getenv("RECEIPT_HOST", "127.0.0.1") not in {"127.0.0.1", "::1", "localhost"}:
+            return jsonify({"error": "Guest mode is available only on this device."}), 403
+        guest = store.create_guest()
+        store.log_event(guest["id"], "account.guest_start", "user", guest["public_id"])
+        session.clear(); session["user_id"] = guest["id"]; session["csrf_token"] = secrets.token_urlsafe(24)
+        guest["is_guest"] = True; guest["email"] = ""
+        return jsonify({"user": guest, "csrf_token": session["csrf_token"]}), 201
+
     @app.post("/api/register")
     def register():
         payload = request.get_json(silent=True) or {}
@@ -389,6 +403,7 @@ def create_app(
         confirmation = str(payload.get("password_confirmation", ""))
         if not 2 <= len(name) <= 80 or any(ord(ch) < 32 for ch in name): errors["name"] = "Enter your name using 2 to 80 characters."
         if not _valid_email(email): errors["email"] = "Enter a valid email address, such as name@example.my."
+        if email.endswith("@guest.local.invalid"): errors["email"] = "This email domain is reserved."
         password_error = _password_error(password, name, email)
         if password_error: errors["password"] = password_error
         if confirmation != password: errors["confirmation"] = "The passwords do not match."
@@ -512,16 +527,89 @@ def create_app(
         user = current_user()
         return jsonify({"receipts": store.list_receipts(user["id"], request.args.get("q", ""), request.args.get("status", "all"))})
 
+    @app.post("/api/receipts/selection-summary")
+    @require_auth
+    def selected_receipt_summary():
+        payload = request.get_json(silent=True) or {}
+        if not isinstance(payload, dict): return jsonify({"error": "Invalid selection."}), 400
+        ids = payload.get("ids")
+        if not isinstance(ids, list) or len(ids) > 500 or any(not isinstance(item, str) or len(item) > 100 for item in ids) or len(set(ids)) != len(ids):
+            return jsonify({"error": "Select up to 500 distinct receipts."}), 400
+        values = []
+        for identifier in ids:
+            record = store.get_receipt(current_user()["id"], identifier)
+            if not record: return jsonify({"error": "A selected receipt is unavailable. Refresh history and try again."}), 404
+            values.append(record)
+        total = Decimal('0'); missing = 0; unreviewed = 0; hashes = set(); duplicate_images = 0
+        for record in values:
+            raw = record.get("total_amount")
+            try:
+                value = Decimal(str(raw)); valid = value.is_finite() and value >= 0 and value.as_tuple().exponent >= -2
+            except (InvalidOperation, ValueError, TypeError): valid = False
+            if valid: total += value
+            else: missing += 1
+            if record.get("status") != "reviewed": unreviewed += 1
+            digest = record.get("content_sha256")
+            if digest and digest in hashes: duplicate_images += 1
+            if digest: hashes.add(digest)
+        return jsonify({"count": len(values), "total": f"{total:.2f}", "missing_amounts": missing,
+                        "not_reviewed": unreviewed, "duplicate_images": duplicate_images, "currency": "MYR assumed"})
+
     @app.get("/api/receipts/<receipt_id>")
     @require_auth
     def receipt_detail(receipt_id: str):
         receipt = store.get_receipt(current_user()["id"], receipt_id)
+        # Keep the public API stable for records created by older builds that
+        # exposed the database JSON column instead of the parsed object.
+        if receipt and not isinstance(receipt.get("accounting_fields"), dict):
+            raw_accounting = receipt.pop("accounting_fields_json", "{}")
+            try:
+                receipt["accounting_fields"] = json.loads(raw_accounting or "{}")
+            except (TypeError, ValueError, json.JSONDecodeError):
+                receipt["accounting_fields"] = {}
+        elif receipt:
+            receipt.pop("accounting_fields_json", None)
         if receipt and receipt.get("audit", {}).get("ocr_lines"):
             receipt["audit"]["ocr_lines"] = deduplicate_lines(receipt["audit"]["ocr_lines"])
+            # Re-run the current evidence-based parser for saved records made
+            # by older builds. Only fill missing values, except when an old
+            # receipt number is demonstrably a ROC/company-registration value.
+            # This repairs legacy records without requiring another scan.
+            reparsed = extract_fields(receipt.get("ocr_text", ""), receipt["audit"]["ocr_lines"])
+            detected_date = reparsed.get("transaction_date", {}).get("value")
+            detected_number = reparsed.get("receipt_invoice_number", {}).get("value")
+            current_number = str(receipt.get("receipt_number") or "").strip()
+            registration_selected = bool(current_number and any(
+                re.search(
+                    rf"(?i)\b(?:roc|company|co\.?\s*reg|registration|reg\.?)\b[^\n]*{re.escape(current_number)}",
+                    str(line.get("text", "")),
+                )
+                for line in receipt["audit"]["ocr_lines"]
+            ))
+            repaired_values = {}
+            if detected_date and not receipt.get("transaction_date"):
+                repaired_values["transaction_date"] = detected_date
+            if detected_number and (not current_number or registration_selected):
+                repaired_values["receipt_number"] = detected_number
+            if repaired_values:
+                repaired_accounting = dict(receipt.get("accounting_fields") or {})
+                if repaired_values.get("transaction_date"):
+                    repaired_accounting["transaction_date"] = repaired_values["transaction_date"]
+                if repaired_values.get("receipt_number"):
+                    repaired_accounting["document_number"] = repaired_values["receipt_number"]
+                repaired_values["accounting_fields"] = repaired_accounting
+                receipt = store.update_receipt(current_user()["id"], receipt_id, repaired_values)
+                receipt["audit"]["ocr_lines"] = deduplicate_lines(receipt.get("audit", {}).get("ocr_lines", []))
             receipt["audit"]["ocr_suggestions"] = suggestions_for_lines(receipt["audit"]["ocr_lines"])
             receipt["audit"]["arithmetic_consistency"] = arithmetic_consistency(receipt["audit"]["ocr_lines"], receipt.get("total_amount"))
             if not receipt.get("line_items"):
-                receipt["line_items"] = [dict(zip(("item", "description", "quantity", "unit", "unit_price", "discount", "amount", "review_note"), row)) for row in accounting_line_items(receipt["audit"]["ocr_lines"])]
+                receipt["line_items"] = extract_line_items(receipt["audit"]["ocr_lines"])
+            if not receipt.get("accounting_fields"):
+                receipt["accounting_fields"] = extract_accounting_fields(
+                    receipt.get("ocr_text", ""), receipt["audit"]["ocr_lines"],
+                    {"merchant": receipt.get("merchant"), "transaction_date": receipt.get("transaction_date"),
+                     "receipt_invoice_number": receipt.get("receipt_number"), "total_amount": receipt.get("total_amount")},
+                )
         if receipt:
             duplicates = []
             for candidate in store.list_receipts(current_user()["id"]):
@@ -531,7 +619,18 @@ def create_app(
                 if exact_source or same_business_record:
                     duplicates.append({"public_id": candidate["public_id"], "exact_image": exact_source, "created_at": candidate["created_at"]})
             receipt["possible_duplicates"] = duplicates
-        if receipt: receipt["integrity"] = _receipt_integrity(receipt)
+        if receipt:
+            receipt["integrity"] = _receipt_integrity(receipt)
+            primary_complete = all(str(receipt.get(key) or "").strip() for key in ("merchant", "transaction_date", "receipt_number", "total_amount"))
+            if receipt.get("status") == "reviewed":
+                state, label = "reviewed", "Reviewed"
+            elif primary_complete and receipt.get("line_items"):
+                state, label = "ready_to_confirm", "Ready to confirm"
+            else:
+                state, label = "needs_attention", "Needs attention"
+            receipt["review_readiness"] = {"state": state, "label": label, "primary_fields_complete": primary_complete,
+                                              "line_items_detected": len(receipt.get("line_items") or []),
+                                              "integrity": receipt["integrity"].get("status")}
         if receipt: store.log_event(current_user()["id"], "receipt.view", "receipt", receipt_id)
         return jsonify(receipt) if receipt else (jsonify({"error": "Receipt not found."}), 404)
 
@@ -539,31 +638,56 @@ def create_app(
     @require_auth
     def update_receipt(receipt_id: str):
         payload = request.get_json(silent=True) or {}
-        if payload.get("status") not in {None, "needs_review", "reviewed", "archived"}:
+        if not isinstance(payload, dict): return jsonify({"error": "Invalid receipt details."}), 400
+        if not isinstance(payload.get("status"), (str, type(None))) or payload.get("status") not in {None, "needs_review", "reviewed", "archived"}:
             return jsonify({"error": "Invalid review status."}), 400
         existing = store.get_receipt(current_user()["id"], receipt_id)
         if not existing: return jsonify({"error": "Receipt not found."}), 404
         proposed = {**existing, **payload}
         errors = {}
-        if payload.get("transaction_date"):
-            try: datetime.strptime(str(payload["transaction_date"]), "%Y-%m-%d")
-            except ValueError: errors["transaction_date"] = "Use a valid date in YYYY-MM-DD format."
-        if payload.get("total_amount"):
+        for key, limit in (("merchant", 160), ("receipt_number", 100), ("transaction_date", 10), ("total_amount", 18), ("notes", 4000)):
+            if key in payload and (not isinstance(payload[key], str) or len(payload[key]) > limit or any(ord(ch) < 32 and ch not in '\n\r\t' for ch in payload[key])):
+                errors[key] = f"Enter valid text of at most {limit} characters."
+        if payload.get("transaction_date") and "transaction_date" not in errors:
             try:
-                if Decimal(str(payload["total_amount"])) < 0: raise InvalidOperation
-            except (InvalidOperation, ValueError): errors["total_amount"] = "Enter a non-negative numeric amount."
+                value = payload["transaction_date"]
+                if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value): raise ValueError
+                datetime.strptime(value, "%Y-%m-%d")
+            except ValueError: errors["transaction_date"] = "Use a valid date in YYYY-MM-DD format."
+        if payload.get("total_amount") and "total_amount" not in errors:
+            value = payload["total_amount"]
+            if not re.fullmatch(r"\d{1,12}(?:\.\d{1,2})?", value): errors["total_amount"] = "Enter a non-negative amount with up to two decimal places."
+        if "tags" in payload and (not isinstance(payload["tags"], list) or len(payload["tags"]) > 30 or any(not isinstance(tag, str) or len(tag) > 60 for tag in payload["tags"])):
+            errors["tags"] = "Use up to 30 tags of at most 60 characters each."
         if payload.get("status") == "reviewed":
-            missing = [key for key in ("merchant", "transaction_date", "receipt_number", "total_amount") if not str(proposed.get(key) or "").strip()]
-            if missing: errors["status"] = "Complete merchant, date, receipt number and total before marking this receipt reviewed."
-            arithmetic = arithmetic_consistency(existing.get("audit", {}).get("ocr_lines", []), proposed.get("total_amount"))
-            if arithmetic["status"] == "inconsistent":
-                errors["status"] = "Resolve the detected line-amount inconsistency before marking this receipt reviewed."
+            missing = [key for key in ("merchant", "transaction_date", "total_amount") if not str(proposed.get(key) or "").strip()]
+            if missing: errors["status"] = "Complete merchant, date and total before marking this receipt reviewed."
         if "line_items" in payload:
             if not isinstance(payload["line_items"], list) or len(payload["line_items"]) > 200:
                 errors["line_items"] = "Line items must be a list with no more than 200 rows."
             else:
                 allowed_item_keys = {"item", "description", "quantity", "unit", "unit_price", "discount", "amount", "review_note"}
-                payload["line_items"] = [{key: str(row.get(key, ""))[:300] for key in allowed_item_keys} for row in payload["line_items"] if isinstance(row, dict)]
+                for row in payload["line_items"]:
+                    if not isinstance(row, dict) or any(not isinstance(value, str) or len(value) > 300 for value in row.values()):
+                        errors["line_items"] = "Each line item must contain text values of at most 300 characters."; break
+                    for key in ("unit_price", "discount", "amount"):
+                        if row.get(key) and not re.fullmatch(r"\d{1,12}(?:\.\d{1,2})?", row[key]):
+                            errors["line_items"] = "Line amounts must be non-negative, with up to two decimal places."
+                    if row.get("quantity") and not re.fullmatch(r"\d{1,9}(?:\.\d{1,3})?", row["quantity"]):
+                        errors["line_items"] = "Quantity must be non-negative, with up to three decimal places."
+                if "line_items" not in errors:
+                    payload["line_items"] = [{key: row.get(key, "") for key in allowed_item_keys} for row in payload["line_items"]]
+        if "accounting_fields" in payload:
+            permitted = {"supplier_name", "supplier_registration_number", "supplier_tax_number", "supplier_address",
+                         "supplier_phone", "supplier_email", "document_type", "document_number", "transaction_date",
+                         "currency", "payment_method", "subtotal", "discount", "tax_amount", "payable_amount", "line_item_count"}
+            fields = payload["accounting_fields"]
+            if not isinstance(fields, dict) or any(key not in permitted for key in fields):
+                errors["accounting_fields"] = "Accounting evidence contains unsupported fields."
+            elif any(value is not None and (not isinstance(value, (str, int)) or len(str(value)) > 500) for value in fields.values()):
+                errors["accounting_fields"] = "Accounting evidence values must be at most 500 characters."
+            else:
+                payload["accounting_fields"] = {key: fields.get(key) for key in permitted}
         if errors: return jsonify({"error": "Correct the highlighted receipt details.", "fields": errors}), 400
         receipt = store.update_receipt(current_user()["id"], receipt_id, payload)
         if receipt: store.log_event(current_user()["id"], "receipt.review_update", "receipt", receipt_id, details={"status": receipt["status"]})
@@ -633,27 +757,45 @@ def create_app(
             "total_amount": extracted["total_amount"]["value"],
             "status": "needs_review",
         }
+        semantic_items = extract_line_items(lines)
+        values["line_items"] = semantic_items
+        values["accounting_fields"] = extract_accounting_fields(text, lines, {
+            "merchant": values["merchant"], "transaction_date": values["transaction_date"],
+            "receipt_invoice_number": values["receipt_number"], "total_amount": values["total_amount"],
+        })
         updated = store.update_receipt(user["id"], receipt_id, values)
         # Rebuild the reading copy too. This allows older faint thermal
         # receipts to benefit from the adaptive renderer without re-uploading.
-        from .restoration import make_adaptive_document_view, make_faithful_content_view, make_readability_view
+        from .restoration import assess_receipt_degradation, make_adaptive_document_view, make_faithful_content_view, make_readability_view, region_adaptive_source_fusion, select_faithful_recovery
         run_root = Path(existing["restored_path"]).parent
         source_path = run_root / "rectified_input.png"
         recovery_path = run_root / "ocr_input.png"
         source_image = cv2.imread(str(source_path if source_path.is_file() else existing["input_path"]), cv2.IMREAD_GRAYSCALE)
-        recovery_image = cv2.imread(str(recovery_path), cv2.IMREAD_GRAYSCALE)
+        model_path = run_root / "model_output_x8.png"
+        recovery_image = cv2.imread(str(model_path if model_path.is_file() else recovery_path), cv2.IMREAD_GRAYSCALE)
         if source_image is not None and recovery_image is not None:
+            degradation_profile = assess_receipt_degradation(source_image)
+            fused_recovery, fusion_record = region_adaptive_source_fusion(source_image, recovery_image)
+            faithfulness = select_faithful_recovery(source_image, fused_recovery)
+            recovery_image = faithfulness.image
             mask_config = config.get("artifact_mask", {})
+            native_record = {}
+            registered_source = cv2.imread(str(run_root / 'registered_color.png'))
+            if registered_source is not None and registered_source.shape[:2] != source_image.shape:
+                registered_source = None
             faithful_content = make_faithful_content_view(
                 source_image, recovery_image, lines,
                 mask_config.get("checkpoint") if mask_config.get("enabled") else None,
                 float(mask_config.get("threshold", 0.95)),
+                degradation_profile,
+                native_refinement=config.get('native_refinement'),
+                refinement_audit=native_record,
+                source_color=registered_source,
             )
             faithful_path = run_root / "faithful_content.png"
             write_image(faithful_path, faithful_content)
-            readable = make_readability_view(source_image, recovery_image)
-            refreshed_view, display_mode = make_adaptive_document_view(readable, lines, source_image)
-            write_image(existing["restored_path"], refreshed_view)
+            display_mode = 'faithful_recovery'
+            write_image(existing["restored_path"], faithful_content)
             audit = existing["audit"]
             audit["display_image"] = display_mode
             audit["display_component_policy"] = ({
@@ -669,6 +811,21 @@ def create_app(
             audit["stored_file_sha256"]["faithful_content"] = _file_sha256(faithful_path)
             audit["faithful_display_image"] = "faithful_content.png"
             audit["faithful_display_policy"] = "background-normalised image-derived content; no OCR glyph rendering"
+            audit["faithfulness_gate"] = {
+                "accepted": faithfulness.accepted,
+                "reason": faithfulness.reason,
+                "metrics": faithfulness.metrics,
+                "fallback": None if faithfulness.accepted else "rectified_original",
+            }
+            audit["region_adaptive_fusion"] = fusion_record
+            audit["degradation_profile"] = degradation_profile
+            audit['native_refinement'] = native_record
+            audit["semantic_extraction"] = {"method": "layout_aware_receipt_semantics_v2", "line_items": semantic_items,
+                                              "accounting_fields": values["accounting_fields"]}
+            reference = registered_source if registered_source is not None else source_image
+            reference = cv2.resize(reference, (faithful_content.shape[1], faithful_content.shape[0]), interpolation=cv2.INTER_CUBIC)
+            write_image(run_root / 'faithful_reference.png', reference)
+            audit['stored_file_sha256']['faithful_reference'] = _file_sha256(run_root / 'faithful_reference.png')
             write_json(run_root / "audit.json", audit)
             store.update_receipt_audit(user["id"], receipt_id, audit)
         store.log_event(user["id"], "receipt.fields_reextracted", "receipt", receipt_id, details=values)
@@ -686,7 +843,7 @@ def create_app(
     @require_auth
     def receipt_image(receipt_id: str, kind: str):
         receipt = store.get_receipt(current_user()["id"], receipt_id)
-        if not receipt or kind not in {"original", "restored", "faithful", "diagnostic"}:
+        if not receipt or kind not in {"original", "restored", "faithful", "faithful_reference", "diagnostic"}:
             return jsonify({"error": "Image not found."}), 404
         store.log_event(current_user()["id"], "receipt.image_view", "receipt", receipt_id, details={"kind": kind})
         path = receipt["input_path"] if kind == "original" else receipt["restored_path"]
@@ -696,6 +853,10 @@ def create_app(
                 candidate = Path(receipt["restored_path"]).with_name("ocr_input.png")
             path = str(candidate if candidate.is_file() else Path(receipt["restored_path"]))
         if kind == "diagnostic": path = str(Path(receipt["restored_path"]).with_name("diagnostic.png"))
+        if kind == "faithful_reference":
+            root = Path(receipt["restored_path"]).parent
+            paths = [root / 'faithful_reference.png', root / 'registered_color.png', root / 'rectified_input.png', Path(receipt['input_path'])]
+            path = str(next(item for item in paths if item.is_file()))
         if not Path(path).is_file(): return jsonify({"error": "Image not found."}), 404
         return send_file(path, mimetype="image/png", conditional=True)
 
@@ -720,6 +881,13 @@ def create_app(
         sheet.append(headers)
         for row in rows:
             sheet.append([safe_excel_value(value) for value in [row["public_id"], row["created_at"], row["status"], row.get("merchant"), row.get("transaction_date"), row.get("receipt_number"), row.get("total_amount"), ", ".join(row["tags"]), row.get("notes"), row.get("restoration_status"), row.get("support_status"), row.get("retention_until")]])
+            try:
+                amount = Decimal(str(row.get("total_amount")))
+                if amount.is_finite() and 0 <= amount < Decimal('1000000000000') and amount.as_tuple().exponent >= -2:
+                    sheet.cell(sheet.max_row, 7).value = float(amount)
+                    sheet.cell(sheet.max_row, 7).number_format = '0.00'
+            except (InvalidOperation, ValueError, TypeError):
+                pass
         for cell in sheet[1]:
             font = copy(cell.font); font.bold = True; cell.font = font
         sheet.freeze_panes = "A2"; sheet.auto_filter.ref = sheet.dimensions
@@ -853,7 +1021,27 @@ def create_app(
         store.log_event(current_user()["id"], "receipt.export_ocr_xlsx", "receipt", receipt_id)
         return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=f"{receipt_id}-audit-accounting.xlsx")
 
+    # Native OCR predictors must stay on the same thread between requests.
+    # A lock prevents overlap but still allows Waitress to switch threads.
+    from concurrent.futures import ThreadPoolExecutor
+    receipt_worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="receipt-inference")
+    isolated_inference = None
+    if not testing and not isolated_worker:
+        from .inference_worker import IsolatedReceiptWorker
+        isolated_inference = IsolatedReceiptWorker(timeout=300)
+        app.extensions['isolated_receipt_worker'] = isolated_inference
+
     def process_receipt(upload, user):
+        if isolated_inference is not None:
+            data = upload.read(MAX_UPLOAD_BYTES + 1)
+            if len(data) > MAX_UPLOAD_BYTES:
+                raise ValueError('The image exceeds the 20 MB limit')
+            return isolated_inference.run({'bytes':data,'filename':upload.filename,'mimetype':upload.mimetype,
+                'user':user,'config':str(Path(config_path).resolve()),
+                'database':str(Path(database_path or (Path(config['artifacts_root'])/'app_data'/'receipts.sqlite3')).resolve())})
+        return receipt_worker.submit(_process_receipt, upload, user).result()
+
+    def _process_receipt(upload, user):
         if upload.mimetype and upload.mimetype.casefold() not in ALLOWED_IMAGE_TYPES:
             raise ValueError(f"{upload.filename}: upload a JPEG, PNG, WebP, HEIC or HEIF receipt image")
         raw_bytes = upload.read()
@@ -864,31 +1052,63 @@ def create_app(
         if image is None: raise ValueError(f"{upload.filename}: unreadable receipt image")
         if int(image.shape[0]) * int(image.shape[1]) > MAX_IMAGE_PIXELS:
             raise ValueError(f"{upload.filename}: image dimensions are too large")
-        started = time.perf_counter(); processed, preprocessing_record = preprocess(image, config)
-        from .restoration import make_adaptive_document_view, make_faithful_content_view, make_readability_view, overlay_supported_ocr_text
+        started = time.perf_counter()
+        registered_color, preprocessing_record = preprocess(image, config, preserve_color=True)
+        processed = cv2.cvtColor(registered_color, cv2.COLOR_BGR2GRAY) if registered_color.ndim == 3 else registered_color
+        faithful_refinement = {}
+        from .restoration import assess_receipt_degradation, make_adaptive_document_view, make_faithful_content_view, make_readability_view, overlay_supported_ocr_text, region_adaptive_source_fusion, select_faithful_recovery
         with inference_lock:
             restoration = restoration_engine.run(processed)
-            readability = make_readability_view(processed, restoration.image)
+            degradation_profile = assess_receipt_degradation(processed)
+            fused_recovery, fusion_record = region_adaptive_source_fusion(processed, restoration.image)
+            faithfulness = select_faithful_recovery(processed, fused_recovery)
+            selected_recovery = faithfulness.image
+            readability = make_readability_view(processed, selected_recovery)
             ocr = ocr_engine.run_views([
                 ("rectified_input", processed),
-                ("source_preserving_recovery", restoration.image),
+                ("source_preserving_recovery", selected_recovery),
                 ("readability_view", readability),
             ])
+            if not ocr.lines:
+                raise ValueError(
+                    "No recoverable receipt text was detected. Use a clearer image; "
+                    "the app did not create a restoration from background noise."
+                )
             mask_config = config.get("artifact_mask", {})
             faithful_content = make_faithful_content_view(
-                processed, restoration.image, ocr.lines,
+                processed, selected_recovery, ocr.lines,
                 mask_config.get("checkpoint") if mask_config.get("enabled") else None,
                 float(mask_config.get("threshold", 0.95)),
+                degradation_profile,
+                source_color=registered_color if registered_color.ndim == 3 else None,
+                native_refinement=config.get('native_refinement'),
+                refinement_audit=faithful_refinement,
             )
-            document_view, display_mode = make_adaptive_document_view(readability, ocr.lines, processed)
+            document_view = faithful_content
+            display_mode = "faithful_recovery"
             rendered_readings = 0
-            if display_mode.startswith("faint_thermal"):
-                document_view, rendered_readings = overlay_supported_ocr_text(
-                    document_view, ocr.lines, minimum_confidence=0.85
-                )
-                display_mode = "ocr_assisted_reading_copy"
         fields = route_fields(extract_fields(ocr.text, ocr.lines), support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
+        content_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+        verified_memory = store.verified_field_suggestions(
+            user["id"],
+            content_sha256=content_sha256,
+            merchant=field_map.get("merchant"),
+            receipt_number=field_map.get("receipt_invoice_number"),
+            total_amount=field_map.get("total_amount"),
+        )
+        if not field_map.get("transaction_date") and verified_memory.get("transaction_date"):
+            field_map["transaction_date"] = verified_memory["transaction_date"]
+            for field in fields:
+                if field.name == "transaction_date":
+                    field.value = verified_memory["transaction_date"]
+                    field.mandatory_rule_passed = True
+                    field.rule_status = "passed_from_verified_memory"
+                    field.reason = "Recovered from the user's prior reviewed receipt with an exact evidence match."
+                    break
+        inferred_tags = infer_receipt_tags(ocr.text, field_map.get("merchant"))
+        semantic_items = extract_line_items(ocr.lines)
+        accounting_fields = extract_accounting_fields(ocr.text, ocr.lines, field_map)
         run_id = f"USER-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         audit_root = Path(config["artifacts_root"]) / "user_runs" / run_id
         input_path, restored_path, diagnostic_path = audit_root / "input.png", audit_root / "restored.png", audit_root / "diagnostic.png"
@@ -900,8 +1120,12 @@ def create_app(
         audit_root.mkdir(parents=True, exist_ok=True)
         source_upload_path.write_bytes(raw_bytes)
         write_image(input_path, image); write_image(rectified_path, processed); write_image(restored_path, display_restoration)
-        write_image(audit_root / "ocr_input.png", restoration.image)
+        write_image(audit_root / "registered_color.png", registered_color)
+        write_image(audit_root / "ocr_input.png", selected_recovery)
         write_image(audit_root / "faithful_content.png", faithful_content)
+        if faithful_refinement.get('applied'):
+            reference = cv2.resize(registered_color, (faithful_content.shape[1], faithful_content.shape[0]), interpolation=cv2.INTER_CUBIC)
+            write_image(audit_root / 'faithful_reference.png', reference)
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
         if restoration.diagnostic_map is not None: write_image(diagnostic_path, restoration.diagnostic_map)
         runtime = time.perf_counter() - started
@@ -916,7 +1140,24 @@ def create_app(
             "synthetic_text_rendering": False,
             "role": "source-derived reading view; excluded from formal restoration metrics",
         })
-        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path), "faithful_content": _file_sha256(audit_root / "faithful_content.png")}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "display_image": display_mode, "faithful_display_image": "faithful_content.png", "faithful_display_policy": "background-normalised image-derived content; no OCR glyph rendering", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
+        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path), "faithful_content": _file_sha256(audit_root / "faithful_content.png")}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "degradation_profile": degradation_profile, "region_adaptive_fusion": fusion_record, "faithfulness_gate": {"accepted": faithfulness.accepted, "reason": faithfulness.reason, "metrics": faithfulness.metrics, "fallback": None if faithfulness.accepted else "rectified_original"}, "display_image": display_mode, "faithful_display_image": "faithful_content.png", "faithful_display_policy": "degradation-adaptive, region-level source-supported contrast; exact rectified original used when the faithfulness gate rejects recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "semantic_extraction": {"method": "layout_aware_receipt_semantics_v2", "line_items": semantic_items, "accounting_fields": accounting_fields}, "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
+        from .restoration import complete_document_preservation_mode
+        faithful_mode = complete_document_preservation_mode(registered_color)
+        if faithful_mode:
+            audit["faithful_display_policy"] = faithful_mode
+            audit["faithful_preprocessing"] = preprocessing_record
+            audit["faithful_processing"] = {
+                "method": "continuous source luminance enhancement",
+                "model_pixels_used": False,
+                "synthetic_text_rendering": False,
+                "ocr_used_for_foreground_deletion": False,
+                "color_retained": faithful_content.ndim == 3,
+            }
+        audit['native_refinement'] = faithful_refinement
+        audit['verified_field_memory'] = verified_memory
+        audit['inferred_tags'] = inferred_tags
+        if faithful_refinement.get('applied'):
+            audit['stored_file_sha256']['faithful_reference'] = _file_sha256(audit_root / 'faithful_reference.png')
         write_json(audit_root / "audit.json", audit)
         now = utc_now(); retention_days = int(config.get("app", {}).get("retention_days", 2555))
         retention_until = (datetime.now(timezone.utc) + timedelta(days=retention_days)).date().isoformat()
@@ -924,14 +1165,16 @@ def create_app(
             "public_id": run_id, "user_id": user["id"], "source_name": upload.filename,
             "created_at": now, "updated_at": now, "status": "needs_review", "merchant": field_map.get("merchant"),
             "transaction_date": field_map.get("transaction_date"), "receipt_number": field_map.get("receipt_invoice_number"),
-            "total_amount": field_map.get("total_amount"), "tags": "[]", "notes": "", "ocr_text": ocr.text,
-            "line_items_json": "[]",
+            "total_amount": field_map.get("total_amount"), "tags": json.dumps(inferred_tags), "notes": "", "ocr_text": ocr.text,
+            "line_items_json": json.dumps(semantic_items), "accounting_fields_json": json.dumps(accounting_fields),
             "audit_json": json.dumps(audit), "input_path": str(input_path), "restored_path": str(restored_path),
             "runtime_seconds": runtime, "restoration_status": restoration.status, "support_status": "unavailable_for_natural_source",
             "retention_until": retention_until, "content_sha256": audit["content_sha256"],
         })
         store.log_event(user["id"], "receipt.process", "receipt", run_id, details={"source_name": upload.filename, "restoration_status": restoration.status})
         return {"run_id": run_id, "receipt": record, "original": _data_url(image), "restored": _data_url(display_restoration), "diagnostic": _data_url(restoration.diagnostic_map) if restoration.diagnostic_map is not None else None, "ocr_text": ocr.text, "fields": [field.as_dict() for field in fields], "restoration_status": restoration.status, "support_status": "unavailable_for_natural_source", "runtime_seconds": runtime, "audit": audit}
+
+    app.extensions['receipt_process_inline'] = _process_receipt
 
     @app.post("/api/analyze")
     @require_auth
@@ -964,3 +1207,25 @@ def create_app(
 
 def run(config_path: str | Path, port: int = 5055) -> None:
     create_app(config_path).run(host="127.0.0.1", port=port, debug=False, threaded=True)
+
+
+def _has_meaningful_document_color(image: np.ndarray) -> bool:
+    if image.ndim != 3:
+        return False
+    channels = image.astype(np.int16)
+    chroma = channels.max(axis=2) - channels.min(axis=2)
+    return float(np.percentile(chroma, 90)) >= 12.0 and float(np.mean(chroma >= 8)) >= 0.03
+
+
+def _make_color_preserving_clean_view(image: np.ndarray) -> np.ndarray:
+    """Normalize luminance gently while preserving measured document color."""
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    lightness, a_channel, b_channel = cv2.split(lab)
+    paper = cv2.GaussianBlur(lightness, (0, 0), 19.0)
+    normalized = cv2.divide(lightness, np.maximum(paper, 1), scale=242)
+    normalized = cv2.addWeighted(lightness, 0.42, normalized, 0.58, 0)
+    restored = cv2.cvtColor(
+        cv2.merge((normalized, a_channel, b_channel)), cv2.COLOR_LAB2BGR
+    )
+    blurred = cv2.GaussianBlur(restored, (0, 0), 0.65)
+    return cv2.addWeighted(restored, 1.08, blurred, -0.08, 0)

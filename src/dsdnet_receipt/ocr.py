@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import hashlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -37,6 +38,8 @@ class PaddleOCRAdapter:
                     ocr_version=self.config["ocr"]["ocr_version"],
                     use_angle_cls=False,
                     show_log=False,
+                    enable_mkldnn=False,
+                    cpu_threads=1,
                 )
             else:
                 self._engine = PaddleOCR(
@@ -97,7 +100,12 @@ class PaddleOCRAdapter:
         """Run the fixed OCR configuration on faithful views and merge duplicates."""
         merged: list[dict[str, Any]] = []
         errors: list[str] = []
+        seen_views: set[tuple] = set()
         for view_name, image in views:
+            signature=(image.shape,str(image.dtype),hashlib.sha256(image.tobytes()).digest())
+            if signature in seen_views:
+                continue
+            seen_views.add(signature)
             result = self.run(image)
             if result.error:
                 errors.append(f"{view_name}: {result.error}")

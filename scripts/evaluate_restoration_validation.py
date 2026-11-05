@@ -67,22 +67,30 @@ def main() -> None:
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, default=REPO / "artifacts" / "protocol_lock" / "generation_manifest_611_sources.jsonl")
     parser.add_argument("--max-sources", type=int)
+    parser.add_argument("--source-offset", type=int, default=0, help="Skip this many sorted sources before applying --max-sources")
+    parser.add_argument("--output-dir", type=Path, help="Write this run to an isolated output directory")
+    parser.add_argument("--exploratory-test", action="store_true", help="Explicitly label a previously inspected test partition as exploratory; requires an isolated output directory")
     parser.add_argument("--partition", choices=("validation", "test"), default="validation")
     args = parser.parse_args()
+    if args.exploratory_test and (args.partition != 'test' or args.output_dir is None):
+        parser.error('--exploratory-test requires --partition test and --output-dir')
     training = json.loads((REPO / "configs" / "dsdnet_receipt_train.json").read_text(encoding="utf-8"))
     protocol, _ = load_config(REPO / "configs" / "default.json")
     manifest = args.manifest.resolve()
     variants = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines() if line]
     variants = [row for row in variants if row["project_partition"] == args.partition]
     source_ids = sorted({row["source_id"] for row in variants})
+    if args.source_offset < 0:
+        parser.error("--source-offset must be non-negative")
+    source_ids = source_ids[args.source_offset:]
     if args.max_sources:
         source_ids = source_ids[: args.max_sources]
-        variants = [row for row in variants if row["source_id"] in source_ids]
+    variants = [row for row in variants if row["source_id"] in source_ids]
     if not variants:
         raise SystemExit(f"No {args.partition} variants are available")
 
     calibration_path = REPO / "artifacts/formal_run/support_calibration.json"
-    if args.partition == "test":
+    if args.partition == "test" and not args.exploratory_test:
         if not calibration_path.is_file():
             raise SystemExit("Locked validation calibration is required before opening test")
         calibration = json.loads(calibration_path.read_text(encoding="utf-8"))
@@ -151,7 +159,7 @@ def main() -> None:
     # Include the run directory so checkpoints with the same iteration number
     # from different experiments never overwrite one another's evidence.
     output_root = "formal_test_restoration" if args.partition == "test" else "validation_restoration"
-    output = REPO / "artifacts" / output_root / f"{args.checkpoint.parent.name}_{args.checkpoint.stem}"
+    output = args.output_dir if args.output_dir else REPO / "artifacts" / output_root / f"{args.checkpoint.parent.name}_{args.checkpoint.stem}"
     if args.partition == "test" and (output / "summary.json").exists():
         raise SystemExit("Formal test output already exists; refusing an accidental second test pass")
     output.mkdir(parents=True, exist_ok=True)
@@ -164,7 +172,8 @@ def main() -> None:
         grouped[str(row["method"])].append(row)
     summary = {
         "partition": args.partition,
-        "formal_test_evidence": args.partition == "test",
+        "formal_test_evidence": args.partition == "test" and not args.exploratory_test,
+        "interpretation": "Exploratory only: test partition previously inspected; not independent confirmation." if args.exploratory_test else "Validation development comparison" if args.partition == "validation" else "Subject to locked protocol and provenance review",
         "checkpoint": str(args.checkpoint.resolve()),
         "checkpoint_iteration": int(payload.get("iteration", -1)),
         "manifest": str(manifest),

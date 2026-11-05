@@ -1,5 +1,10 @@
 {
   "project_name": "DSDNet-Receipt",
+  "native_refinement": {
+    "enabled": true,
+    "checkpoint": "../artifacts/training_low_resolution_dev_v2/checkpoint_0000500.pt",
+    "expected_sha256": "32f00f66dc59acf4feb3500aa78bac3de4ffaade8f55f90ea8ffe53a29d6503b"
+  },
   "base_seed": 56,
   "app": {
     "retention_days": 2555,
@@ -49,12 +54,12 @@
     "tile_batch_size": 2,
     "restoration_blend_alpha": 1.0,
     "evidence_support_calibration": "../artifacts/formal_run/support_calibration.json",
-    "checkpoint": "../artifacts/training_foreground_dev_v4/checkpoint_0000500.pt"
+    "checkpoint": "../artifacts/training_generalization_v2/checkpoint_0000500.pt"
   },
   "artifact_mask": {
     "enabled": true,
-    "checkpoint": "../artifacts/training_artifact_mask_v1/best.pt",
-    "threshold": 0.95,
+    "checkpoint": "../artifacts/training_artifact_mask_v4/checkpoint_0001250.pt",
+    "threshold": 0.96,
     "selection_evidence": "validation-only threshold selection; test partition untouched"
   }
 }

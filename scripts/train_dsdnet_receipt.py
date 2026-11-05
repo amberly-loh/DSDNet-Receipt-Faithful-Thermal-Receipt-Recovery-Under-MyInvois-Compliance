@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import random
 import sys
 import time
@@ -54,7 +55,13 @@ def foreground_text_loss(left: torch.Tensor, right: torch.Tensor) -> torch.Tenso
     return (torch.abs(left - right) * foreground_weight).sum() / foreground_weight.sum().clamp_min(1e-6)
 
 
-def crop_and_augment(clean: np.ndarray, degraded: np.ndarray, size: int, rng: random.Random) -> tuple[np.ndarray, np.ndarray]:
+def crop_and_augment(
+    clean: np.ndarray,
+    degraded: np.ndarray,
+    size: int,
+    rng: random.Random,
+    text_crop_probability: float = 0.0,
+) -> tuple[np.ndarray, np.ndarray]:
     height, width = clean.shape
     if height < size or width < size:
         scale = max(size / height, size / width)
@@ -64,6 +71,14 @@ def crop_and_augment(clean: np.ndarray, degraded: np.ndarray, size: int, rng: ra
         height, width = clean.shape
     top = rng.randrange(height - size + 1)
     left = rng.randrange(width - size + 1)
+    if rng.random() < text_crop_probability:
+        import cv2
+        threshold, _ = cv2.threshold(clean, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        foreground = np.argwhere(clean < threshold)
+        if len(foreground):
+            row, col = foreground[rng.randrange(len(foreground))]
+            top = int(np.clip(int(row) - rng.randrange(size), 0, height - size))
+            left = int(np.clip(int(col) - rng.randrange(size), 0, width - size))
     clean = clean[top : top + size, left : left + size]
     degraded = degraded[top : top + size, left : left + size]
     if rng.random() < 0.5:
@@ -135,9 +150,14 @@ def add_natural_receipt_degradation(
         fade_strength = float(rng.uniform(*settings.get("fade_strength", [0.05, 0.18])))
         image = np.clip(image + (1.0 - image) * fade_map * fade_strength, 0.0, 1.0)
         fade_mask = fade_map >= 0.55
+    blur_sigma = 0.0
+    if rng.random() < float(settings.get("blur_probability", 0.0)):
+        blur_sigma = float(rng.uniform(*settings.get("blur_sigma", [0.4, 1.6])))
+        image = cv2.GaussianBlur(image, (0, 0), blur_sigma)
     result = (image * 255.0 + 0.5).astype(np.uint8), {
         "applied": True, "texture_amplitude": amplitude, "texture_scale_pixels": scale,
         "crease_count": crease_count, "fade_applied": fade_applied,
+        "blur_sigma": blur_sigma,
     }
     masks = {"crease": crease_mask.astype(bool), "texture": texture_mask, "fade": fade_mask}
     return (*result, masks) if return_masks else result
@@ -149,11 +169,26 @@ def main() -> None:
     parser.add_argument("--feasibility", action="store_true", help="Run one non-formal optimisation step using the configured crop")
     parser.add_argument("--development-iterations", type=int, help="Run a non-formal development budget without changing the locked formal total")
     parser.add_argument("--development-checkpoint-interval", type=int, default=500)
+    parser.add_argument("--checkpoint-interval", type=int, default=None, help="Override checkpoint save frequency for a new run; does not alter training iterations")
+    parser.add_argument("--rolling-checkpoint", action="store_true", help="Atomically replace one resumable checkpoint at each save interval")
     parser.add_argument("--resume", type=Path)
     parser.add_argument("--initial-weights", type=Path, help="Start a new development run from model weights only")
     parser.add_argument("--resume-learning-rate", type=float)
+    parser.add_argument(
+        "--max-nonfinite-skips",
+        type=int,
+        default=0,
+        help=(
+            "Maximum number of non-finite training samples to quarantine and skip. "
+            "The default remains fail-fast; any non-zero value is recorded in the run evidence."
+        ),
+    )
     parser.add_argument("--output-name", default=None)
     args = parser.parse_args()
+    if args.checkpoint_interval is not None and args.checkpoint_interval < 1:
+        parser.error("--checkpoint-interval must be positive")
+    if args.max_nonfinite_skips < 0:
+        parser.error("--max-nonfinite-skips cannot be negative")
     train_config_path = Path(args.config).resolve()
     locked = json.loads(train_config_path.read_text(encoding="utf-8"))
     protocol, _ = load_config(REPO / "configs" / "default.json")
@@ -192,9 +227,17 @@ def main() -> None:
         model.load_state_dict(state.get("model", state.get("model_state_dict", state)))
     if args.resume:
         state = torch.load(args.resume, map_location=device)
+        if state.get("config_sha256") != sha256(train_config_path):
+            raise SystemExit("Resume checkpoint configuration hash does not match the current configuration")
         model.load_state_dict(state["model"])
         optimizer.load_state_dict(state["optimizer"])
         scheduler.load_state_dict(state["scheduler"])
+        if "scaler" in state:
+            scaler.load_state_dict(state["scaler"])
+        if "torch_rng_state" in state:
+            torch.set_rng_state(state["torch_rng_state"].cpu())
+        if "cuda_rng_state" in state:
+            torch.cuda.set_rng_state_all([x.cpu() for x in state["cuda_rng_state"]])
         start = int(state["iteration"])
         if args.resume_learning_rate is not None:
             for group in optimizer.param_groups:
@@ -208,13 +251,18 @@ def main() -> None:
     output = REPO / "artifacts" / (args.output_name or run_kind)
     output.mkdir(parents=True, exist_ok=True)
     log_path = output / "training_log.jsonl"
+    nonfinite_log_path = output / "nonfinite_samples.jsonl"
+    nonfinite_skips = 0
     crop = int(locked["training"]["crop_height"])
     model.train()
     for iteration in range(start, total):
         record = records[iteration % len(records)]
         clean = read_gray(record["clean_reference"])
         degraded = read_gray(record["degraded_path"])
-        clean, degraded = crop_and_augment(clean, degraded, crop, random.Random(seed + iteration))
+        clean, degraded = crop_and_augment(
+            clean, degraded, crop, random.Random(seed + iteration),
+            float(locked["training"].get("text_crop_probability", 0.0)),
+        )
         degraded, natural_augmentation = add_natural_receipt_degradation(
             degraded, locked.get("natural_receipt_augmentation", {}), seed + 1000003 + iteration
         )
@@ -235,13 +283,45 @@ def main() -> None:
             stroke = stroke_gradient_loss(restored, target)
             foreground = foreground_text_loss(restored, target)
             loss = l1 + float(locked["objective"]["ssim_coefficient"]) * structural + float(locked["objective"].get("stroke_gradient_coefficient", 0.0)) * stroke + float(locked["objective"].get("foreground_text_coefficient", 0.0)) * foreground
+        if not torch.isfinite(loss):
+            nonfinite_skips += 1
+            event = {
+                "iteration": iteration + 1,
+                "source_id": record["source_id"],
+                "variant_id": record["variant_id"],
+                "action": "quarantined_and_skipped",
+                "reason": "non_finite_loss",
+                "skip_index": nonfinite_skips,
+                "maximum_allowed_skips": args.max_nonfinite_skips,
+                "observed_min": float(observed.detach().amin().cpu()),
+                "observed_max": float(observed.detach().amax().cpu()),
+                "target_min": float(target.detach().amin().cpu()),
+                "target_max": float(target.detach().amax().cpu()),
+                "amp_scale_before_backoff": float(scaler.get_scale()),
+                "natural_receipt_augmentation": natural_augmentation,
+            }
+            with nonfinite_log_path.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(event) + "\n")
+            print(json.dumps(event), flush=True)
+            optimizer.zero_grad(set_to_none=True)
+            if use_amp:
+                scaler.update(max(float(scaler.get_scale()) / 2.0, 1.0))
+            if nonfinite_skips > args.max_nonfinite_skips:
+                raise RuntimeError(
+                    f"Non-finite loss at iteration {iteration + 1}; "
+                    f"allowed skip budget {args.max_nonfinite_skips} exhausted"
+                )
+            continue
         scaler.scale(loss).backward()
         if locked["training"].get("gradient_clipping", False):
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), float(locked["training"]["gradient_clip_norm"]))
+        old_scale = scaler.get_scale()
         scaler.step(optimizer)
         scaler.update()
-        scheduler.step()
+        optimizer_updated = not use_amp or scaler.get_scale() >= old_scale
+        if optimizer_updated:
+            scheduler.step()
         row = {
             "iteration": iteration + 1,
             "source_id": record["source_id"],
@@ -255,26 +335,34 @@ def main() -> None:
             "seconds": time.perf_counter() - started,
             "peak_cuda_memory_bytes": torch.cuda.max_memory_allocated(device),
             "mixed_precision": use_amp,
+            "optimizer_updated": optimizer_updated,
+            "amp_scale": scaler.get_scale(),
             "gradient_checkpointing": use_checkpointing,
             "natural_receipt_augmentation": natural_augmentation,
         }
         with log_path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row) + "\n")
         print(json.dumps(row), flush=True)
-        checkpoint_interval = args.development_checkpoint_interval if args.development_iterations else int(locked["training"]["checkpoint_interval"])
+        checkpoint_interval = args.checkpoint_interval or (args.development_checkpoint_interval if args.development_iterations else int(locked["training"]["checkpoint_interval"]))
         if args.feasibility or (iteration + 1) % checkpoint_interval == 0 or iteration + 1 == total:
-            checkpoint = output / f"checkpoint_{iteration + 1:07d}.pt"
+            checkpoint = output / ("checkpoint_latest.pt" if args.rolling_checkpoint and iteration + 1 != total else f"checkpoint_{iteration + 1:07d}.pt")
             payload = {
                 "iteration": iteration + 1,
                 "model": model.state_dict(),
                 "config_sha256": sha256(train_config_path),
                 "run_kind": "non-formal development" if args.development_iterations or args.feasibility else "formal candidate",
                 "locked_total_iterations": int(locked["training"]["total_iterations"]),
+                "checkpoint_interval": checkpoint_interval,
+                "scaler": scaler.state_dict(),
+                "torch_rng_state": torch.get_rng_state(),
+                "cuda_rng_state": torch.cuda.get_rng_state_all(),
             }
-            if iteration + 1 == total or not args.development_iterations:
+            if iteration + 1 == total or not args.development_iterations or args.rolling_checkpoint:
                 payload["optimizer"] = optimizer.state_dict()
                 payload["scheduler"] = scheduler.state_dict()
-            torch.save(payload, checkpoint)
+            temporary = checkpoint.with_suffix('.pt.tmp')
+            torch.save(payload, temporary)
+            os.replace(temporary, checkpoint)
             (output / f"checkpoint_{iteration + 1:07d}.sha256").write_text(sha256(checkpoint), encoding="ascii")
 
 

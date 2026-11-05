@@ -23,7 +23,12 @@ def load_pinned_architecture(source_root: str | Path) -> ModuleType:
 
 def gaussian_kernel(sigma: float, size: int | None = None) -> torch.Tensor:
     if sigma <= 0:
-        return torch.ones((1, 1, 1), dtype=torch.float32)
+        # The pinned architecture slices away the kernel border during edge
+        # tapering; a 1x1 kernel produces a zero-width [-0] slice. A 3x3
+        # impulse is the same identity operator with a valid nonzero border.
+        identity = torch.zeros((1, 3, 3), dtype=torch.float32)
+        identity[0, 1, 1] = 1.0
+        return identity
     width = size or max(3, int(2 * np.ceil(3 * sigma) + 1))
     if width % 2 == 0:
         width += 1

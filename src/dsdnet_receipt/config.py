@@ -22,6 +22,10 @@ def load_config(path: str | Path) -> tuple[dict[str, Any], Path]:
     artifact_checkpoint = artifact_mask.get("checkpoint")
     if artifact_checkpoint:
         artifact_mask["checkpoint"] = str((base / artifact_checkpoint).resolve())
+    native = config.get('native_refinement', {})
+    if native.get('checkpoint'):
+        native['checkpoint'] = str((base / native['checkpoint']).resolve())
+        native['source_path'] = config['dsdnet']['source_path']
     return config, config_path
 
 

@@ -8,12 +8,28 @@ from typing import Any
 
 
 DATE_PATTERNS = (
-    re.compile(r"\b(?:0?[1-9]|[12]\d|3[01])[/-](?:0?[1-9]|1[0-2])[/-](?:19|20)?\d{2}\b"),
+    # OCR may concatenate a four-digit year and its time, for example
+    # ``15/01/201911:0516AM``. Accept the date only when the following digits
+    # form a plausible time; do not generally truncate longer numbers.
+    re.compile(r"(?<!\d)(?:0?[1-9]|[12]\d|3[01])[./-](?:0?[1-9]|1[0-2])[./-](?:19|20)\d{2}(?=(?:(?:[01]\d|2[0-3])(?::?[0-5]\d))|\D|$)"),
+    # Thermal POS OCR commonly joins the date and time: 01-09-2420:56.
+    # Accept a two-digit year only when it ends the token or is followed by a
+    # valid 24-hour time, preventing the joined text from becoming year 2420.
+    re.compile(r"(?<!\d)(?:0?[1-9]|[12]\d|3[01])[./-](?:0?[1-9]|1[0-2])[./-]\d{2}(?=(?:(?:[01]\d|2[0-3]):[0-5]\d)|\D|$)"),
     re.compile(r"\b(?:19|20)\d{2}[/-](?:0?[1-9]|1[0-2])[/-](?:0?[1-9]|[12]\d|3[01])\b"),
 )
 TOTAL_PATTERN = re.compile(r"(?i)\b(?:net\s+amt|grand\s+total|total\s+rm|total\s+amt|total|amount)\b[^\d]{0,16}(?:RM\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)")
 MONEY_PATTERN = re.compile(r"(?i)(?:RM\s*)?([0-9][0-9,]*\.\d{2})")
-NUMBER_PATTERN = re.compile(r"(?i)\b(?:(?:receipt|invoice|document|bill)\s*)?(?:(?:no|number)\b|#)\.?(?:\s*[:#-]?)\s*([A-Z0-9][A-Z0-9/-]{2,})")
+NUMBER_PATTERN = re.compile(r"(?i)\b(?:(?:receipt|invoice|document|bill)\s*)?(?:(?:no\.?|number)|#)(?:\s*[:#-]?)\s*([A-Z0-9][A-Z0-9/-]{2,})")
+
+TAG_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("fuel", ("petronas", "shell", "caltex", "bhpetrol", "petrol", "diesel", "fuel", "pump")),
+    ("hardware", ("hardware", "d.i.y", "diy", "chop hock", "tool", "drill", "chainsaw", "screw", "nail", "engine oil", "trimmer")),
+    ("furniture", ("furniture", "mattress", "sofa", "carpet")),
+    ("grocery", ("food mart", "grocery", "supermarket", "minimart", "mini mart")),
+    ("office", ("stationery", "office", "copier", "document bag", "paper")),
+    ("medical", ("pharmacy", "clinic", "medical")),
+)
 
 
 @dataclass
@@ -78,19 +94,23 @@ def _rule_passes(name: str, value: str | None) -> bool:
 
 
 def extract_fields(text: str, lines: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    raw_date = next((match.group(0) for pattern in DATE_PATTERNS if (match := pattern.search(text))), None)
+    # An invalid date earlier in the OCR must not hide a later valid one.
+    raw_date = next((match.group(0) for pattern in DATE_PATTERNS for match in pattern.finditer(text) if _normalise_date(match.group(0))), None)
+    if raw_date is None:
+        raw_date = _spatial_date(lines) or _repair_date_near_label(text)
     date = _normalise_date(raw_date)
-    number_match = NUMBER_PATTERN.search(text)
-    receipt_number = _spatial_invoice_number(lines) or (number_match.group(1) if number_match else None)
+    # A literal printed identifier (for example, ``No: 61569``) is stronger
+    # evidence than a nearby company-registration code.  Spatial pairing is a
+    # fallback for layouts where OCR separates the label and value.
+    receipt_number = _explicit_invoice_number(text) or _spatial_invoice_number(lines)
     spatial_total = _spatial_total(lines)
-    total_match = TOTAL_PATTERN.search(text)
+    total_match = _text_total(text)
     if spatial_total:
         total = f"{Decimal(spatial_total):.2f}"
     elif total_match:
-        total = f"{Decimal(total_match.group(1).replace(',', '')):.2f}"
+        total = total_match
     else:
-        amounts = [match.group(1).replace(",", "") for match in MONEY_PATTERN.finditer(text)]
-        total = f"{Decimal(amounts[-1]):.2f}" if amounts else None
+        total = None
     merchant = _merchant_candidate(lines)
     return {
         "merchant": {"value": merchant, "confidence": _mean_confidence(lines, [merchant or ""]), "box": _box_for(lines, [merchant or ""])},
@@ -100,12 +120,96 @@ def extract_fields(text: str, lines: list[dict[str, Any]]) -> dict[str, dict[str
     }
 
 
+def infer_receipt_tags(text: str, merchant: str | None = None) -> list[str]:
+    """Infer conservative, user-editable tags from observed receipt text."""
+    evidence = f"{merchant or ''}\n{text or ''}".lower()
+    tags = [tag for tag, tokens in TAG_RULES if any(token in evidence for token in tokens)]
+    if re.search(r"\bcash\s*sale\b", evidence):
+        tags.append("cash-sale")
+    elif re.search(r"\b(?:tax\s+)?invoice\b", evidence):
+        tags.append("invoice")
+    form_terms = sum(term in evidence for term in ("particulars", "quantity", "unit price", "issued by"))
+    if form_terms >= 2:
+        tags.append("handwritten-form")
+    return list(dict.fromkeys(tags))[:4]
+
+
 def _normalise_date(value: str | None) -> str | None:
     if not value:
         return None
+    value = value.strip().replace(".", "/")
     for pattern in ("%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y", "%Y/%m/%d", "%Y-%m-%d"):
         try: return datetime.strptime(value, pattern).date().isoformat()
         except ValueError: continue
+    return None
+
+
+def _repair_date_near_label(text: str) -> str | None:
+    """Recover a narrowly defined OCR separator error beside a Date label.
+
+    Handwritten slashes are sometimes read as ``1``.  For example, the source
+    ``13/7/24`` can become ``Date: 13/7124``.  The repair is deliberately
+    limited to a Date-labelled line, requires a valid calendar date, and does
+    not guess when a month is absent (``19/24`` remains unresolved).
+    """
+    for line in text.splitlines():
+        if not re.search(r"(?i)\bdate\b", line):
+            continue
+        cleaned = line.replace("|", "/").replace(".", "/")
+        exact = next((match.group(0) for pattern in DATE_PATTERNS for match in pattern.finditer(cleaned) if _normalise_date(match.group(0))), None)
+        if exact:
+            return exact
+        candidate = _repair_date_token(cleaned)
+        if candidate:
+            return candidate
+    return None
+
+
+def _repair_date_token(value: str) -> str | None:
+    cleaned = value.replace("|", "/").replace(".", "/")
+    for pattern in DATE_PATTERNS:
+        for match in pattern.finditer(cleaned):
+            if _normalise_date(match.group(0)):
+                return match.group(0)
+    for match in re.finditer(r"(?<!\d)([0-3]?\d)[/-]([0-9])([1Il])([0-9]{2})(?!\d)", cleaned):
+        candidate = f"{match.group(1)}/{match.group(2)}/{match.group(4)}"
+        if _normalise_date(candidate):
+            return candidate
+    return None
+
+
+def _spatial_date(lines: list[dict[str, Any]]) -> str | None:
+    labels = [line for line in lines if re.fullmatch(r"(?i)\s*date\s*:?-?\s*", str(line.get("text", "")))]
+    candidates: list[tuple[float, str]] = []
+    for label in labels:
+        label_box = _bounds(label.get("box"))
+        if not label_box:
+            continue
+        _, ly1, lx2, ly2 = label_box
+        lcy = (ly1 + ly2) / 2
+        for line in lines:
+            value_box = _bounds(line.get("box"))
+            candidate = _repair_date_token(str(line.get("text", "")))
+            if not value_box or not candidate:
+                continue
+            vx1, vy1, _, vy2 = value_box
+            vcy = (vy1 + vy2) / 2
+            if abs(vcy - lcy) <= 80 and vx1 >= lx2 - 10:
+                candidates.append((abs(vcy - lcy) + max(0, vx1 - lx2) / 30, candidate))
+    return min(candidates, default=(0, None), key=lambda item: item[0])[1]
+
+
+def _explicit_invoice_number(text: str) -> str | None:
+    for line in text.splitlines():
+        # Company/tax registrations are not transaction identifiers. ROC is
+        # a common Malaysian label and previously won over the real Invoice No.
+        if re.search(r"(?i)\b(?:company|co\.?\s*reg|registration|reg\.?|roc|business|sst|gst|tax|phone|tel|fax)\b", line):
+            continue
+        match = NUMBER_PATTERN.search(line)
+        if match:
+            value = match.group(1)
+            if any(ch.isdigit() for ch in value) and not any(pattern.fullmatch(value) for pattern in DATE_PATTERNS):
+                return value
     return None
 
 
@@ -118,15 +222,37 @@ def _bounds(box: Any) -> tuple[float, float, float, float] | None:
         return None
 
 
+def _total_priority(text: str) -> int | None:
+    if re.search(r"(?i)\b(?:sub[\s-]*total|total\s+(?:discount|saving|qty|quantity|items?|tax|gst)|tax\s+total)\b", text): return None
+    if re.search(r"(?i)\b(?:rounded?\s+total|total\s+(?:payable|due)|amount\s+(?:payable|due)|net\s+amt|grand\s+total|net\s+total)\b", text): return 0
+    if re.search(r"(?i)\b(?:total\s+(?:sales|incl|excl|includes)|takeout\s+total)\b", text): return 2
+    if re.search(r"(?i)\b(?:total|net\s+amount)\b", text): return 1
+    return None
+
+
+def _text_total(text: str) -> str | None:
+    candidates = []
+    for index, line in enumerate(text.splitlines()):
+        priority = _total_priority(line)
+        if priority is None: continue
+        match = re.search(r"(?i)\b(?:total|amt|due|payable)\b[^\d\n]{0,20}(?:RM\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)", line)
+        if match and not re.match(r"\s*%", line[match.end():]):
+            candidates.append((priority, -index, f"{Decimal(match.group(1).replace(',', '')):.2f}"))
+    return min(candidates)[2] if candidates else None
+
+
 def _spatial_total(lines: list[dict[str, Any]]) -> str | None:
-    labels = [line for line in lines if re.search(r"(?i)\b(?:net\s+amt|grand\s+total|total\s+payable|total\s+amt|total)\b", str(line.get("text", "")))]
+    labels = [line for line in lines if _total_priority(str(line.get("text", ""))) is not None]
     candidates: list[tuple[float, str]] = []
     for label in labels:
         label_box = _bounds(label.get("box"))
         if not label_box:
             continue
         label_text = str(label.get("text", "")).lower()
-        priority = 0 if re.search(r"total\s+payable|grand\s+total|net\s+amt", label_text) else 1 if "total rm" in label_text else 2
+        priority = _total_priority(label_text)
+        inline = _text_total(label_text)
+        if inline is not None:
+            candidates.append((priority * 1000, inline))
         _, ly1, lx2, ly2 = label_box
         lcy = (ly1 + ly2) / 2
         for line in lines:
@@ -134,13 +260,40 @@ def _spatial_total(lines: list[dict[str, Any]]) -> str | None:
             match = re.fullmatch(r"\s*(?:RM\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*", str(line.get("text", "")), re.I)
             if not value_box or not match:
                 continue
+            # Multi-view OCR may produce a truncated and a complete reading
+            # for the exact same handwritten amount (for example 11 and 116).
+            # Prefer the longer reading when its confidence is comparable.
+            digits = re.sub(r"\D", "", match.group(1))
+            confidence = float(line.get("confidence") or 0)
+            shadowed = False
+            for other in lines:
+                other_box = _bounds(other.get("box"))
+                other_match = re.fullmatch(r"\s*(?:RM\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*", str(other.get("text", "")), re.I)
+                if not other_box or not other_match or not _same_box_region(value_box, other_box):
+                    continue
+                other_digits = re.sub(r"\D", "", other_match.group(1))
+                other_confidence = float(other.get("confidence") or 0)
+                if len(other_digits) > len(digits) and other_confidence >= confidence - 0.12:
+                    shadowed = True
+                    break
+            if shadowed:
+                continue
             vx1, vy1, _, vy2 = value_box
             vcy = (vy1 + vy2) / 2
-            if abs(vcy - lcy) <= 110 and vx1 >= lx2 - 40:
+            tolerance = max(6, .65 * max(ly2 - ly1, vy2 - vy1))
+            if abs(vcy - lcy) <= tolerance and vx1 >= lx2 - 5:
                 value = Decimal(match.group(1).replace(",", ""))
-                if value > 0:
+                if value >= 0:
                     candidates.append((priority * 1000 + abs(vcy - lcy) + max(0, vx1 - lx2) / 40, f"{value:.2f}"))
     return min(candidates, default=(0, None), key=lambda item: item[0])[1]
+
+
+def _same_box_region(first: tuple[float, float, float, float], second: tuple[float, float, float, float]) -> bool:
+    ax1, ay1, ax2, ay2 = first
+    bx1, by1, bx2, by2 = second
+    intersection = max(0.0, min(ax2, bx2) - max(ax1, bx1)) * max(0.0, min(ay2, by2) - max(ay1, by1))
+    smaller = min(max((ax2 - ax1) * (ay2 - ay1), 1.0), max((bx2 - bx1) * (by2 - by1), 1.0))
+    return intersection / smaller >= 0.8
 
 
 def _spatial_invoice_number(lines: list[dict[str, Any]]) -> str | None:
@@ -173,7 +326,7 @@ def _spatial_invoice_number(lines: list[dict[str, Any]]) -> str | None:
     rejected = re.compile(r"(?i)\b(?:from|date|cash|term|page|total|amount|price|tel|fax|company|invoice|receipt|document)\b")
     for line, bounds in positioned:
         value = str(line.get("text", "")).strip(" :#")
-        if not bounds or bounds[1] > document_bottom * 0.22 or rejected.search(value) or re.match(r"(?i)(?:TEL|FAX|COMPANY)", value) or re.search(r"(?i)(?:PCS|PACK|UNIT|KG)$", value):
+        if not bounds or bounds[1] > document_bottom * 0.22 or rejected.search(value) or re.match(r"(?i)(?:TEL|FAX|COMPANY|CO\.?\s*REG|REG\.?|GST|SST)", value) or re.search(r"(?i)(?:PCS|PACK|UNIT|KG)$", value):
             continue
         compact = re.sub(r"\s+", "", value)
         digit_count = sum(ch.isdigit() for ch in compact)

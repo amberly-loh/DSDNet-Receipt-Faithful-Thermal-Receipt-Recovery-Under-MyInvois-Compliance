@@ -1,4 +1,10 @@
 const $ = id => document.getElementById(id);
+const setValue = (id, value = '') => {
+  const element = $(id);
+  if (element) element.value = value ?? '';
+  return element;
+};
+const fieldValue = id => String($(id)?.value ?? '').trim();
 const pages = ['overview', 'scan', 'history', 'detail', 'admin'];
 let csrf = '', user = null, authMode = 'login', selectedFile = null, cameraStream = null;
 let currentReceipt = null, historyMode = 'grid', searchTimer = null;
@@ -7,7 +13,7 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 }
 
-async function api(path, options = {}) {
+async function api(path, options = {}, allowSessionRetry = true) {
   const config = {...options, headers: {...(options.headers || {})}};
   if (['POST', 'PATCH', 'DELETE'].includes((config.method || 'GET').toUpperCase())) config.headers['X-CSRF-Token'] = csrf;
   if (config.body && !(config.body instanceof FormData)) {
@@ -19,6 +25,15 @@ async function api(path, options = {}) {
   const data = type.includes('application/json') ? await response.json() : null;
   if (data?.csrf_token) csrf = data.csrf_token;
   if (!response.ok) {
+    if (response.status === 403 && allowSessionRetry && data?.error === 'Your session changed. Refresh the page and try again.') {
+      const refreshed = await fetch('/api/auth', {cache: 'no-store'});
+      const state = await refreshed.json();
+      if (refreshed.ok && state?.csrf_token) {
+        csrf = state.csrf_token;
+        user = state.user;
+        return api(path, options, false);
+      }
+    }
     if (response.status === 401 && !path.includes('/login')) showAuth();
     const error = new Error(data?.error || 'Something went wrong. Please try again.'); error.details = data; throw error;
   }
@@ -35,7 +50,7 @@ function showWorkspace() {
   $('authView').classList.add('hidden');
   $('workspace').classList.remove('hidden');
   $('profileName').textContent = user.name;
-  $('profileEmail').textContent = user.email;
+  $('profileEmail').textContent = user.is_guest ? 'Guest session · local device' : user.email;
   $('avatar').textContent = user.name.trim().charAt(0).toUpperCase();
   $('welcomeName').textContent = `Ready to recover a receipt, ${user.name.split(' ')[0]}?`;
   $('adminNav').classList.toggle('hidden', user.role !== 'admin');
@@ -89,12 +104,23 @@ $('authForm').onsubmit = async event => {
     showFieldErrors(error.details?.fields);
     $('authError').textContent = error.message; $('authError').classList.remove('hidden');
   } finally {
-    button.disabled = false; setAuthMode(authMode);
+    button.disabled = false; button.textContent = authMode === 'login' ? 'Sign in' : 'Create account';
   }
 };
 
+$('guestButton').onclick = async () => {
+  const button = $('guestButton'); button.disabled = true;
+  try {
+    const data = await api('/api/guest', {method: 'POST'});
+    user = data.user; sessionStorage.removeItem('lastReceiptId'); history.replaceState(null, '', '#overview'); showWorkspace();
+  } catch (error) { $('authError').textContent = error.message; $('authError').classList.remove('hidden'); }
+  finally { button.disabled = false; }
+};
+
 $('logoutButton').onclick = async () => {
+  if (user?.is_guest && !confirm('Guest receipts cannot be reopened after signing out. Export what you need first. Files remain on this computer. Sign out?')) return;
   try { await api('/api/logout', {method: 'POST'}); } finally {
+    selectedReceipts.clear(); sessionStorage.removeItem('lastReceiptId'); currentReceipt = null;
     csrf = ''; const state = await api('/api/auth'); csrf = state.csrf_token; showAuth();
   }
 };
@@ -129,7 +155,7 @@ function formatDate(value) {
   if (!value) return 'Date unavailable';
   const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleDateString('en-MY', {day: 'numeric', month: 'short', year: 'numeric'});
 }
-function statusLabel(status) { return ({needs_review: 'Needs review', reviewed: 'Reviewed', archived: 'Archived'})[status] || status; }
+function statusLabel(status) { return ({needs_review: 'To verify', reviewed: 'Reviewed', archived: 'Archived'})[status] || status; }
 function amountLabel(value) { if (!value) return 'Amount unavailable'; return /^(RM|MYR)/i.test(value) ? value : `RM ${value}`; }
 
 function emptyState(kind) {
@@ -157,6 +183,27 @@ async function loadDashboard() {
   } catch (error) { toast(error.message, true); }
 }
 
+const selectedReceipts = new Set();
+let selectionRequest = 0;
+function updateHistorySelection() {
+  const boxes = [...$('historyGallery').querySelectorAll('[data-select-receipt]')];
+  $('selectionCount').textContent = `${selectedReceipts.size} selected`;
+  $('deleteSelectedReceipts').disabled = selectedReceipts.size === 0;
+  $('selectVisibleReceipts').disabled = boxes.length === 0;
+  $('selectVisibleReceipts').checked = boxes.length > 0 && boxes.every(box => box.checked);
+  $('selectVisibleReceipts').indeterminate = boxes.some(box => box.checked) && !boxes.every(box => box.checked);
+  const request = ++selectionRequest;
+  const summary = $('selectionSummary');
+  if (!selectedReceipts.size) { summary.textContent = ''; return; }
+  summary.textContent = 'Calculating selected amounts…';
+  api('/api/receipts/selection-summary', {method:'POST', body:{ids:[...selectedReceipts]}}).then(data => {
+    if (request !== selectionRequest) return;
+    summary.textContent = `Available amounts: RM ${data.total} (MYR assumed) · ${data.count} selected` +
+      (data.missing_amounts ? ` · ${data.missing_amounts} without a usable amount` : '') +
+      (data.not_reviewed ? ` · ${data.not_reviewed} not marked reviewed` : '') +
+      (data.duplicate_images ? ` · ${data.duplicate_images} duplicate image(s) included` : '');
+  }).catch(error => { if (request === selectionRequest) summary.textContent = `Could not calculate total: ${error.message}`; });
+}
 function receiptCard(receipt) {
   return `<button class="receipt-card" data-receipt="${escapeHtml(receipt.public_id)}"><div class="card-image"><img src="${escapeHtml(receipt.restored_url)}" alt="Recovered image of ${escapeHtml(receipt.source_name)}"><span class="status-pill ${receipt.status}">${escapeHtml(statusLabel(receipt.status))}</span></div><div class="receipt-card-copy"><h3>${escapeHtml(receipt.merchant || receipt.source_name)}</h3><p>${escapeHtml(formatDate(receipt.created_at))}</p><div><span>${escapeHtml(receipt.receipt_number || 'No receipt number')}</span><strong>${escapeHtml(amountLabel(receipt.total_amount))}</strong></div></div></button>`;
 }
@@ -168,10 +215,32 @@ async function loadHistory() {
     const data = await api(`/api/receipts?${params}`);
     $('historyCount').textContent = `${data.receipts.length} receipt${data.receipts.length === 1 ? '' : 's'}`;
     $('historyGallery').className = `gallery ${historyMode === 'list' ? 'list-mode' : ''}`;
-    $('historyGallery').innerHTML = data.receipts.length ? (historyMode === 'grid' ? data.receipts.map(receiptCard).join('') : data.receipts.map(receiptRow).join('')) : emptyState('history');
+    // Selection applies only to the currently shown results.
+    const visibleIds = new Set(data.receipts.map(receipt => receipt.public_id));
+    for (const id of selectedReceipts) if (!visibleIds.has(id)) selectedReceipts.delete(id);
+    $('historyGallery').innerHTML = data.receipts.length ? data.receipts.map(receipt => `<div class="selectable-receipt"><label class="receipt-select"><input type="checkbox" data-select-receipt="${escapeHtml(receipt.public_id)}" ${selectedReceipts.has(receipt.public_id) ? 'checked' : ''} aria-label="Select ${escapeHtml(receipt.merchant || receipt.source_name)}"> Select</label>${historyMode === 'grid' ? receiptCard(receipt) : receiptRow(receipt)}</div>`).join('') : emptyState('history');
     wireReceiptLinks($('historyGallery'));
+    $('historyGallery').querySelectorAll('[data-select-receipt]').forEach(box => box.onchange = () => { if (box.checked) selectedReceipts.add(box.dataset.selectReceipt); else selectedReceipts.delete(box.dataset.selectReceipt); updateHistorySelection(); });
+    updateHistorySelection();
   } catch (error) { $('historyGallery').innerHTML = `<div class="error-inline">${escapeHtml(error.message)}</div>`; }
 }
+
+$('selectVisibleReceipts').onchange = event => {
+  $('historyGallery').querySelectorAll('[data-select-receipt]').forEach(box => { box.checked = event.target.checked; if (box.checked) selectedReceipts.add(box.dataset.selectReceipt); else selectedReceipts.delete(box.dataset.selectReceipt); });
+  updateHistorySelection();
+};
+$('deleteSelectedReceipts').onclick = async () => {
+  const ids = [...selectedReceipts];
+  if (!ids.length || !confirm(`Remove ${ids.length} selected receipt(s) from your history? This cannot be undone from the app.`)) return;
+  $('deleteSelectedReceipts').disabled = true;
+  let removed = 0;
+  for (const id of ids) {
+    try { await api(`/api/receipts/${encodeURIComponent(id)}`, {method: 'DELETE'}); selectedReceipts.delete(id); removed++; }
+    catch (error) { toast(`Removed ${removed}. ${error.message}`, true); await loadHistory(); return; }
+  }
+  toast(`${removed} receipt(s) removed.`);
+  await loadHistory();
+};
 
 $('historySearch').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadHistory, 250); };
 $('statusFilter').onchange = loadHistory;
@@ -179,7 +248,7 @@ $('gridViewButton').onclick = () => { historyMode = 'grid'; $('gridViewButton').
 $('listViewButton').onclick = () => { historyMode = 'list'; $('listViewButton').classList.add('active'); $('gridViewButton').classList.remove('active'); loadHistory(); };
 
 function resetScan() {
-  selectedFile = null; $('fileInput').value = '';
+  selectedFile = null; setValue('fileInput');
   ['previewPanel','processingPanel','scanError'].forEach(id => $(id).classList.add('hidden'));
   $('uploadPanel').classList.remove('hidden');
   $('restoreStep').classList.remove('done'); $('fieldStep').classList.remove('done');
@@ -214,11 +283,34 @@ $('bulkInput').onchange = event => {
 $('bulkButton').onclick = async () => {
   if (!bulkFiles.length) return;
   const button = $('bulkButton'); button.disabled = true; button.textContent = `Processing ${bulkFiles.length}…`;
-  const body = new FormData(); bulkFiles.forEach(file => body.append('receipts', file));
   try {
-    const result = await api('/api/bulk-analyze', {method: 'POST', body});
-    toast(`${result.summary.completed} receipt(s) processed; ${result.summary.failed} failed.`);
-    bulkFiles = []; $('bulkInput').value = ''; $('bulkSelection').textContent = ''; route('history');
+    const pending = [...bulkFiles], failed = [];
+    let completed = 0;
+    // Send bounded requests so a large selection does not exceed the upload
+    // limit or hold a single connection open for the entire batch.
+    for (let index = 0; index < pending.length; index++) {
+      button.textContent = `Processing ${index + 1}/${pending.length}…`;
+      $('bulkSelection').textContent = `${completed} saved; processing ${pending[index].name}`;
+      const body = new FormData(); body.append('receipts', pending[index]);
+      try {
+        const result = await api('/api/bulk-analyze', {method: 'POST', body});
+        completed += result.summary.completed;
+        if (result.summary.failed) {
+          failed.push(pending[index]);
+          $('bulkSelection').textContent = `${pending[index].name}: ${result.failed?.[0]?.error || 'Processing failed'}`;
+          toast($('bulkSelection').textContent, true);
+        }
+      } catch (error) {
+        failed.push(...pending.slice(index));
+        toast(`${completed} saved. Batch paused: ${error.message}. Remaining files are kept for retry.`, true);
+        break;
+      }
+    }
+    bulkFiles = failed;
+    $('bulkSelection').textContent = failed.length ? `${failed.length} receipt(s) remain for retry` : '';
+    if (!failed.length) setValue('bulkInput');
+    toast(`${completed} receipt(s) saved; ${failed.length} remaining.`, failed.length > 0);
+    if (completed && !failed.length) route('history');
   } catch (error) { toast(error.message, true); }
   finally { button.disabled = bulkFiles.length === 0; button.textContent = 'Process batch'; }
 };
@@ -239,14 +331,21 @@ $('analyseButton').onclick = async () => {
 async function openReceipt(id) {
   try {
     currentReceipt = await api(`/api/receipts/${encodeURIComponent(id)}`);
+    // Accept legacy API responses while the server canonicalises old rows.
+    if (!currentReceipt.accounting_fields && currentReceipt.accounting_fields_json) {
+      try { currentReceipt.accounting_fields = JSON.parse(currentReceipt.accounting_fields_json); }
+      catch (_) { currentReceipt.accounting_fields = {}; }
+    }
     sessionStorage.setItem('lastReceiptId', id);
     $('detailTitle').textContent = currentReceipt.merchant || currentReceipt.source_name;
     $('detailMeta').textContent = `${formatDate(currentReceipt.created_at)} · ${currentReceipt.public_id}`;
-    $('detailStatus').textContent = statusLabel(currentReceipt.status); $('detailStatus').className = `status-pill ${currentReceipt.status}`;
+    $('detailStatus').textContent = currentReceipt.review_readiness?.label || statusLabel(currentReceipt.status); $('detailStatus').className = `status-pill ${currentReceipt.review_readiness?.state || currentReceipt.status}`;
     $('originalImage').src = currentReceipt.original_url; $('restoredImage').src = currentReceipt.faithful_url;
-    $('merchantField').value = currentReceipt.merchant || ''; $('dateField').value = currentReceipt.transaction_date || '';
-    $('numberField').value = currentReceipt.receipt_number || ''; $('totalField').value = currentReceipt.total_amount || '';
-    $('reviewStatus').value = currentReceipt.status; $('tagsField').value = currentReceipt.tags.join(', '); $('notesField').value = currentReceipt.notes || '';
+    setValue('merchantField', currentReceipt.merchant); setValue('dateField', currentReceipt.transaction_date);
+    setValue('numberField', currentReceipt.receipt_number); setValue('totalField', currentReceipt.total_amount);
+    setValue('reviewStatus', currentReceipt.status); setValue('tagsField', (currentReceipt.tags || []).join(', ')); setValue('notesField', currentReceipt.notes);
+    const accounting = currentReceipt.accounting_fields || {};
+    for (const [key,id] of Object.entries({document_type:'documentTypeField',currency:'currencyField',supplier_registration_number:'supplierRegistrationField',supplier_tax_number:'supplierTaxField',supplier_address:'supplierAddressField',supplier_phone:'supplierPhoneField',supplier_email:'supplierEmailField',payment_method:'paymentMethodField',subtotal:'subtotalField',discount:'discountField',tax_amount:'taxAmountField'})) setValue(id, accounting[key]);
     renderLineItems(currentReceipt.line_items || []);
     renderReadiness(currentReceipt);
     const duplicateCount = (currentReceipt.possible_duplicates || []).length;
@@ -255,7 +354,7 @@ async function openReceipt(id) {
     const evidence = new Map((currentReceipt.audit?.fields || []).map(field => [field.name, field]));
     for (const [name, elementId] of [['merchant','merchantEvidence'],['transaction_date','dateEvidence'],['receipt_invoice_number','numberEvidence'],['total_amount','totalEvidence']]) {
       const field = evidence.get(name), confidence = field?.ocr_confidence;
-      $(elementId).textContent = field?.value ? `${confidence == null ? 'Located in receipt' : `${(Number(confidence) * 100).toFixed(1)}% scan confidence`} · verify against original` : 'Not read automatically · enter manually';
+      $(elementId).textContent = field?.value ? `${confidence == null ? 'Located in receipt' : `${(Number(confidence) * 100).toFixed(1)}% scanner score (not a guarantee)`} · verify against original` : 'Not read automatically · enter if shown';
     }
     $('runtimeStatus').textContent = `${Number(currentReceipt.runtime_seconds).toFixed(2)} seconds`; $('recordId').textContent = currentReceipt.public_id;
     const integrity = currentReceipt.integrity?.status || 'legacy_unverified';
@@ -263,20 +362,12 @@ async function openReceipt(id) {
     $('integrityStatus').className = `status-pill integrity-${integrity}`;
     const missing = ['merchant','transaction_date','receipt_number','total_amount'].filter(key => !currentReceipt[key]);
     const arithmetic = currentReceipt.audit?.arithmetic_consistency?.status;
-    const arithmeticMessage = arithmetic === 'inconsistent' ? ' The detected line amounts do not agree; correct them before using this record.' : arithmetic === 'consistent' ? ' The detected line arithmetic is consistent, but still requires comparison with the original.' : ' Line arithmetic could not be checked from the detected content.';
-    $('readingMessage').textContent = (missing.length ? `We could not confidently read ${missing.length} important ${missing.length === 1 ? 'detail' : 'details'}. Enter them manually before marking this receipt as reviewed.` : 'All key details were found. Compare them with the original before marking this receipt as reviewed.') + arithmeticMessage;
+    const arithmeticMessage = arithmetic === 'inconsistent' ? ' The scanner detected an arithmetic mismatch; compare the line items with the original.' : arithmetic === 'consistent' ? ' The detected line arithmetic is consistent, but still requires comparison with the original.' : ' Line arithmetic could not be checked from the detected content.';
+    $('readingMessage').textContent = (missing.length ? `The scanner needs attention on ${missing.length} important ${missing.length === 1 ? 'detail' : 'details'}. Correct only those values before confirming the receipt.` : `${currentReceipt.line_items?.length || 0} line item${currentReceipt.line_items?.length === 1 ? '' : 's'} and all primary details were found. Confirm them against the image.`) + arithmeticMessage;
     const lines = dedupeOcrLines(currentReceipt.audit?.ocr_lines || []);
     const suggestions = new Map((currentReceipt.audit?.ocr_suggestions || []).map(item => [Number(item.line_index), item]));
     $('ocrTable').innerHTML = lines.length ? `<table><thead><tr><th>#</th><th>Scanner reading</th><th>Possible correction</th><th>Confidence</th></tr></thead><tbody>${lines.map((line, index) => { const suggestion = suggestions.get(index); return `<tr><td>${index + 1}</td><td>${escapeHtml(line.text)}</td><td>${suggestion ? `<span class="suggested-reading">${escapeHtml(suggestion.suggested)}</span><small>Verify against original</small>` : '<span class="no-suggestion">—</span>'}</td><td>${line.confidence == null ? '—' : `${(Number(line.confidence) * 100).toFixed(1)}%`}</td></tr>`; }).join('')}</tbody></table>` : '<p class="empty-copy">No text was recognised. Enter the receipt details manually.</p>';
     $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.pdf`; $('accountingDownload').href = `/api/receipts/${encodeURIComponent(id)}/ocr.xlsx`; $('technicalDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`; $('documentDownload').href = currentReceipt.restored_url;
-    if (qualityForm) {
-      const assessment = currentReceipt.audit?.quality_assessment || {};
-      $('qualityType').value = assessment.receipt_type || ''; $('qualityCondition').value = assessment.source_condition || '';
-      $('qualityRating').value = assessment.faithful_rating || ''; $('qualityReadability').value = assessment.readability_score || '';
-      $('qualityNotes').value = assessment.notes || '';
-      const savedIssues = new Set(assessment.issues || []); document.querySelectorAll('.quality-issues input').forEach(input => input.checked = savedIssues.has(input.value));
-      $('qualityMessage').textContent = assessment.assessed_at ? `Saved ${formatDate(assessment.assessed_at)}` : '';
-    }
     setImageMode('faithful'); route('detail');
   } catch (error) { toast(error.message, true); }
 }
@@ -296,18 +387,14 @@ function collectLineItems() {
 }
 
 function renderReadiness(receipt) {
-  const items = receipt.line_items || [];
+  const a = receipt.accounting_fields || {};
   const rows = [
-    ['Supplier name', receipt.merchant, receipt.merchant ? 'Captured—verify' : 'Required'],
-    ['Invoice number', receipt.receipt_number, receipt.receipt_number ? 'Captured—verify' : 'Required'],
-    ['Invoice date', receipt.transaction_date, receipt.transaction_date ? 'Captured—verify' : 'Required'],
-    ['Payable total', receipt.total_amount, receipt.total_amount ? 'Captured—verify' : 'Required'],
-    ['Line items', items.length ? `${items.length} row(s)` : '', items.length ? 'Review rows' : 'Required'],
-    ['Supplier TIN, registration, address and contact', '', 'Required from business records'],
-    ['Buyer name, TIN, ID, address and contact', '', 'Required from business records'],
-    ['Classification and tax details', '', 'Required from accounting/tax setup'],
-    ['Currency and invoice time', 'MYR / not captured', 'Verify or enter'],
-    ['Digital signature and submission identifiers', '', 'Created by authorised submission workflow'],
+    ['Document', [a.document_type, receipt.receipt_number].filter(Boolean).join(' · ') || 'Not captured', receipt.receipt_number ? 'Extracted' : 'Needs attention'],
+    ['Supplier', a.supplier_name || receipt.merchant || 'Not captured', (a.supplier_registration_number || a.supplier_tax_number) ? 'Identity evidence extracted' : 'Name extracted; registration/tax number not shown or unreadable'],
+    ['Transaction', [receipt.transaction_date, a.currency || 'MYR', receipt.total_amount].filter(Boolean).join(' · '), receipt.transaction_date && receipt.total_amount ? 'Extracted' : 'Needs attention'],
+    ['Line items', `${receipt.line_items?.length || 0} row(s)`, receipt.line_items?.length ? 'Extracted; confirm uncertain cells' : 'No item row confirmed'],
+    ['Tax evidence', [a.subtotal && `subtotal ${a.subtotal}`, a.discount && `discount ${a.discount}`, a.tax_amount && `tax ${a.tax_amount}`].filter(Boolean).join(' · ') || 'Not printed or not detected', 'Used as supporting accounting evidence'],
+    ['MyInvois workflow', 'Supporting evidence prepared', 'This app prepares evidence; authorised submission remains separate'],
   ];
   $('myinvoisChecklist').innerHTML = `<table><thead><tr><th>Field group</th><th>Current value</th><th>Status</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHtml(row[0])}</td><td>${escapeHtml(row[1] || '—')}</td><td>${escapeHtml(row[2])}</td></tr>`).join('')}</tbody></table>`;
 }
@@ -338,20 +425,23 @@ function updateComparison(value) { $('restoredWrap').style.clipPath = `inset(0 $
 $('compareSlider').oninput = event => updateComparison(event.target.value);
 
 function setImageMode(mode) {
+  if (!['faithful','original','compare'].includes(mode)) mode = 'faithful';
   const comparison = $('comparison');
+  $('originalImage').src = mode === 'compare' ? (currentReceipt?.faithful_reference_url || currentReceipt?.original_url || '') : (currentReceipt?.original_url || '');
   comparison.classList.remove('improved-mode','original-mode','compare-mode');
   comparison.classList.add(`${mode === 'original' ? 'original' : mode === 'compare' ? 'compare' : 'improved'}-mode`);
-  for (const [name,id] of [['faithful','faithfulViewButton'],['reading','readingViewButton'],['original','originalViewButton'],['compare','compareViewButton']]) $(''+id).classList.toggle('active', name === mode);
+  for (const [name,id] of [['faithful','faithfulViewButton'],['original','originalViewButton'],['compare','compareViewButton']]) $(''+id).classList.toggle('active', name === mode);
   if (mode === 'faithful' || mode === 'compare') $('restoredImage').src = currentReceipt?.faithful_url || currentReceipt?.restored_url || '';
-  if (mode === 'reading') $('restoredImage').src = currentReceipt?.restored_url || '';
-  if (mode === 'compare') { $('compareSlider').value = 50; updateComparison(50); }
-  const thermalAssisted = String(currentReceipt?.audit?.display_image || '').includes('ocr_assisted');
-  $('comparisonViewLabel').textContent = mode === 'faithful' ? 'Faithful recovery · source-supported stroke repair' : mode === 'reading' ? (thermalAssisted ? 'Optional OCR-assisted clean view · not evidence' : 'Optional clean-background view · not formal evidence') : mode === 'original' ? 'Original upload · unchanged audit source' : 'Original and faithful content recovery';
-  $('comparisonNote').textContent = mode === 'faithful' || mode === 'compare' ? 'Small broken strokes are joined only where nearby source or DSDNet evidence supports the connection. OCR localises text but does not draw wording. Paper texture is reduced conservatively.' : mode === 'reading' ? (thermalAssisted ? 'High-confidence OCR readings may be typeset for readability. This copy can contain recognition errors and must never replace the original or faithful recovery.' : 'This is only a cleaner-background display. It is not a second restoration result and is excluded from formal evidence metrics.') : 'The original upload is preserved as the audit source.';
+  if (mode === 'compare') { setValue('compareSlider', 50); updateComparison(50); }
+  const gate = currentReceipt?.audit?.faithfulness_gate;
+  const audit = currentReceipt?.audit || {};
+  const sourceView = Boolean(audit.release_content_fix || audit.faithful_processing || audit.native_refinement?.applied || audit.display_image === 'faithful_recovery');
+  const rejected = gate?.accepted === false && !sourceView;
+  $('comparisonViewLabel').textContent = mode === 'faithful' ? (rejected ? 'Original retained' : 'Faithful recovery') : mode === 'original' ? 'Original upload' : 'Original and faithful recovery';
+  $('comparisonNote').textContent = mode === 'original' ? 'The original upload is preserved.' : rejected ? 'The recovery was rejected. Review the retained original.' : 'Review text, signatures, logos and faint details against the original. Unreadable characters cannot be confirmed by enhancement.';
   $('comparisonHelp').textContent = mode === 'compare' ? 'Drag the divider' : 'Select Compare for the split view';
 }
 $('faithfulViewButton').onclick = () => setImageMode('faithful');
-$('readingViewButton').onclick = () => setImageMode('reading');
 $('originalViewButton').onclick = () => setImageMode('original');
 $('compareViewButton').onclick = () => setImageMode('compare');
 
@@ -362,8 +452,7 @@ function updateFullImageZoom() {
 }
 function openFullImage() {
   if (!currentReceipt) return;
-  const readingSelected = $('readingViewButton').classList.contains('active');
-  $('fullImage').src = readingSelected ? currentReceipt.restored_url : ($('originalViewButton').classList.contains('active') ? currentReceipt.original_url : currentReceipt.faithful_url);
+  $('fullImage').src = $('originalViewButton').classList.contains('active') ? currentReceipt.original_url : currentReceipt.faithful_url;
   imageZoom = 1; updateFullImageZoom(); $('imageDialog').showModal();
 }
 $('fullImageButton').onclick = openFullImage;
@@ -375,37 +464,29 @@ $('zoomResetButton').onclick = () => { imageZoom = 1; updateFullImageZoom(); };
 
 $('reviewForm').onsubmit = async event => {
   event.preventDefault(); if (!currentReceipt) return;
-  const payload = {merchant: $('merchantField').value.trim(), transaction_date: $('dateField').value.trim(), receipt_number: $('numberField').value.trim(), total_amount: $('totalField').value.trim(), status: $('reviewStatus').value, tags: $('tagsField').value.split(',').map(v => v.trim()).filter(Boolean), notes: $('notesField').value.trim(), line_items: collectLineItems()};
+  const accounting_fields = {...(currentReceipt.accounting_fields || {}),supplier_name:fieldValue('merchantField'),document_number:fieldValue('numberField'),transaction_date:fieldValue('dateField'),payable_amount:fieldValue('totalField'),document_type:fieldValue('documentTypeField'),currency:fieldValue('currencyField'),supplier_registration_number:fieldValue('supplierRegistrationField'),supplier_tax_number:fieldValue('supplierTaxField'),supplier_address:fieldValue('supplierAddressField'),supplier_phone:fieldValue('supplierPhoneField'),supplier_email:fieldValue('supplierEmailField'),payment_method:fieldValue('paymentMethodField'),subtotal:fieldValue('subtotalField'),discount:fieldValue('discountField'),tax_amount:fieldValue('taxAmountField'),line_item_count:collectLineItems().length};
+  const payload = {merchant: fieldValue('merchantField'), transaction_date: fieldValue('dateField'), receipt_number: fieldValue('numberField'), total_amount: fieldValue('totalField'), status: fieldValue('reviewStatus'), tags: fieldValue('tagsField').split(',').map(v => v.trim()).filter(Boolean), notes: fieldValue('notesField'), line_items: collectLineItems(), accounting_fields};
   try {
     currentReceipt = await api(`/api/receipts/${encodeURIComponent(currentReceipt.public_id)}`, {method: 'PATCH', body: payload});
     $('detailStatus').textContent = statusLabel(currentReceipt.status); $('detailStatus').className = `status-pill ${currentReceipt.status}`;
     $('detailTitle').textContent = currentReceipt.merchant || currentReceipt.source_name;
     $('saveMessage').textContent = 'Saved successfully.'; toast('Receipt review saved.'); setTimeout(() => $('saveMessage').textContent = '', 2500);
-  } catch (error) { $('saveMessage').textContent = error.message; }
-};
-
-const qualityForm = $('qualityForm');
-if (qualityForm) qualityForm.onsubmit = async event => {
-  event.preventDefault(); if (!currentReceipt) return;
-  const payload = {receipt_type:$('qualityType').value, source_condition:$('qualityCondition').value, faithful_rating:$('qualityRating').value, readability_score:$('qualityReadability').value, issues:[...document.querySelectorAll('.quality-issues input:checked')].map(input => input.value), notes:$('qualityNotes').value.trim()};
-  try {
-    const saved = await api(`/api/receipts/${encodeURIComponent(currentReceipt.public_id)}/quality-assessment`, {method:'POST', body:payload});
-    currentReceipt.audit = currentReceipt.audit || {}; currentReceipt.audit.quality_assessment = saved;
-    $('qualityMessage').textContent = 'Assessment saved.'; toast('Receipt quality assessment saved.');
-  } catch (error) { $('qualityMessage').textContent = error.message; }
+  } catch (error) { $('saveMessage').textContent = [error.message, ...Object.values(error.details?.fields || {})].join(' '); }
 };
 
 $('addLineItemButton').onclick = () => { const rows = collectLineItems(); rows.push({item:'',description:'',quantity:'',unit:'',unit_price:'',discount:'',amount:'',review_note:''}); renderLineItems(rows); };
 
 $('copyFieldsButton').onclick = async () => {
   if (!currentReceipt) return;
-  const text = [`Merchant: ${$('merchantField').value}`, `Transaction date: ${$('dateField').value}`, `Receipt / invoice number: ${$('numberField').value}`, `Total amount (MYR): ${$('totalField').value}`].join('\n');
-  try { await navigator.clipboard.writeText(text); toast('Reviewed details copied.'); }
+  const itemText = collectLineItems().map((row,index)=>`Item ${index+1}: ${row.description || '—'} | Qty ${row.quantity || '—'} | Unit price ${row.unit_price || '—'} | Amount ${row.amount || '—'}`).join('\n');
+  const text = [`Merchant: ${$('merchantField').value}`, `Supplier registration: ${$('supplierRegistrationField').value}`, `Supplier tax number: ${$('supplierTaxField').value}`, `Transaction date: ${$('dateField').value}`, `Receipt / invoice number: ${$('numberField').value}`, `Total amount (MYR): ${$('totalField').value}`, itemText].filter(Boolean).join('\n');
+  try { await navigator.clipboard.writeText(text); toast('Visible details copied. Verify against the original.'); }
   catch (_) { toast('Your browser blocked clipboard access.', true); }
 };
 
 $('reextractButton').onclick = async () => {
   if (!currentReceipt) return;
+  if (!confirm('Re-reading replaces saved merchant, date, number and total with scanner results and regenerates the recovery image. Unsaved edits will also be lost. Continue?')) return;
   try { await api(`/api/receipts/${encodeURIComponent(currentReceipt.public_id)}/reextract`, {method: 'POST'}); toast('Fields re-read. Verify them against the original.'); await openReceipt(currentReceipt.public_id); }
   catch (error) { toast(error.message, true); }
 };

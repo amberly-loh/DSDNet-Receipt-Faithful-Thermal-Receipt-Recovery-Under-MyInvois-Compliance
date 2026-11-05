@@ -59,13 +59,18 @@ def test_account_and_owned_receipt_workflow(tmp_path: Path) -> None:
     assert client.get("/api/dashboard").get_json()["stats"]["total"] == 1
     update = client.patch(
         "/api/receipts/USER-TEST-001",
-        json={"merchant": "Local Shop", "status": "reviewed", "tags": ["claim"], "line_items": [{"item":"1","description":"Office paper","quantity":"2","unit":"pack","unit_price":"5.00","discount":"0.00","amount":"10.00","review_note":"Verified"}]},
+        json={"merchant": "Local Shop", "status": "reviewed", "tags": ["claim"], "line_items": [{"item":"1","description":"Office paper","quantity":"2","unit":"pack","unit_price":"5.00","discount":"0.00","amount":"10.00","review_note":"Verified"}], "accounting_fields": {"document_type":"Tax Invoice","currency":"MYR","supplier_registration_number":"206259-X","supplier_address":"No. 2, Jalan Jati Utama 2","supplier_phone":"03-60573046","payment_method":"Cash","subtotal":"12.50","tax_amount":"0.00"}},
         headers={"X-CSRF-Token": token},
     )
     assert update.status_code == 200
     assert update.get_json()["merchant"] == "Local Shop"
     assert update.get_json()["status"] == "reviewed"
     assert update.get_json()["line_items"][0]["description"] == "Office paper"
+    assert update.get_json()["accounting_fields"]["document_type"] == "Tax Invoice"
+    detail = client.get("/api/receipts/USER-TEST-001")
+    assert detail.status_code == 200
+    assert detail.get_json()["accounting_fields"]["supplier_registration_number"] == "206259-X"
+    assert detail.get_json()["accounting_fields"]["currency"] == "MYR"
     assert client.get("/api/export.csv").status_code == 200
     assessment = client.post(
         "/api/receipts/USER-TEST-001/quality-assessment",
@@ -80,6 +85,39 @@ def test_account_and_owned_receipt_workflow(tmp_path: Path) -> None:
 
     assert client.post("/api/logout", headers={"X-CSRF-Token": token}).status_code == 200
     assert client.get("/api/dashboard").status_code == 401
+
+
+def test_verified_receipt_memory_requires_consensus_and_strong_match(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    store = app.extensions["receipt_store"]
+    user = store.create_guest()
+    now = utc_now()
+    common = {
+        "user_id": user["id"], "source_name": "receipt.jpg", "created_at": now,
+        "updated_at": now, "status": "reviewed", "merchant": "CHOP HOCK CHUAN HIN",
+        "receipt_number": "61036", "total_amount": "340.00", "tags": "[]",
+        "notes": "", "ocr_text": "", "audit_json": "{}", "input_path": "a.png",
+        "restored_path": "b.png", "runtime_seconds": 0, "restoration_status": "ok",
+        "support_status": "unavailable", "content_sha256": "same-hash",
+    }
+    store.create_receipt({**common, "public_id": "VERIFIED-1", "transaction_date": "2024-03-19"})
+    exact = store.verified_field_suggestions(
+        user["id"], content_sha256="same-hash", merchant=None,
+        receipt_number=None, total_amount=None,
+    )
+    assert exact["transaction_date"] == "2024-03-19"
+    assert exact["method"] == "global_exact_source_sha256"
+    reusable = store.verified_field_suggestions(
+        user["id"], content_sha256="different", merchant="CHOP HOCK CHUAN HIN",
+        receipt_number="61036", total_amount="340",
+    )
+    assert reusable["transaction_date"] == "2024-03-19"
+    weak = store.verified_field_suggestions(
+        user["id"], content_sha256="different", merchant="CHOP HOCK CHUAN HIN",
+        receipt_number=None, total_amount="340",
+    )
+    assert weak["transaction_date"] is None
 
 
 def test_mutation_requires_csrf(tmp_path: Path) -> None:
@@ -136,15 +174,55 @@ def test_review_rejects_missing_required_fields_and_invalid_values(tmp_path: Pat
     assert set(result.get_json()["fields"]) == {"transaction_date", "total_amount", "status"}
 
 
-def test_receipt_view_defaults_to_faithful_recovery_and_separates_reading_copy(tmp_path: Path) -> None:
+def test_receipt_view_has_only_faithful_original_and_compare(tmp_path: Path) -> None:
     config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
     app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
     html = app.test_client().get("/").get_data(as_text=True)
     assert 'class="comparison improved-mode"' in html
     assert 'id="faithfulViewButton" class="active"' in html
-    assert 'id="readingViewButton"' in html
-    assert 'Faithful content recovery · thesis-safe view' in html
+    assert 'id="readingViewButton"' not in html
+    assert 'Clean view' not in html
     assert 'Optional reading copy' not in html  # runtime label depends on the receipt
     assert 'id="compareViewButton"' in html
-    assert 'id="qualityForm"' in html
+    assert 'id="originalViewButton"' in html
+    assert 'id="qualityForm"' not in html
+    assert 'Accounting and MyInvois evidence' in html
     assert '/api/quality-evaluation.csv' in html
+
+
+def test_frontend_refreshes_stale_csrf_token_once() -> None:
+    script = (Path(__file__).resolve().parents[1] / "web" / "static" / "app.js").read_text(encoding="utf-8")
+    assert "allowSessionRetry = true" in script
+    assert "fetch('/api/auth', {cache: 'no-store'})" in script
+    assert "return api(path, options, false)" in script
+
+
+def test_guest_selection_validation_and_isolation(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    guest_client = app.test_client()
+    guest_response = guest_client.post('/api/guest', headers={'X-CSRF-Token': csrf(guest_client)})
+    assert guest_response.status_code == 201
+    guest = guest_response.get_json()['user']
+    token = guest_response.get_json()['csrf_token']
+    assert guest['is_guest'] and guest['role'] == 'user'
+    store = app.extensions['receipt_store']; now = utc_now()
+    source = tmp_path / 'source.png'; source.write_bytes(b'x')
+    for index, amount in enumerate(['0.10', '0.20', None]):
+        store.create_receipt({'public_id': f'G-{index}', 'user_id': guest['id'], 'source_name': 'a.png', 'created_at': now, 'updated_at': now, 'status': 'needs_review', 'merchant': 'Shop', 'transaction_date': '2026-01-01', 'receipt_number': None, 'total_amount': amount, 'tags': '[]', 'notes': '', 'ocr_text': '', 'audit_json': '{}', 'input_path': str(source), 'restored_path': str(source), 'runtime_seconds': 0, 'restoration_status': 'ok', 'support_status': 'unavailable'})
+    result = guest_client.post('/api/receipts/selection-summary', json={'ids': ['G-0', 'G-1', 'G-2']}, headers={'X-CSRF-Token': token})
+    assert result.status_code == 200
+    assert result.get_json()['total'] == '0.30'
+    assert result.get_json()['missing_amounts'] == 1
+    assert result.get_json()['not_reviewed'] == 3
+    invalid = guest_client.patch('/api/receipts/G-0', json={'total_amount': '1.234'}, headers={'X-CSRF-Token': token})
+    assert invalid.status_code == 400
+    valid = guest_client.patch('/api/receipts/G-0', json={'status': 'reviewed'}, headers={'X-CSRF-Token': token})
+    assert valid.status_code == 200
+    other = app.test_client()
+    registration = other.post('/api/register', json={'name': 'Owner User', 'email': 'owner@valid-domain.my', 'password': 'long-test-password-1', 'password_confirmation': 'long-test-password-1', 'policy_accepted': True}, headers={'X-CSRF-Token': csrf(other)})
+    assert registration.status_code == 201 and registration.get_json()['user']['role'] == 'admin'
+    other_token = registration.get_json()['csrf_token']
+    assert other.post('/api/receipts/selection-summary', json={'ids': ['G-0']}, headers={'X-CSRF-Token': other_token}).status_code == 404
+    assert guest_client.post('/api/logout', headers={'X-CSRF-Token': token}).status_code == 200
+    assert guest_client.get('/api/dashboard').status_code == 401

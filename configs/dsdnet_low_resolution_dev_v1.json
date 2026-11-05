@@ -1,0 +1,11 @@
+{
+  "seed": 56,
+  "generation_manifest": "../artifacts/low_resolution_experiment/manifest.jsonl",
+  "network": {"stages": 8, "maxout_branches": 4, "prior_channels": 16, "data_channels": 16},
+  "objective": {"pixel": "L1", "structural": "1-SSIM", "ssim_coefficient": 0.2, "stroke_gradient_coefficient": 0.3, "foreground_text_coefficient": 0.4},
+  "optimizer": {"type": "AdamW", "learning_rate": 0.00001, "beta1": 0.9, "beta2": 0.999, "epsilon": 1e-8, "weight_decay": 0.0001},
+  "schedule": {"type": "CosineAnnealingLR", "t_max_iterations": 500, "eta_min": 0.000001},
+  "training": {"total_iterations": 500, "crop_height": 128, "crop_width": 128, "batch_size_per_device": 1, "mixed_precision": true, "gradient_checkpointing": false, "gradient_clipping": true, "gradient_clip_norm": 1.0, "checkpoint_interval": 250, "text_crop_probability": 0.9},
+  "natural_receipt_augmentation": {"enabled": false},
+  "experiment_scope": "development fine tuning on native resolution blurred faded source scans; no test partition access"
+}

@@ -56,7 +56,11 @@ def main() -> None:
         default=ROOT / "artifacts/validation_restoration/training_foreground_dev_v4_checkpoint_0000500/records.csv",
     )
     parser.add_argument("--partition", choices=("validation", "test"), default="validation")
+    parser.add_argument("--output", type=Path, help="Write this report to a separate file")
+    parser.add_argument("--exploratory-test", action="store_true", help="Mark previously inspected test data as exploratory")
     args = parser.parse_args()
+    if args.exploratory_test and (args.partition != 'test' or args.output is None):
+        parser.error('--exploratory-test requires --partition test and --output')
     with args.records.open(encoding="utf-8-sig", newline="") as stream:
         rows = list(csv.DictReader(stream))
     values = source_means(rows)
@@ -94,7 +98,7 @@ def main() -> None:
         )
     report = {
         "partition": args.partition,
-        "formal_test_evidence": args.partition == "test",
+        "formal_test_evidence": args.partition == "test" and not args.exploratory_test,
         "unit_of_analysis": "source group (three degradation variants averaged per source)",
         "test": "one-sided paired Wilcoxon signed-rank with Holm family-wise correction",
         "interval": "10,000-draw paired source bootstrap CI for mean benefit",
@@ -103,10 +107,10 @@ def main() -> None:
             row["significantly_better"] for row in comparisons
         ),
         "comparisons": comparisons,
-        "warning": "No post-test tuning is permitted." if args.partition == "test" else "Validation evidence supports selection only; confirm once on the locked held-out test.",
+        "warning": "Previously inspected test data; exploratory only and not an independent confirmation." if args.exploratory_test else "No post-test tuning is permitted; verify test provenance and prior access before making a confirmatory claim." if args.partition == "test" else "Exploratory validation evidence only; the existing test partition has previously been inspected and is not a fresh independent test.",
     }
     filename = "formal_test_significance.json" if args.partition == "test" else "validation_significance.json"
-    output = ROOT / "artifacts/formal_run" / filename
+    output = args.output if args.output else ROOT / "artifacts/formal_run" / filename
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
