@@ -764,9 +764,9 @@ def create_app(
             "receipt_invoice_number": values["receipt_number"], "total_amount": values["total_amount"],
         })
         updated = store.update_receipt(user["id"], receipt_id, values)
-        # Rebuild the reading copy too. This allows older faint thermal
-        # receipts to benefit from the adaptive renderer without re-uploading.
-        from .restoration import assess_receipt_degradation, make_adaptive_document_view, make_faithful_content_view, make_readability_view, overlay_supported_ocr_text, region_adaptive_source_fusion, select_faithful_recovery
+        # Rebuild the Faithful proposed-method output so older receipts can
+        # benefit from the current recovery without being uploaded again.
+        from .restoration import assess_receipt_degradation, make_adaptive_document_view, make_faithful_content_view, make_readability_view, region_adaptive_source_fusion, select_faithful_recovery
         run_root = Path(existing["restored_path"]).parent
         source_path = run_root / "rectified_input.png"
         recovery_path = run_root / "ocr_input.png"
@@ -794,12 +794,6 @@ def create_app(
             )
             faithful_path = run_root / "faithful_content.png"
             write_image(faithful_path, faithful_content)
-            reading_base = cv2.cvtColor(faithful_content, cv2.COLOR_BGR2GRAY) if faithful_content.ndim == 3 else faithful_content
-            reading_copy, rendered_readings = overlay_supported_ocr_text(
-                reading_base, lines, minimum_confidence=0.70
-            )
-            reading_path = run_root / "reading_copy.png"
-            write_image(reading_path, reading_copy)
             display_mode = 'faithful_recovery'
             write_image(existing["restored_path"], faithful_content)
             audit = existing["audit"]
@@ -812,20 +806,16 @@ def create_app(
             } if display_mode.startswith("faint_thermal") else {
                 "text": "OCR-localised source pixels", "rules": "thin linear structures",
                 "marks": "dark connected source components", "background": "white",
+                "ocr_role": "localisation only; recognised strings are not rendered",
+                "model_role": "independent source-trace support gate",
             })
             audit.setdefault("stored_file_sha256", {})["recovered"] = _file_sha256(existing["restored_path"])
             audit["stored_file_sha256"]["faithful_content"] = _file_sha256(faithful_path)
-            audit["stored_file_sha256"]["reading_copy"] = _file_sha256(reading_path)
-            audit["reading_copy"] = {
-                "image": "reading_copy.png",
-                "renderer_version": 2,
-                "synthetic_text_rendering": True,
-                "rendered_ocr_regions": rendered_readings,
-                "minimum_confidence": 0.70,
-                "role": "optional reconstructed reading; excluded from faithful evidence and restoration metrics",
-            }
             audit["faithful_display_image"] = "faithful_content.png"
-            audit["faithful_display_policy"] = "background-normalised image-derived content; no OCR glyph rendering"
+            audit["faithful_display_policy"] = (
+                "background-normalised image-derived content with OCR-localised, "
+                "source-and-DSDNet-supported stroke regularisation; recognised strings are not rendered"
+            )
             audit["faithfulness_gate"] = {
                 "accepted": faithfulness.accepted,
                 "reason": faithfulness.reason,
@@ -858,7 +848,7 @@ def create_app(
     @require_auth
     def receipt_image(receipt_id: str, kind: str):
         receipt = store.get_receipt(current_user()["id"], receipt_id)
-        if not receipt or kind not in {"original", "restored", "faithful", "reading", "faithful_reference", "diagnostic"}:
+        if not receipt or kind not in {"original", "restored", "faithful", "faithful_reference", "diagnostic"}:
             return jsonify({"error": "Image not found."}), 404
         store.log_event(current_user()["id"], "receipt.image_view", "receipt", receipt_id, details={"kind": kind})
         path = receipt["input_path"] if kind == "original" else receipt["restored_path"]
@@ -867,29 +857,6 @@ def create_app(
             if not candidate.is_file():
                 candidate = Path(receipt["restored_path"]).with_name("ocr_input.png")
             path = str(candidate if candidate.is_file() else Path(receipt["restored_path"]))
-        if kind == "reading":
-            root = Path(receipt["restored_path"]).parent
-            candidate = root / "reading_copy.png"
-            audit = receipt.get("audit") or {}
-            if not candidate.is_file() or (audit.get("reading_copy") or {}).get("renderer_version") != 2:
-                from .restoration import overlay_supported_ocr_text
-                base_path = root / "faithful_content.png"
-                base = cv2.imread(str(base_path if base_path.is_file() else Path(receipt["restored_path"])), cv2.IMREAD_GRAYSCALE)
-                lines = (receipt.get("audit") or {}).get("ocr_lines") or []
-                if base is not None and lines:
-                    reading_copy, rendered_readings = overlay_supported_ocr_text(base, lines, minimum_confidence=0.70)
-                    write_image(candidate, reading_copy)
-                    audit.setdefault("stored_file_sha256", {})["reading_copy"] = _file_sha256(candidate)
-                    audit["reading_copy"] = {
-                        "image": "reading_copy.png", "renderer_version": 2,
-                        "synthetic_text_rendering": True,
-                        "rendered_ocr_regions": rendered_readings,
-                        "minimum_confidence": 0.70,
-                        "role": "optional reconstructed reading; excluded from faithful evidence and restoration metrics",
-                    }
-                    write_json(root / "audit.json", audit)
-                    store.update_receipt_audit(current_user()["id"], receipt_id, audit)
-            path = str(candidate)
         if kind == "diagnostic": path = str(Path(receipt["restored_path"]).with_name("diagnostic.png"))
         if kind == "faithful_reference":
             root = Path(receipt["restored_path"]).parent
@@ -1094,7 +1061,7 @@ def create_app(
         registered_color, preprocessing_record = preprocess(image, config, preserve_color=True)
         processed = cv2.cvtColor(registered_color, cv2.COLOR_BGR2GRAY) if registered_color.ndim == 3 else registered_color
         faithful_refinement = {}
-        from .restoration import assess_receipt_degradation, make_adaptive_document_view, make_faithful_content_view, make_readability_view, overlay_supported_ocr_text, region_adaptive_source_fusion, select_faithful_recovery
+        from .restoration import assess_receipt_degradation, make_adaptive_document_view, make_faithful_content_view, make_readability_view, region_adaptive_source_fusion, select_faithful_recovery
         with inference_lock:
             restoration = restoration_engine.run(processed)
             degradation_profile = assess_receipt_degradation(processed)
@@ -1121,10 +1088,6 @@ def create_app(
                 source_color=registered_color if registered_color.ndim == 3 else None,
                 native_refinement=config.get('native_refinement'),
                 refinement_audit=faithful_refinement,
-            )
-            reading_base = cv2.cvtColor(faithful_content, cv2.COLOR_BGR2GRAY) if faithful_content.ndim == 3 else faithful_content
-            reading_copy, rendered_readings = overlay_supported_ocr_text(
-                reading_base, ocr.lines, minimum_confidence=0.70
             )
             document_view = faithful_content
             display_mode = "faithful_recovery"
@@ -1164,43 +1127,31 @@ def create_app(
         write_image(audit_root / "registered_color.png", registered_color)
         write_image(audit_root / "ocr_input.png", selected_recovery)
         write_image(audit_root / "faithful_content.png", faithful_content)
-        write_image(audit_root / "reading_copy.png", reading_copy)
         if faithful_refinement.get('applied'):
             reference = cv2.resize(registered_color, (faithful_content.shape[1], faithful_content.shape[0]), interpolation=cv2.INTER_CUBIC)
             write_image(audit_root / 'faithful_reference.png', reference)
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
         if restoration.diagnostic_map is not None: write_image(diagnostic_path, restoration.diagnostic_map)
         runtime = time.perf_counter() - started
-        policy = ({
-            "text": "high-confidence OCR readings rendered over a source-derived document view",
-            "background": "locally normalised", "selection": "low-contrast thermal receipt",
-            "synthetic_text_rendering": True, "rendered_ocr_regions": rendered_readings,
-            "role": "optional reading copy; excluded from restoration and evidence evaluation",
-        } if display_mode == "ocr_assisted_reading_copy" else {
+        policy = {
             "text": "OCR-localised source pixels", "rules": "thin linear structures",
             "marks": "dark connected source components", "background": "white",
             "synthetic_text_rendering": False,
-            "role": "source-derived reading view; excluded from formal restoration metrics",
-        })
-        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path), "faithful_content": _file_sha256(audit_root / "faithful_content.png")}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "degradation_profile": degradation_profile, "region_adaptive_fusion": fusion_record, "faithfulness_gate": {"accepted": faithfulness.accepted, "reason": faithfulness.reason, "metrics": faithfulness.metrics, "fallback": None if faithfulness.accepted else "rectified_original"}, "display_image": display_mode, "faithful_display_image": "faithful_content.png", "faithful_display_policy": "degradation-adaptive, region-level source-supported contrast; exact rectified original used when the faithfulness gate rejects recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "post_recognition_review_only_not_used_for_fixed_ocr_evaluation", "semantic_extraction": {"method": "layout_aware_receipt_semantics_v2", "line_items": semantic_items, "accounting_fields": accounting_fields}, "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
-        audit["stored_file_sha256"]["reading_copy"] = _file_sha256(audit_root / "reading_copy.png")
-        audit["reading_copy"] = {
-            "image": "reading_copy.png",
-            "renderer_version": 2,
-            "synthetic_text_rendering": True,
-            "rendered_ocr_regions": rendered_readings,
-            "minimum_confidence": 0.70,
-            "role": "optional reconstructed reading; excluded from faithful evidence and restoration metrics",
+            "ocr_role": "localisation only; recognised strings are not rendered",
+            "model_role": "independent source-trace support gate",
+            "role": "Faithful proposed-method output",
         }
+        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path), "faithful_content": _file_sha256(audit_root / "faithful_content.png")}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "degradation_profile": degradation_profile, "region_adaptive_fusion": fusion_record, "faithfulness_gate": {"accepted": faithfulness.accepted, "reason": faithfulness.reason, "metrics": faithfulness.metrics, "fallback": None if faithfulness.accepted else "rectified_original"}, "display_image": display_mode, "faithful_display_image": "faithful_content.png", "faithful_display_policy": "degradation-adaptive, OCR-localised source-and-DSDNet-supported stroke regularisation; recognised strings are not rendered; exact rectified original used when the faithfulness gate rejects recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "localisation_only_for_faithful_stroke_regularisation; recognised_strings_not_rendered", "semantic_extraction": {"method": "layout_aware_receipt_semantics_v2", "line_items": semantic_items, "accounting_fields": accounting_fields}, "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
         from .restoration import complete_document_preservation_mode
         faithful_mode = complete_document_preservation_mode(registered_color)
         if faithful_mode:
             audit["faithful_display_policy"] = faithful_mode
             audit["faithful_preprocessing"] = preprocessing_record
             audit["faithful_processing"] = {
-                "method": "continuous source luminance enhancement",
-                "model_pixels_used": False,
+                "method": "continuous source luminance enhancement with evidence-gated stroke regularisation",
+                "model_role": "independent support gate; recognised glyphs are not rendered",
                 "synthetic_text_rendering": False,
+                "ocr_role": "line localisation only",
                 "ocr_used_for_foreground_deletion": False,
                 "color_retained": faithful_content.ndim == 3,
             }

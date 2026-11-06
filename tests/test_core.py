@@ -845,17 +845,54 @@ def test_thermal_overlay_preserves_detected_box_centre() -> None:
     assert abs(float(ys.mean()) - 40.0) < 8.0
 
 
-def test_thermal_overlay_renders_unicode_prominently_when_font_available() -> None:
-    from dsdnet_receipt.restoration import overlay_supported_ocr_text
+def test_faithful_text_strengthening_uses_evidence_not_ocr_characters() -> None:
+    from dsdnet_receipt.restoration import regularize_continuous_supported_text
 
-    image = np.full((100, 360), 250, np.uint8)
-    output, count = overlay_supported_ocr_text(
-        image,
-        [{"text": "現沽單 CASH SALE", "confidence": .99,
-          "box": [[40, 25], [320, 25], [320, 60], [40, 60]]}],
+    source = np.full((80, 180), 245, np.uint8)
+    source[34:49, 40:43] = 237
+    source[34:49, 55:58] = 237
+    source[40:43, 43:49] = 237
+    source[40:43, 49:51] = 242  # a real but very faint two-pixel ink trace
+    source[40:43, 51:55] = 237
+    candidate = source.copy()
+    candidate[34:49, 40:43] = 222
+    candidate[34:49, 55:58] = 222
+    candidate[40:43, 40:58] = 222
+    display = np.full_like(source, 250)
+    geometry = [[24, 30], [100, 30], [100, 48], [24, 48]]
+    first = regularize_continuous_supported_text(
+        display, source, candidate,
+        [{"text": "CMR6A PLUG", "confidence": .96, "box": geometry}],
+        target_darkness=180.0,
     )
-    assert count == 1
-    assert np.count_nonzero(output[22:64] < 80) > 40
+    second = regularize_continuous_supported_text(
+        display, source, candidate,
+        [{"text": "DIFFERENT OCR", "confidence": .96, "box": geometry}],
+        target_darkness=180.0,
+    )
+    assert np.array_equal(first, second)
+    measured = np.zeros_like(source, dtype=bool)
+    measured[34:49, 40:43] = True
+    measured[34:49, 55:58] = True
+    measured[40:43, 43:55] = True
+    assert float(first[measured].mean()) < 180.0
+    assert float(first[40:43, 49:51].mean()) < 205.0
+    assert np.all(first[5:15, 5:20] == 250)
+
+
+def test_faithful_text_strengthening_does_not_draw_on_blank_source() -> None:
+    from dsdnet_receipt.restoration import regularize_continuous_supported_text
+
+    blank = np.full((60, 160), 248, np.uint8)
+    output = regularize_continuous_supported_text(
+        blank,
+        blank,
+        blank,
+        [{"text": "OCR HALLUCINATION", "confidence": 1.0,
+          "box": [[10, 15], [150, 15], [150, 40], [10, 40]]}],
+        target_darkness=190.0,
+    )
+    assert np.array_equal(output, blank)
 
 
 def test_evidence_support_rewards_agreement_and_stability() -> None:

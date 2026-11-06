@@ -380,9 +380,9 @@ def make_faithful_content_view(
 ) -> np.ndarray:
     """Suppress paper texture while retaining only image-derived receipt content.
 
-    This is a presentation transform, not OCR reconstruction: it neither draws
-    glyphs nor changes logos.  Broad, low-frequency paper shading is removed
-    from the recovery while dark content from the source/recovery is retained.
+    OCR supplies localisation polygons only. The displayed shapes, including
+    text, rules, logos and signatures, remain derived from measured image
+    evidence; recognised strings are never typeset into the document.
     """
     import cv2
 
@@ -412,12 +412,10 @@ def make_faithful_content_view(
             complete = repair_evidence_constrained_gaps(
                 complete, source_u8, restored.astype(np.uint8), ocr_lines or []
             )
-            complete = normalize_localized_source_stroke_contrast(
-                complete, source_u8, ocr_lines or [],
-                target_darkness=72.0 if small_broad_print else 64.0,
-                sharpen_strength=0.65,
-            )
-            complete = sharpen_measured_print_edges(complete)
+        complete = improve_proposed_faithful_text(
+            complete, source_u8, restored.astype(np.uint8), ocr_lines or [],
+            target_darkness=188.0 if small_broad_print else 182.0,
+        )
         return complete
     if source_u8.shape[1] / source_u8.shape[0] < 0.70:
         # Use one continuous tone transfer for thermal print. Repeated
@@ -425,6 +423,10 @@ def make_faithful_content_view(
         continuous = make_complete_document_view(source_u8, thermal=True, ocr_lines=ocr_lines)
         continuous = repair_evidence_constrained_gaps(
             continuous, source_u8, restored.astype(np.uint8), ocr_lines or []
+        )
+        continuous = improve_proposed_faithful_text(
+            continuous, source_u8, restored.astype(np.uint8), ocr_lines or [],
+            target_darkness=154.0,
         )
         continuous = protect_machine_readable_regions(continuous, source_u8)
         if native_refinement:
@@ -453,6 +455,10 @@ def make_faithful_content_view(
     )
     if severe_texture or mixed_faint_fold:
         conservative = make_conservative_creased_view(source_u8, restored_u8, ocr_lines or [])
+        conservative = improve_proposed_faithful_text(
+            conservative, source_u8, restored_u8, ocr_lines or [],
+            target_darkness=146.0,
+        )
         return select_faithful_display_candidate(source_u8, conservative, ocr_lines or [])
     background = cv2.GaussianBlur(restored_u8, (0, 0), 31)
     flattened = cv2.divide(restored_u8, np.maximum(background, 1), scale=248)
@@ -554,6 +560,10 @@ def make_faithful_content_view(
         final = balance_source_text_tone(
             final, source_u8, ocr_lines or [], target_darkness=160.0
         )
+        final = improve_proposed_faithful_text(
+            final, source_u8, restored_u8, ocr_lines or [],
+            target_darkness=150.0,
+        )
         final = protect_machine_readable_regions(final, source_u8)
         final = apply_structural_coherence_fallback(final, source_u8)
         return select_faithful_display_candidate(source_u8, final, ocr_lines or [])
@@ -598,6 +608,10 @@ def make_faithful_content_view(
     )
     final = balance_source_text_tone(
         final, source_u8, ocr_lines or [], target_darkness=160.0
+    )
+    final = improve_proposed_faithful_text(
+        final, source_u8, restored_u8, ocr_lines or [],
+        target_darkness=150.0,
     )
     final = protect_machine_readable_regions(final, source_u8)
     final = apply_structural_coherence_fallback(final, source_u8)
@@ -1075,7 +1089,8 @@ def balance_source_text_tone(
     """
     import cv2
 
-    output = image.astype(np.uint8).copy()
+    clean_base = image.astype(np.uint8)
+    output = clean_base.copy()
     source_u8 = source.astype(np.uint8)
     text = detect_source_text_mask(source_u8, protection="wide")
     # Tone balancing is limited to recognised line geometry. Compact paper
@@ -1634,6 +1649,154 @@ def normalize_localized_source_stroke_contrast(
     return output
 
 
+def improve_proposed_faithful_text(
+    image: np.ndarray,
+    source: np.ndarray,
+    dsdnet_candidate: np.ndarray,
+    ocr_lines: list[dict[str, Any]],
+    *,
+    target_darkness: float = 118.0,
+) -> np.ndarray:
+    """Regularise measured strokes without rendering recognised characters."""
+    return regularize_continuous_supported_text(
+        image,
+        source,
+        dsdnet_candidate,
+        ocr_lines,
+        target_darkness=target_darkness,
+    )
+
+
+def regularize_continuous_supported_text(
+    image: np.ndarray,
+    source: np.ndarray,
+    dsdnet_candidate: np.ndarray,
+    ocr_lines: list[dict[str, Any]],
+    *,
+    target_darkness: float = 118.0,
+    minimum_confidence: float = 0.30,
+) -> np.ndarray:
+    """Normalize complete source-derived strokes inside OCR-localised lines.
+
+    The recognised string is deliberately ignored. OCR provides only the
+    physical line polygon. Tone and shape come from the clean faithful image;
+    the original scan and DSDNet candidate must independently support the
+    line before it is changed. This keeps the proposed method image-derived
+    while avoiding the salt-and-pepper result of amplifying isolated pixels.
+    """
+    import cv2
+
+    # Colour-preserving document routes use BGR output. Apply exactly the same
+    # evidence-gated operation to luminance, then restore the untouched colour
+    # channels; otherwise broad invoices silently bypassed text recovery.
+    if image.ndim == 3:
+        lab = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2LAB)
+        lab[:, :, 0] = regularize_continuous_supported_text(
+            lab[:, :, 0],
+            cv2.cvtColor(source.astype(np.uint8), cv2.COLOR_BGR2GRAY)
+            if source.ndim == 3 else source,
+            cv2.cvtColor(dsdnet_candidate.astype(np.uint8), cv2.COLOR_BGR2GRAY)
+            if dsdnet_candidate.ndim == 3 else dsdnet_candidate,
+            ocr_lines,
+            target_darkness=target_darkness,
+            minimum_confidence=minimum_confidence,
+        )
+        return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+
+    base = image.astype(np.uint8)
+    output = base.copy()
+    source_u8 = source.astype(np.uint8)
+    candidate_u8 = dsdnet_candidate.astype(np.uint8)
+    for line in ocr_lines:
+        if float(line.get("confidence") or 0.0) < minimum_confidence:
+            continue
+        points = np.asarray(line.get("box") or line.get("polygon") or [], dtype=np.int32)
+        if points.shape != (4, 2):
+            continue
+        x, y, width, height = cv2.boundingRect(points)
+        if width < 4 or height < 3:
+            continue
+        pad = max(1, min(2, height // 6))
+        x1, y1 = max(0, x - pad), max(0, y - pad)
+        x2, y2 = min(base.shape[1], x + width + pad), min(base.shape[0], y + height + pad)
+        clean = base[y1:y2, x1:x2]
+        src = source_u8[y1:y2, x1:x2]
+        candidate = candidate_u8[y1:y2, x1:x2]
+
+        source_background = cv2.GaussianBlur(src, (0, 0), max(2.0, height / 2.6))
+        candidate_background = cv2.GaussianBlur(candidate, (0, 0), max(2.0, height / 2.6))
+        source_dark = np.maximum(source_background.astype(np.float32) - src, 0.0)
+        candidate_dark = np.maximum(candidate_background.astype(np.float32) - candidate, 0.0)
+        independent_support = (source_dark >= 0.75) & (
+            cv2.dilate((candidate_dark >= 1.20).astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+        )
+
+        paper = float(np.percentile(clean, 91))
+        raw_dark = np.maximum(paper - clean.astype(np.float32), 0.0)
+        # The clean presentation normally retains the trace, but a very faint
+        # stroke can disappear during paper flattening. Recover its tone from
+        # the weaker of the source and model responses; requiring both keeps
+        # OCR-localised paper grain from becoming invented ink.
+        joint_evidence = np.minimum(source_dark * 1.80, candidate_dark * 1.10)
+        evidence_dark = np.maximum(raw_dark, joint_evidence)
+        supported_values = evidence_dark[independent_support & (evidence_dark > 0.0)]
+        if supported_values.size < 4:
+            continue
+        # The lower tail is paper grain and anti-aliased haze, not the stroke
+        # centre. Removing it prevents grey halos around otherwise legible
+        # characters when a faint line is amplified.
+        noise_floor = min(float(np.percentile(supported_values, 30)), 8.0)
+        signal = np.maximum(evidence_dark - noise_floor, 0.0)
+        reference_values = signal[independent_support & (signal > 0.0)]
+        if reference_values.size < 4:
+            continue
+        reference = max(float(np.percentile(reference_values, 76)), 1.0)
+        threshold = max(1.5, float(np.percentile(reference_values, 38)))
+        mapped = target_darkness * np.power(
+            np.clip(signal / reference, 0.0, 1.0), 0.78
+        )
+
+        core = (signal >= threshold) & independent_support
+        # Join only a one- or two-pixel interruption bracketed by an existing stroke
+        # and independently evidenced in both source and DSDNet. This repairs
+        # broken thermal strokes without expanding their external outline.
+        horizontal = cv2.morphologyEx(
+            core.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((1, 4), np.uint8)
+        ) > 0
+        vertical = cv2.morphologyEx(
+            core.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((4, 1), np.uint8)
+        ) > 0
+        bridge_support = (source_dark >= 0.70) & (
+            cv2.dilate((candidate_dark >= 0.95).astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+        )
+        bridged = (horizontal | vertical) & bridge_support & ~core
+        mask = core | bridged
+        # Discard isolated dust while retaining punctuation and thin rules.
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), 8)
+        retained = np.zeros_like(mask)
+        maximum_area = max(28, int(mask.size * 0.42))
+        for label in range(1, count):
+            _cx, _cy, component_width, component_height, area = map(int, stats[label])
+            if area < 2 or area > maximum_area:
+                continue
+            if component_height > max(height + 2 * pad, 5):
+                continue
+            retained[labels == label] = True
+        if np.count_nonzero(retained) < 3:
+            continue
+        # Keep one continuous tone response instead of binarising the line.
+        # Strong cores approach the requested darkness while edge evidence is
+        # retained with anti-aliasing, producing sharper but natural strokes.
+        rendered_darkness = mapped.copy()
+        rendered_darkness[bridged] = np.maximum(
+            rendered_darkness[bridged], target_darkness * 0.55
+        )
+        rendered = np.clip(max(paper, 246.0) - rendered_darkness, 0, 255).astype(np.uint8)
+        region = output[y1:y2, x1:x2]
+        region[retained] = np.minimum(region[retained], rendered[retained])
+    return output
+
+
 def repair_evidence_constrained_gaps(
     image: np.ndarray,
     source: np.ndarray,
@@ -1925,22 +2088,9 @@ def enhance_supported_source_strokes(
 
 
 def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]], minimum_confidence: float = 0.85) -> tuple[np.ndarray, int]:
-    """Render a clean, prominent reading copy from high-confidence OCR boxes."""
+    """Render only high-confidence OCR readings over their measured regions."""
     import cv2
     from .language_assistance import suggest_receipt_text
-
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-    except ImportError:  # pragma: no cover - OpenCV remains a safe fallback
-        Image = ImageDraw = ImageFont = None
-
-    def font_path(text: str) -> Path | None:
-        candidates = (
-            [Path("C:/Windows/Fonts/msyh.ttc"), Path("C:/Windows/Fonts/simsun.ttc")]
-            if any(ord(character) > 127 for character in text)
-            else [Path("C:/Windows/Fonts/arial.ttf"), Path("C:/Windows/Fonts/calibri.ttf")]
-        )
-        return next((candidate for candidate in candidates if candidate.is_file()), None)
 
     def bounds(line):
         points = np.asarray(line.get("box", []), dtype=np.float32)
@@ -1987,7 +2137,7 @@ def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]
             text = suggestion["suggested"]
         # Do not typeset isolated uncertain punctuation or extremely small
         # fragments; these are more likely to be paper damage than content.
-        if sum(character.isalnum() for character in text) < 2:
+        if len(re.sub(r"[^A-Za-z0-9]", "", text)) < 2:
             continue
         x, y, width, height = cv2.boundingRect(points.astype(np.int32))
         if width < 12 or height < 8:
@@ -2000,28 +2150,17 @@ def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]
         pad_x, pad_y = 2, 2
         x1, y1 = max(0, x-pad_x), max(0, y-pad_y)
         x2, y2 = min(output.shape[1], x+width+pad_x), min(output.shape[0], y+height+pad_y)
+        # Preserve nearby rules by clearing only the central text band.
+        output[y1:y2, x1:x2] = 255
+        font = cv2.FONT_HERSHEY_SIMPLEX
         # A noisy OCR box can span two thermal rows. Cap glyph height using the
         # document median so one bad box cannot typeset oversized, overlapping
         # text (for example Gross Amt / Svr Charge / Discount).
-        target_height = max(10, min(int(height * 0.82), int(median_height * 0.92)))
-        selected_font_path = font_path(text)
-        pil_font = None
-        pil_bbox = None
-        if ImageFont is not None and selected_font_path is not None:
-            font_size = target_height
-            while font_size >= 7:
-                candidate_font = ImageFont.truetype(str(selected_font_path), font_size)
-                candidate_bbox = ImageDraw.Draw(Image.new("L", (1, 1))).textbbox((0, 0), text, font=candidate_font)
-                if candidate_bbox[2] - candidate_bbox[0] <= max(width, 1) or font_size == 7:
-                    pil_font, pil_bbox = candidate_font, candidate_bbox
-                    break
-                font_size -= 1
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        scale = max(0.32, target_height / 22.0)
-        thickness = 1 if target_height < 16 else 2
-        measured = ((pil_bbox[2] - pil_bbox[0], pil_bbox[3] - pil_bbox[1])
-                    if pil_bbox is not None else cv2.getTextSize(text, font, scale, thickness)[0])
-        if pil_bbox is None and measured[0] > max(width, 1):
+        target_height = max(8, min(int(height * 0.62), int(median_height * 0.78)))
+        scale = max(0.25, target_height / 22.0)
+        thickness = 1 if target_height < 22 else 2
+        measured = cv2.getTextSize(text, font, scale, thickness)[0]
+        if measured[0] > max(width, 1):
             scale *= width / measured[0]
             measured = cv2.getTextSize(text, font, scale, thickness)[0]
         # Preserve the detected line centre instead of left-anchoring a
@@ -2039,18 +2178,7 @@ def overlay_supported_ocr_text(image: np.ndarray, ocr_lines: list[dict[str, Any]
         )
         if collision:
             continue
-        # Clear only after collision checks; skipped boxes must never erase
-        # genuine rules or marks. The reading copy intentionally uses near-black
-        # glyphs so faint receipts remain legible at normal viewing size.
-        output[y1:y2, x1:x2] = 255
-        if pil_font is not None and pil_bbox is not None:
-            pil_image = Image.fromarray(output)
-            draw = ImageDraw.Draw(pil_image)
-            draw_y = y + (height - measured[1]) // 2 - pil_bbox[1]
-            draw.text((draw_x, draw_y), text, font=pil_font, fill=8)
-            output = np.asarray(pil_image).copy()
-        else:
-            cv2.putText(output, text, (draw_x, baseline_y), font, scale, 8, thickness, cv2.LINE_AA)
+        cv2.putText(output, text, (draw_x, baseline_y), font, scale, 25, thickness, cv2.LINE_AA)
         occupied.append(text_rect)
         rendered += 1
     return output, rendered

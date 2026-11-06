@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#123c35">
   <title>ResitTrace</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='20261101-1') }}">
-  <script defer src="{{ url_for('static', filename='app.js', v='20261105-8') }}"></script>
+  <script defer src="{{ url_for('static', filename='app.js', v='20261105-9') }}"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
@@ -127,7 +127,7 @@
           <div class="detail-grid">
             <div class="comparison-card">
               <div class="comparison-head"><h3>Receipt image</h3><button id="fullImageButton" class="button secondary compact" type="button">View full size</button></div>
-              <div class="image-view-selector" role="group" aria-label="Choose receipt image view"><button id="faithfulViewButton" class="active" type="button">Faithful recovery</button><button id="readingViewButton" type="button">Reconstructed reading</button><button id="originalViewButton" type="button">Original</button><button id="compareViewButton" type="button">Compare</button></div>
+              <div class="image-view-selector" role="group" aria-label="Choose receipt image view"><button id="faithfulViewButton" class="active" type="button">Faithful recovery</button><button id="originalViewButton" type="button">Original</button><button id="compareViewButton" type="button">Compare</button></div>
               <div id="comparison" class="comparison improved-mode" title="Double-click to view the receipt full size"><img id="originalImage" alt="Original receipt"><div id="restoredWrap"><img id="restoredImage" alt="Faithful receipt recovery"></div><div id="compareLine"></div><input id="compareSlider" type="range" min="0" max="100" value="50" aria-label="Drag to compare original and faithful recovery"></div>
               <div class="comparison-labels"><span id="comparisonViewLabel">Faithful recovery</span><span id="comparisonHelp">Select Compare for the split view</span></div><p id="comparisonNote" class="comparison-note">Compare recovered content against the preserved original.</p>
             </div>

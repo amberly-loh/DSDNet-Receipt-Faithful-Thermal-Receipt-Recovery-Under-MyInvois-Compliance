@@ -366,7 +366,6 @@ class ReceiptStore:
         # Legacy consumers (gallery/download) now use the single Faithful view.
         row["restored_url"] = f"/api/receipts/{row['public_id']}/image/faithful"
         row["faithful_url"] = f"/api/receipts/{row['public_id']}/image/faithful"
-        row["reading_url"] = f"/api/receipts/{row['public_id']}/image/reading"
         row["faithful_reference_url"] = f"/api/receipts/{row['public_id']}/image/faithful_reference"
         row["diagnostic_url"] = f"/api/receipts/{row['public_id']}/image/diagnostic"
         if compact:
