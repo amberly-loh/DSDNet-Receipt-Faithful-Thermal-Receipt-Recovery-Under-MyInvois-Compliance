@@ -126,7 +126,7 @@ def _rectify_receipt(image: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
     return rectified, {"status": "rectified", "corners": candidate.tolist(), "output_shape": [target_height, target_width]}
 
 
-def _crop_photographed_paper(image: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
+def _crop_photographed_paper(image: np.ndarray, _turned: bool = False) -> tuple[np.ndarray, dict[str, Any]]:
     """Find a receipt photographed on a table, keyboard or hand and cut it out.
 
     Phone photos show the receipt as a bright, low-colour strip on a darker or
@@ -146,12 +146,14 @@ def _crop_photographed_paper(image: np.ndarray) -> tuple[np.ndarray, dict[str, A
     h, w = small.shape[:2]
     hsv = cv2.cvtColor(cv2.GaussianBlur(small, (5, 5), 0), cv2.COLOR_BGR2HSV)
     value, saturation = hsv[:, :, 2], hsv[:, :, 1]
-    # brightness split measured on the grey-ish pixels only, so a coloured
-    # desk (wood, a blue mat) does not push the paper's print below the cut
-    neutral = value[saturation <= 75]
-    sample = neutral if neutral.size >= 0.05 * value.size else value.ravel()
+    # Receipt paper is bright AND colourless. Scoring "whiteness" as brightness
+    # minus saturation separates it from beige cloth, wood or a cream wall,
+    # which can be nearly as bright but carry some colour.
+    whiteness = np.clip(value.astype(np.int16) - 2 * saturation.astype(np.int16), 0, 255).astype(np.uint8)
+    neutral = whiteness[saturation <= 75]
+    sample = neutral if neutral.size >= 0.05 * value.size else whiteness.ravel()
     threshold, _ = cv2.threshold(sample.reshape(-1, 1), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    paper = ((value >= max(110, threshold)) & (saturation <= 75)).astype(np.uint8)
+    paper = ((whiteness >= max(110, threshold)) & (saturation <= 75)).astype(np.uint8)
     paper = cv2.morphologyEx(paper, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
     paper = cv2.morphologyEx(paper, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
     count, labels, stats, _ = cv2.connectedComponentsWithStats(paper, 8)
@@ -166,6 +168,16 @@ def _crop_photographed_paper(image: np.ndarray) -> tuple[np.ndarray, dict[str, A
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     mask = np.zeros_like(mask)
     cv2.drawContours(mask, contours, -1, 1, thickness=cv2.FILLED)
+    # A receipt lying across the photo (its long side left to right) is turned
+    # a quarter first, so the rest of the cut works on an upright strip. Whether
+    # the print then reads upright or upside down is settled later by reading it.
+    ys_m, xs_m = np.where(mask > 0)
+    if not _turned and xs_m.size and (xs_m.max() - xs_m.min()) > 1.3 * (ys_m.max() - ys_m.min()):
+        turned, record = _crop_photographed_paper(cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE), _turned=True)
+        if record.get("status") == "rectified":
+            record["quarter_turn_degrees"] = 90
+            return turned, record
+        return image, {"status": "not_detected", "reason": "landscape paper could not be cut after turning"}
     # turn a tilted receipt upright first, so each row crosses it once
     (cx, cy), (rw, rh), rect_angle = cv2.minAreaRect(max(contours, key=cv2.contourArea))
     tilt = rect_angle if rw < rh else rect_angle - 90.0
@@ -245,6 +257,9 @@ def _crop_photographed_paper(image: np.ndarray) -> tuple[np.ndarray, dict[str, A
     inside_s, outside_s = float(np.median(saturation[inside == 1])), float(np.median(saturation[inside == 0]))
     # darker surroundings, or clearly coloured ones (wood, a blue mat)
     contrast = (inside_v - outside_v) + 0.6 * max(0.0, outside_s - inside_s)
+    # or a surrounding that is clearly less white (cream or beige cloth, wood)
+    inside_w, outside_w = float(np.median(whiteness[inside == 1])), float(np.median(whiteness[inside == 0]))
+    contrast = max(contrast, inside_w - outside_w)
     if contrast < 55:
         return image, {"status": "not_detected", "reason": "background not distinct", "contrast": round(contrast, 1)}
     corners = corners / scale

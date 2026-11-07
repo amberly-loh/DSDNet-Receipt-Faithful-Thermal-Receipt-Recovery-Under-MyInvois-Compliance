@@ -576,6 +576,25 @@ def _secret_key(root: Path) -> bytes:
     return bytes.fromhex(path.read_text(encoding="utf-8").strip())
 
 
+def upright_by_reading(color, ocr):
+    """A phone photo can be cut out and stood upright, but the cut alone cannot
+    tell whether the print reads upright or upside down. Read a small copy both
+    ways and keep the way that reads better. Scans never come through here."""
+    gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY) if color.ndim == 3 else color
+    factor = min(1.0, 1100.0 / max(gray.shape))
+    small = cv2.resize(gray, None, fx=factor, fy=factor, interpolation=cv2.INTER_AREA) if factor < 1 else gray
+
+    def score(view):
+        result = ocr.run(view)
+        return sum(float(line.get("confidence") or 0) * len(str(line.get("text") or "").strip())
+                   for line in (result.lines or []) if float(line.get("confidence") or 0) >= 0.5)
+
+    upright, flipped = score(small), score(cv2.rotate(small, cv2.ROTATE_180))
+    turn = flipped > 1.15 * upright + 5
+    record = {"upright_score": round(upright, 1), "upside_down_score": round(flipped, 1), "turned_180": bool(turn)}
+    return (cv2.rotate(color, cv2.ROTATE_180) if turn else color), record
+
+
 def create_app(
     config_path: str | Path,
     testing: bool = False,
@@ -1801,6 +1820,8 @@ def create_app(
             raise ValueError(f"{upload.filename}: image dimensions are too large")
         started = time.perf_counter()
         registered_color, preprocessing_record = preprocess(image, config, preserve_color=True)
+        if (preprocessing_record.get("boundary_detection") or {}).get("method") == "photographed_paper":
+            registered_color, preprocessing_record["upright_check"] = upright_by_reading(registered_color, ocr_engine)
         processed = cv2.cvtColor(registered_color, cv2.COLOR_BGR2GRAY) if registered_color.ndim == 3 else registered_color
         faithful_refinement = {}
         from .restoration import assess_receipt_degradation, make_adaptive_document_view, make_faithful_content_view, make_readability_view, region_adaptive_source_fusion, select_faithful_recovery
