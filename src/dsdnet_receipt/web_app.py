@@ -1740,7 +1740,7 @@ def create_app(
 
         evidence = workbook.create_sheet("OCR Evidence")
         evidence.append(["Reading order", "Recognised text", "Suggested reading", "Suggestion status", "Confidence (%)", "Evidence source"])
-        friendly_views = {"rectified_input":"Original receipt", "source_preserving_recovery":"Recovered receipt", "readability_view":"Clean reading copy"}
+        friendly_views = {"rectified_input":"Original receipt", "source_preserving_recovery":"Recovered receipt", "readability_view":"Clean reading copy", "dsdnet_restoration":"Restored receipt"}
         for index, line in enumerate(lines, 1):
             confidence = line.get("confidence")
             suggestion = suggestion_by_line.get(index - 1)
@@ -1840,6 +1840,12 @@ def create_app(
             faithfulness = select_faithful_recovery(processed, fused_recovery)
             selected_recovery = faithfulness.image
             ocr_views = [("rectified_input", processed), ("source_preserving_recovery", selected_recovery)]
+            # Also read the network's own restoration: where it sharpens faint
+            # print the most, it reads best; the reading copy and the field rules
+            # then keep the best reading of each printed place across all views.
+            if (os.environ.get("RECEIPT_MODEL_VIEW", "1") != "0" and restoration.model_output is not None
+                    and restoration.model_output.shape[:2] == processed.shape[:2]):
+                ocr_views.append(("dsdnet_restoration", restoration.model_output))
             third_pass = user_settings["extra_ocr_view"]
             if third_pass == "always" or (third_pass == "auto" and {"faded", "blurred"} & set(degradation_profile.get("flags", []))):
                 ocr_views.append(("readability_view", make_readability_view(processed, selected_recovery)))

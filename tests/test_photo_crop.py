@@ -77,3 +77,26 @@ def test_upside_down_photo_is_turned_by_reading_both_ways():
     assert record["turned_180"] and out[:40, :70].mean() < 200
     out, record = upright_by_reading(page, Reader())
     assert not record["turned_180"] and out is page
+
+
+def test_receipt_on_white_tiles_is_cut_by_its_print_without_losing_text():
+    from dsdnet_receipt.preprocessing import preprocess, _print_block
+    rng = np.random.default_rng(11)
+    canvas = np.full((1600, 1200, 3), 222, np.uint8)  # glossy white tile, as white as the paper
+    cv2.line(canvas, (0, 90), (1200, 90), (150, 150, 150), 6)  # tile grout
+    for _ in range(40):  # scratches on the tile
+        x, y = int(rng.integers(0, 1200)), int(rng.integers(0, 1600))
+        cv2.line(canvas, (x, y), (x + int(rng.integers(-60, 60)), y + int(rng.integers(-60, 60))), (205, 205, 205), 1)
+    paper = np.full((1300, 460, 3), 232, np.uint8)
+    for k, y in enumerate(range(50, 1260, 34)):
+        cv2.putText(paper, f"ITEM {k:02d}   {k * 1.5:5.2f}", (24, y), cv2.FONT_HERSHEY_SIMPLEX, .8, (60, 60, 60), 2)
+    matrix = cv2.getRotationMatrix2D((230, 650), 6, 1.0); matrix[:, 2] += [380, 160]
+    warped = cv2.warpAffine(paper, matrix, (1200, 1600)); mask = cv2.warpAffine(np.full(paper.shape[:2], 255, np.uint8), matrix, (1200, 1600))
+    canvas[mask > 0] = warped[mask > 0]
+    cv2.ellipse(canvas, (330, 500), (90, 300), 15, 0, 360, (120, 150, 200), -1)  # a finger beside the receipt
+    before = len(_print_block(canvas)["points"])
+    out, record = preprocess(canvas, {"preprocessing": {"max_long_edge": 4000}}, preserve_color=True)
+    assert record["boundary_detection"]["status"] == "rectified"
+    assert out.shape[0] > 2 * out.shape[1]  # a tall strip
+    after = _print_block(out)
+    assert after is not None and len(after["points"]) >= 0.85 * before  # the print is kept
