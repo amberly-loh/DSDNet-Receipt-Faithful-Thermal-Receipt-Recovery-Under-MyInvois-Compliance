@@ -377,6 +377,51 @@ def make_faithful_content_view(
     source_color: np.ndarray | None = None,
     native_refinement: dict[str, Any] | None = None,
     refinement_audit: dict[str, Any] | None = None,
+    finishing_options: dict[str, Any] | None = None,
+) -> np.ndarray:
+    """Select the faithful view, then apply degradation-aware finishing.
+
+    The finishing stage (receipt_cleanup) handles holes, stains, speckle,
+    crease webs, faint text lines and tiny captures for degraded neutral
+    receipts; clean and colour receipts are returned unchanged.
+    """
+    view = _make_faithful_content_view_base(
+        source, restored, ocr_lines, artifact_mask_checkpoint, artifact_mask_threshold,
+        degradation_profile, source_color, native_refinement, refinement_audit,
+    )
+    from .receipt_cleanup import finish_faithful_view
+
+    source_u8 = source.astype(np.uint8)
+    # The base stage already performs the safe, monotonic exposure mapping for
+    # extremely weak dark captures.  Running the later tiny-document enhancer
+    # over that result can invent local extrema and break source ordering.
+    import cv2
+    source_detail = np.maximum(
+        cv2.GaussianBlur(source_u8, (0, 0), 3).astype(np.float32) - source_u8,
+        0,
+    )
+    if float(np.median(source_u8)) < 170 and float(np.percentile(source_detail, 95)) < 6:
+        return view
+    profile = degradation_profile or assess_receipt_degradation(source_u8)
+    neutral = source_color is None or float(
+        np.mean(np.ptp(source_color.astype(np.int16), axis=2) > 12)
+    ) <= 0.005
+    return finish_faithful_view(
+        view, source_u8, ocr_lines, profile,
+        neutral_source=neutral, record=refinement_audit, options=finishing_options,
+    )
+
+
+def _make_faithful_content_view_base(
+    source: np.ndarray,
+    restored: np.ndarray,
+    ocr_lines: list[dict[str, Any]] | None = None,
+    artifact_mask_checkpoint: str | Path | None = None,
+    artifact_mask_threshold: float = 0.95,
+    degradation_profile: dict[str, Any] | None = None,
+    source_color: np.ndarray | None = None,
+    native_refinement: dict[str, Any] | None = None,
+    refinement_audit: dict[str, Any] | None = None,
 ) -> np.ndarray:
     """Suppress paper texture while retaining only image-derived receipt content.
 
@@ -391,6 +436,16 @@ def make_faithful_content_view(
         if source_color.shape[:2] != source_u8.shape:
             raise ValueError("Faithful color source must share the model input geometry")
     preservation_source = source_color if source_color is not None else source_u8
+    degradation_profile = degradation_profile or assess_receipt_degradation(source_u8)
+    degradation_flags = set(degradation_profile.get("flags", []))
+    degradation_metrics = degradation_profile.get("metrics", {})
+    severe_text_damage = (
+        {"faded", "blurred"}.issubset(degradation_flags)
+        and float(degradation_metrics.get("texture_fraction", 0.0)) >= 0.12
+    ) or (
+        {"faded", "creased"}.issubset(degradation_flags)
+        and float(degradation_metrics.get("stroke_strength_p75", 255.0)) < 22.0
+    )
     source_detail = np.maximum(cv2.GaussianBlur(source_u8,(0,0),3).astype(np.float32)-source_u8,0)
     neutral_source = source_color is None or float(np.mean(np.ptp(source_color.astype(np.int16),axis=2)>12))<=.005
     if neutral_source and float(np.median(source_u8))<170 and float(np.percentile(source_detail,95))<6:
@@ -403,6 +458,20 @@ def make_faithful_content_view(
     preservation_mode = complete_document_preservation_mode(preservation_source)
     if preservation_mode:
         small_broad_print = preservation_mode == 'broad_document_preservation' and source_u8.shape[1] < 500
+        if (
+            preservation_mode in {"broad_document_preservation", "table_content_preservation"}
+            and not small_broad_print
+            and neutral_source
+        ):
+            from .severe_document import make_severe_document_view, needs_severe_document_recovery
+            if needs_severe_document_recovery(source_u8, degradation_profile):
+                # Faded, creased invoices: the continuous tone transfer left
+                # faint grey print, fold speckle and model-introduced stroke
+                # breaks. Use the source-anchored hysteresis view instead.
+                severe_view, severe_record = make_severe_document_view(source_u8, return_record=True)
+                if refinement_audit is not None:
+                    refinement_audit["severe_document_view"] = severe_record
+                return severe_view
         complete = make_complete_document_view(preservation_source, thermal=small_broad_print, ocr_lines=ocr_lines)
         # Structured invoices used to return before source-supported stroke
         # repair.  Repair only tiny gaps bracketed by measured endpoints and
@@ -414,7 +483,9 @@ def make_faithful_content_view(
             )
         complete = improve_proposed_faithful_text(
             complete, source_u8, restored.astype(np.uint8), ocr_lines or [],
-            target_darkness=188.0 if small_broad_print else 182.0,
+            target_darkness=(204.0 if severe_text_damage else
+                             (188.0 if small_broad_print else 182.0)),
+            severe=severe_text_damage,
         )
         return complete
     if source_u8.shape[1] / source_u8.shape[0] < 0.70:
@@ -436,14 +507,11 @@ def make_faithful_content_view(
                 refinement_audit.update(record)
         return continuous
     restored_u8 = restored.astype(np.uint8)
-    degradation_profile = degradation_profile or assess_receipt_degradation(source_u8)
     profile_policy = degradation_profile.get("policy", {})
     target_darkness = float(profile_policy.get("target_darkness", 58.0))
     sharpen_strength = float(profile_policy.get("sharpen_strength", 0.0))
     paper_cleaning = str(profile_policy.get("paper_cleaning", "standard"))
     text_protection = str(profile_policy.get("text_protection", "standard"))
-    degradation_flags = set(degradation_profile.get("flags", []))
-    degradation_metrics = degradation_profile.get("metrics", {})
     severe_texture = (
         float(degradation_metrics.get("texture_fraction", 0.0)) >= 0.15
         and int(degradation_metrics.get("long_crease_line_count", 0)) >= 10
@@ -773,7 +841,9 @@ def lighten_neutral_paper(image: np.ndarray, source: np.ndarray) -> np.ndarray:
         raise ValueError("Neutral paper source and output geometry must agree")
     # A global monotone shoulder cannot introduce local bright/dark islands.
     # Pixelwise foreground/background switches previously made grain patchy.
-    lift = 0.80 * np.square(np.clip((output - 190.0) / 60.0, 0.0, 1.0))
+    # The shoulder starts just under 200 so faint ink edges keep their exact
+    # tone, and rises fast enough that grey paper (about 215) is still lifted.
+    lift = 0.80 * np.power(np.clip((output - 199.0) / 51.0, 0.0, 1.0), 1.5)
     output += (255.0 - output) * lift
     return np.clip(output, 0, 255).round().astype(np.uint8)
 
@@ -1400,6 +1470,10 @@ def preserve_faint_source_supported_strokes(
         ) > 0
         source_component = source_text_mask[y1:y2, x1:x2]
         measured = (src_darkness >= 1.25) & (candidate_support | source_component)
+        # Anti-aliased stroke edges are only 1-2 grey levels off the paper. Keep
+        # them where the independent candidate itself marks that exact pixel as
+        # ink (not its dilated neighbourhood), so paper grain is never promoted.
+        measured |= (src_darkness >= 0.5) & (cand_darkness >= 2.0) & (src < src_bg)
         if np.count_nonzero(measured) < 4:
             continue
         reference = float(np.percentile(src_darkness[measured], 70))
@@ -1433,6 +1507,16 @@ def preserve_faint_source_supported_strokes(
 
 
 def detect_source_text_mask(source: np.ndarray, *, protection: str = "standard") -> np.ndarray:
+    """Character-like source marks found without OCR. "wide" protection is
+    always a superset of "standard": its lower threshold can merge a faint
+    blurred word into one blob that fails the glyph checks, so the standard
+    detection is added back rather than lost."""
+    if protection == "wide":
+        return _detect_source_text_mask(source, protection="wide") | _detect_source_text_mask(source, protection="standard")
+    return _detect_source_text_mask(source, protection=protection)
+
+
+def _detect_source_text_mask(source: np.ndarray, *, protection: str = "standard") -> np.ndarray:
     """Locate faint character-like source components without using OCR text.
 
     Weak local-darkness components are filtered by glyph-scale geometry and
@@ -1656,6 +1740,7 @@ def improve_proposed_faithful_text(
     ocr_lines: list[dict[str, Any]],
     *,
     target_darkness: float = 118.0,
+    severe: bool = False,
 ) -> np.ndarray:
     """Regularise measured strokes without rendering recognised characters."""
     return regularize_continuous_supported_text(
@@ -1664,6 +1749,7 @@ def improve_proposed_faithful_text(
         dsdnet_candidate,
         ocr_lines,
         target_darkness=target_darkness,
+        severe=severe,
     )
 
 
@@ -1675,6 +1761,7 @@ def regularize_continuous_supported_text(
     *,
     target_darkness: float = 118.0,
     minimum_confidence: float = 0.30,
+    severe: bool = False,
 ) -> np.ndarray:
     """Normalize complete source-derived strokes inside OCR-localised lines.
 
@@ -1700,6 +1787,7 @@ def regularize_continuous_supported_text(
             ocr_lines,
             target_darkness=target_darkness,
             minimum_confidence=minimum_confidence,
+            severe=severe,
         )
         return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
 
@@ -1757,6 +1845,25 @@ def regularize_continuous_supported_text(
         )
 
         core = (signal >= threshold) & independent_support
+        # Severe documents contain both fragmented strokes and many isolated
+        # paper defects.  Grow only from a convincing ink seed through pixels
+        # supported by both the scan and model.  This reconnects a damaged
+        # character while preventing a detached speck from becoming a glyph.
+        if severe:
+            strong_threshold = max(threshold, float(np.percentile(reference_values, 58)))
+            seeds = (signal >= strong_threshold) & independent_support
+            weak_support = (source_dark >= 0.55) & (
+                cv2.dilate(
+                    (candidate_dark >= 0.85).astype(np.uint8),
+                    np.ones((3, 3), np.uint8),
+                ) > 0
+            )
+            grown = seeds.copy()
+            for _ in range(2):
+                grown |= (
+                    cv2.dilate(grown.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+                ) & weak_support
+            core &= grown
         # Join only a one- or two-pixel interruption bracketed by an existing stroke
         # and independently evidenced in both source and DSDNet. This repairs
         # broken thermal strokes without expanding their external outline.
@@ -1766,10 +1873,16 @@ def regularize_continuous_supported_text(
         vertical = cv2.morphologyEx(
             core.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((4, 1), np.uint8)
         ) > 0
+        diagonal_down = cv2.morphologyEx(
+            core.astype(np.uint8), cv2.MORPH_CLOSE, np.eye(3, dtype=np.uint8)
+        ) > 0
+        diagonal_up = cv2.morphologyEx(
+            core.astype(np.uint8), cv2.MORPH_CLOSE, np.fliplr(np.eye(3, dtype=np.uint8))
+        ) > 0
         bridge_support = (source_dark >= 0.70) & (
             cv2.dilate((candidate_dark >= 0.95).astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
         )
-        bridged = (horizontal | vertical) & bridge_support & ~core
+        bridged = (horizontal | vertical | diagonal_down | diagonal_up) & bridge_support & ~core
         mask = core | bridged
         # Discard isolated dust while retaining punctuation and thin rules.
         count, labels, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), 8)
@@ -1777,9 +1890,12 @@ def regularize_continuous_supported_text(
         maximum_area = max(28, int(mask.size * 0.42))
         for label in range(1, count):
             _cx, _cy, component_width, component_height, area = map(int, stats[label])
-            if area < 2 or area > maximum_area:
+            minimum_area = 3 if severe else 2
+            if area < minimum_area or area > maximum_area:
                 continue
             if component_height > max(height + 2 * pad, 5):
+                continue
+            if severe and not np.any(core[labels == label]):
                 continue
             retained[labels == label] = True
         if np.count_nonzero(retained) < 3:
@@ -1793,6 +1909,19 @@ def regularize_continuous_supported_text(
         )
         rendered = np.clip(max(paper, 246.0) - rendered_darkness, 0, 255).astype(np.uint8)
         region = output[y1:y2, x1:x2]
+        if severe:
+            # Remove only small detached dark islands inside this OCR line.
+            # Long rules and punctuation attached to a supported stroke remain;
+            # a component with no seed is restored to the local paper tone.
+            dark_islands = raw_dark >= max(4.0, noise_floor + 1.5)
+            island_count, island_labels, island_stats, _ = cv2.connectedComponentsWithStats(
+                dark_islands.astype(np.uint8), 8
+            )
+            for island in range(1, island_count):
+                area = int(island_stats[island, cv2.CC_STAT_AREA])
+                pixels = island_labels == island
+                if area <= max(8, int(height * 0.35)) and not np.any(retained[pixels]):
+                    region[pixels] = np.maximum(region[pixels], np.uint8(min(max(paper, 246.0), 255.0)))
         region[retained] = np.minimum(region[retained], rendered[retained])
     return output
 

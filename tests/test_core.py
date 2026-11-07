@@ -896,7 +896,8 @@ def test_faithful_text_strengthening_does_not_draw_on_blank_source() -> None:
 
 
 def test_evidence_support_rewards_agreement_and_stability() -> None:
-    import torch
+    import pytest
+    torch = pytest.importorskip("torch")  # the model runtime; not needed for the other checks
     from dsdnet_receipt.evidence_support import SupportScales, support_components
 
     observed = torch.full((1, 1, 64, 64), 0.9)

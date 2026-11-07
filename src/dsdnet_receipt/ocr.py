@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import os
 import hashlib
 from dataclasses import dataclass
 from typing import Any
@@ -38,8 +39,9 @@ class PaddleOCRAdapter:
                     ocr_version=self.config["ocr"]["ocr_version"],
                     use_angle_cls=False,
                     show_log=False,
-                    enable_mkldnn=False,
-                    cpu_threads=1,
+                    enable_mkldnn=bool(self.config["ocr"].get("enable_mkldnn", False)) and os.getenv("FLAGS_use_mkldnn", "1") != "0",
+                    cpu_threads=int(self.config["ocr"].get("cpu_threads", 1)),
+                    use_gpu=bool(self.config["ocr"].get("use_gpu", False)),
                 )
             else:
                 self._engine = PaddleOCR(
@@ -95,6 +97,21 @@ class PaddleOCRAdapter:
             )
         except Exception as error:
             return OCRResult("", [], self.version, "failed", f"{type(error).__name__}: {error}")
+
+    def recognize(self, image: np.ndarray) -> tuple[str, float]:
+        """Read the whole image as one text line (no line detection)."""
+        try:
+            if image.ndim == 2:
+                import cv2
+                image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+            engine = self._load()
+            if self.version.startswith("2.7"):
+                prediction = engine.ocr(image, det=False, cls=False)
+                text, score = prediction[0][0]
+                return str(text), float(score)
+        except Exception:
+            pass
+        return "", 0.0
 
     def run_views(self, views: list[tuple[str, np.ndarray]]) -> OCRResult:
         """Run the fixed OCR configuration on faithful views and merge duplicates."""

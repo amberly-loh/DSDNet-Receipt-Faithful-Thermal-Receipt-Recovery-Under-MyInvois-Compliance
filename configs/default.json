@@ -40,7 +40,9 @@
     "language": "en",
     "use_doc_orientation_classify": false,
     "use_doc_unwarping": false,
-    "use_textline_orientation": false
+    "use_textline_orientation": false,
+    "enable_mkldnn": true,
+    "cpu_threads": 6
   },
   "dsdnet": {
     "source_path": "../../vendor/DSDNet",

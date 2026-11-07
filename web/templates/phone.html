@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#16584b">
+  <title>ResitTrace · Phone scanner</title>
+  <style>
+    :root { --ink:#13231f; --muted:#5f6f6a; --accent:#1b6b5a; --line:#e2e8e6; --bg:#f4f7f6; --bad:#a3342c; }
+    * { box-sizing:border-box; }
+    body { margin:0; font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg); }
+    header { background:#16584b; color:#fff; padding:18px 18px 22px; }
+    header b { display:block; font-size:1.15rem; }
+    header small { opacity:.85; }
+    main { padding:16px; max-width:520px; margin:0 auto; }
+    .state { background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:14px; font-size:.95rem; }
+    .state.bad { border-color:#e7c3bf; background:#fff6f5; color:var(--bad); }
+    .actions { display:grid; gap:10px; margin-bottom:18px; }
+    label.button { display:flex; align-items:center; justify-content:center; gap:8px; min-height:56px; border-radius:14px; font-weight:700; font-size:1.05rem; cursor:pointer; }
+    label.primary { background:var(--accent); color:#fff; }
+    label.secondary { background:#fff; color:var(--ink); border:1px solid var(--line); font-size:.95rem; min-height:48px; }
+    label.disabled { opacity:.45; pointer-events:none; }
+    input[type=file] { display:none; }
+    h2 { font-size:.95rem; color:var(--muted); margin:6px 2px 8px; font-weight:600; }
+    ul { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+    li { display:flex; gap:12px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; }
+    li img { width:52px; height:68px; object-fit:cover; border-radius:6px; background:#ddd; flex:none; }
+    li b { display:block; font-size:.95rem; }
+    li small { color:var(--muted); }
+    li.done small { color:var(--accent); }
+    li.failed small { color:var(--bad); }
+    .tip { color:var(--muted); font-size:.85rem; margin-top:16px; }
+  </style>
+</head>
+<body>
+  <header><b>ResitTrace phone scanner</b><small>Photos go straight to the computer on this Wi-Fi.</small></header>
+  <main>
+    <div id="state" class="state">Connecting to the computer…</div>
+    <div class="actions">
+      <label id="cameraLabel" class="button primary disabled" for="cameraInput">📷 Take a photo of a receipt</label>
+      <input id="cameraInput" type="file" accept="image/*" capture="environment">
+      <label id="galleryLabel" class="button secondary disabled" for="galleryInput">Choose photos from the gallery</label>
+      <input id="galleryInput" type="file" accept="image/*" multiple>
+    </div>
+    <h2 id="listTitle" hidden>This session</h2>
+    <ul id="list"></ul>
+    <p class="tip">Lay the receipt flat in good light and fill the frame. You can take the next photo while earlier ones are still being read. Each photo is processed on the computer and saved there, not on this phone.</p>
+  </main>
+  <script src="/static/phone.js"></script>
+</body>
+</html>

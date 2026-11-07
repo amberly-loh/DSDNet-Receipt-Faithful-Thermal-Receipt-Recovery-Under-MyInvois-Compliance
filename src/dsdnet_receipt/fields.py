@@ -17,9 +17,13 @@ DATE_PATTERNS = (
     # valid 24-hour time, preventing the joined text from becoming year 2420.
     re.compile(r"(?<!\d)(?:0?[1-9]|[12]\d|3[01])[./-](?:0?[1-9]|1[0-2])[./-]\d{2}(?=(?:(?:[01]\d|2[0-3]):[0-5]\d)|\D|$)"),
     re.compile(r"\b(?:19|20)\d{2}[/-](?:0?[1-9]|1[0-2])[/-](?:0?[1-9]|[12]\d|3[01])\b"),
+    # Month names, common on fuel and card receipts: ``08 APR 2023``,
+    # ``08-Apr-23``, ``08APR2023``.
+    re.compile(r"(?i)(?<![0-9A-Z])(?:0?[1-9]|[12]\d|3[01])[\s./-]*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEPT?|OCT|NOV|DEC)[A-Z]*[\s./,-]*(?:(?:19|20)\d{2}|\d{2})(?![0-9])"),
 )
+_MONTHS = {name: index for index, name in enumerate(("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"), start=1)}
 TOTAL_PATTERN = re.compile(r"(?i)\b(?:net\s+amt|grand\s+total|total\s+rm|total\s+amt|total|amount)\b[^\d]{0,16}(?:RM\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)")
-MONEY_PATTERN = re.compile(r"(?i)(?:RM\s*)?([0-9][0-9,]*\.\d{2})")
+MONEY_PATTERN = re.compile(r"(?i)(?:RM\s*)?([0-9][0-9,]*\.\d{2})(?!\d)")
 NUMBER_PATTERN = re.compile(r"(?i)\b(?:(?:receipt|invoice|document|bill)\s*)?(?:(?:no\.?|number)|#)(?:\s*[:#-]?)\s*([A-Z0-9][A-Z0-9/-]{2,})")
 
 TAG_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -45,6 +49,8 @@ class FieldRecord:
     retained_pixels: int = 0
     rule_status: str = "not_evaluated"
     box: Any = None
+    hint: str | None = None
+    suggested: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -111,19 +117,52 @@ def extract_fields(text: str, lines: list[dict[str, Any]]) -> dict[str, dict[str
         total = total_match
     else:
         total = None
+    if total is None:
+        total = _single_ringgit_amount(text)
+    date_hint = None if date else _partial_date(text)
     merchant = _merchant_candidate(lines)
     return {
         "merchant": {"value": merchant, "confidence": _mean_confidence(lines, [merchant or ""]), "box": _box_for(lines, [merchant or ""])},
-        "transaction_date": {"value": date, "confidence": _mean_confidence(lines, [raw_date or "date"]), "box": _box_for(lines, [raw_date or "date"])},
+        "transaction_date": {"value": date, "confidence": _mean_confidence(lines, [raw_date or "date"]), "box": _box_for(lines, [raw_date or "date"]), "hint": date_hint},
         "receipt_invoice_number": {"value": receipt_number, "confidence": _mean_confidence(lines, [receipt_number or "receipt", "invoice", "document"]), "box": _box_for(lines, [receipt_number or "receipt", "invoice", "document"])},
         "total_amount": {"value": total, "confidence": _mean_confidence(lines, [total or "total"]), "box": _box_for(lines, [total or "total"])},
     }
+
+
+def _single_ringgit_amount(text: str) -> str | None:
+    """Fallback total: the only RM-prefixed amount on the receipt (fuel and
+    POS receipts print "RM 10.00" above a TOTAL label OCR may garble)."""
+    values = {f"{Decimal(m.group(1).replace(',', '')):.2f}" for m in re.finditer(r"(?i)RM\s*([0-9][0-9,]*\.\d{2})(?!\d)", text or "")}
+    values = {v for v in values if Decimal(v) > 0}
+    return values.pop() if len(values) == 1 else None
+
+
+def _partial_date(text: str) -> str | None:
+    """Day and month that were read when the year was not (e.g. a stain over it)."""
+    match = re.search(r"(?i)(?<!\d)(0?[1-9]|[12]\d|3[01])\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*(?!\s*[0-9]{2})", text or "")
+    if match:
+        return f"{int(match.group(1)):02d} {match.group(2).title()}"
+    return None
 
 
 def infer_receipt_tags(text: str, merchant: str | None = None) -> list[str]:
     """Infer conservative, user-editable tags from observed receipt text."""
     evidence = f"{merchant or ''}\n{text or ''}".lower()
     tags = [tag for tag, tokens in TAG_RULES if any(token in evidence for token in tokens)]
+    # the kind of business recognised from brand, fuel grade or items bought
+    from .receipt_context import recognise_receipt
+    context = recognise_receipt(text or "", None, merchant)
+    kind = (context.get("business_type") or "").lower()
+    for word, tag in (("petrol", "fuel"), ("electronics", "electronics"), ("supermarket", "grocery"), ("grocery", "grocery"),
+                      ("convenience", "convenience"), ("restaurant", "meals"), ("cafe", "meals"), ("pharmacy", "medical"),
+                      ("clinic", "medical"), ("hardware", "hardware"), ("stationery", "office"), ("bookstore", "office"),
+                      ("electricity", "utilities"), ("telco", "utilities"), ("water", "utilities"), ("toll", "transport"),
+                      ("parking", "transport"), ("travel", "travel"), ("hotel", "travel"), ("furniture", "furniture")):
+        if word in kind:
+            tags.append(tag)
+            break
+    if re.search(r"\b(?:exchange|trade[\s-]*in|refund|return)\b", evidence):
+        tags.append("exchange-refund")
     if re.search(r"\bcash\s*sale\b", evidence):
         tags.append("cash-sale")
     elif re.search(r"\b(?:tax\s+)?invoice\b", evidence):
@@ -134,12 +173,28 @@ def infer_receipt_tags(text: str, merchant: str | None = None) -> list[str]:
     return list(dict.fromkeys(tags))[:4]
 
 
+def _plausible(day) -> str | None:
+    """Receipts are not dated in the future or before 2000 (OCR misreads)."""
+    from datetime import date, timedelta
+    if day < date(2000, 1, 1) or day > date.today() + timedelta(days=1):
+        return None
+    return day.isoformat()
+
+
 def _normalise_date(value: str | None) -> str | None:
     if not value:
         return None
     value = value.strip().replace(".", "/")
+    named = re.fullmatch(r"(?i)(\d{1,2})[\s/,-]*([A-Z]{3})[A-Z]*[\s/,-]*(\d{2}|\d{4})", value)
+    if named:
+        month = _MONTHS.get(named.group(2).upper()[:3])
+        year = int(named.group(3)); year += 2000 if year < 100 else 0
+        try:
+            return _plausible(datetime(year, month, int(named.group(1))).date()) if month else None
+        except ValueError:
+            return None
     for pattern in ("%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y", "%Y/%m/%d", "%Y-%m-%d"):
-        try: return datetime.strptime(value, pattern).date().isoformat()
+        try: return _plausible(datetime.strptime(value, pattern).date())
         except ValueError: continue
     return None
 
@@ -205,6 +260,10 @@ def _explicit_invoice_number(text: str) -> str | None:
         # a common Malaysian label and previously won over the real Invoice No.
         if re.search(r"(?i)\b(?:company|co\.?\s*reg|registration|reg\.?|roc|business|sst|gst|tax|phone|tel|fax)\b", line):
             continue
+        # product serials, IMEIs and customer/staff/member ids identify goods
+        # or people, not the transaction
+        if re.search(r"(?i)\b(?:ser[il1]a[l1]|imei|s/?n|customer|member|staff|card|account|acc|model|part|batch|lot)\b", line):
+            continue
         match = NUMBER_PATTERN.search(line)
         if match:
             value = match.group(1)
@@ -223,8 +282,8 @@ def _bounds(box: Any) -> tuple[float, float, float, float] | None:
 
 
 def _total_priority(text: str) -> int | None:
-    if re.search(r"(?i)\b(?:sub[\s-]*total|total\s+(?:discount|saving|qty|quantity|items?|tax|gst)|tax\s+total)\b", text): return None
-    if re.search(r"(?i)\b(?:rounded?\s+total|total\s+(?:payable|due)|amount\s+(?:payable|due)|net\s+amt|grand\s+total|net\s+total)\b", text): return 0
+    if re.search(r"(?i)\b(?:sub[\s-]*total|total\s+(?:discount|saving|qty|quantity|items?|item\s+count|count|tax|gst)|tax\s+total)\b", text): return None
+    if re.search(r"(?i)\b(?:rounded?\s+total|total\s+(?:payable|due|amount)|amount\s+(?:payable|due|to\s+pay)|payment\s+due|balance\s+due|net\s+amt|grand\s+total|net\s+total)\b", text): return 0
     if re.search(r"(?i)\b(?:total\s+(?:sales|incl|excl|includes)|takeout\s+total)\b", text): return 2
     if re.search(r"(?i)\b(?:total|net\s+amount)\b", text): return 1
     return None
@@ -257,7 +316,7 @@ def _spatial_total(lines: list[dict[str, Any]]) -> str | None:
         lcy = (ly1 + ly2) / 2
         for line in lines:
             value_box = _bounds(line.get("box"))
-            match = re.fullmatch(r"\s*(?:RM\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)\s*", str(line.get("text", "")), re.I)
+            match = re.fullmatch(r"\s*(?:RM\s*)?-?\s*([0-9][0-9,]*(?:\.\d{1,2})?)\s*", str(line.get("text", "")), re.I)
             if not value_box or not match:
                 continue
             # Multi-view OCR may produce a truncated and a complete reading
@@ -297,7 +356,7 @@ def _same_box_region(first: tuple[float, float, float, float], second: tuple[flo
 
 
 def _spatial_invoice_number(lines: list[dict[str, Any]]) -> str | None:
-    labels = [line for line in lines if re.fullmatch(r"(?i)\s*(?:invoice\s*)?(?:no|no\.|number|#)\s*", str(line.get("text", "")))]
+    labels = [line for line in lines if re.fullmatch(r"(?i)\s*(?:(?:invoice|receipt|order|bill|trans(?:action)?|doc(?:ument)?)\s*)?(?:no|no\.|number|#)\s*:?\s*", str(line.get("text", "")))]
     candidates: list[tuple[float, str]] = []
     for label in labels:
         label_box = _bounds(label.get("box"))
@@ -398,6 +457,8 @@ def route_fields(
                 retained_pixels=retained_pixels,
                 rule_status="passed" if rule_passed else "failed",
                 box=box,
+                hint=payload.get("hint"),
+                suggested=payload.get("suggested"),
             )
         )
     return records

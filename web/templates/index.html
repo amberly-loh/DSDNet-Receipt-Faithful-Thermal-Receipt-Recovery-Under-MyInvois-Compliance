@@ -37,12 +37,10 @@
         <label id="policyLabel" class="policy-check hidden"><input id="policyAccepted" type="checkbox"> <span>I understand that receipt images and extracted information are stored locally for authorised review and audit purposes.</span></label><small id="policyError" class="field-error"></small>
         <p id="authError" class="form-error hidden" role="alert"></p>
         <button id="authSubmit" class="button primary wide" type="submit">Sign in</button>
-        <button id="guestButton" class="button secondary wide" type="button">Continue as guest</button>
-        <p class="provider-note">Guest records are stored on this computer and remain accessible in this browser session. Export before signing out; guest records cannot be reopened after sign-out. Files remain on this computer.</p>
-        <div class="auth-divider"><span>or</span></div>
-        <a id="googleLogin" class="button google wide" href="/auth/google"><b>G</b> Continue with Google</a>
-        <p id="googleStatus" class="provider-note"></p>
-        <p class="provider-note">This prototype stores data on the computer running the app; accounts do not provide cloud sync. Password reset and email verification are not yet available. Google sign-in, when configured, only provides identity.</p>
+        <div id="authDivider" class="auth-divider hidden"><span>or</span></div>
+        <button id="workspaceButton" class="button secondary wide hidden" type="button">Open this computer's receipts</button>
+        <p id="workspaceNote" class="provider-note hidden">No sign-in is needed on this computer. Accounts are only for computers shared by several people.</p>
+        <p class="provider-note">Receipts are stored on the computer running the app and work offline. Password reset and email verification are not yet available.</p>
         <p class="auth-switch"><span id="authSwitchText">New here?</span> <button id="authSwitch" type="button">Create an account</button></p>
       </form>
     </div>
@@ -57,7 +55,9 @@
         <button data-route="overview" class="active"><span>⌂</span>Overview</button>
         <button data-route="scan"><span>⊕</span>Scan receipt</button>
         <button data-route="history"><span>▦</span>Receipt history</button>
+        <button data-route="finance"><span>RM</span>Finance reports</button>
         <button id="adminNav" data-route="admin" class="hidden"><span>⚙</span>Administration</button>
+        <button id="settingsNav" type="button"><span>☰</span>Settings</button>
       </nav>
       <div class="side-note"><b>Review before use</b><p>Recovered text can still be wrong. Confirm important values against the receipt image.</p></div>
       <div class="profile-block">
@@ -75,7 +75,7 @@
       <main id="main" class="content">
         <section id="overviewPage" class="page">
           <div class="welcome-card">
-            <div><p class="eyebrow">GOOD TO SEE YOU</p><h2 id="welcomeName">Ready to recover a receipt?</h2><p>Scan a faded receipt, review the recovered values, and keep the result in your private history.</p><button class="button light" data-route="scan">Scan a receipt</button></div>
+            <div><p class="eyebrow">GOOD TO SEE YOU</p><h2 id="welcomeName">Ready to recover a receipt?</h2><p>Scan a faded receipt, review the recovered values, and keep the result in your private history.</p><button class="button light" data-route="scan">Scan a receipt</button> <button class="button ghost-light" type="button" data-phone-scan>Scan with phone</button></div>
             <div class="receipt-art" aria-hidden="true"><span></span><span></span><span></span><b>✓</b></div>
           </div>
           <div class="stat-grid">
@@ -94,7 +94,7 @@
               <input id="fileInput" type="file" accept="image/jpeg,image/png,image/bmp,image/tiff">
               <span class="upload-icon">↥</span><h3>Drop a receipt image here</h3><p>or click to browse your device</p><small>JPG, PNG, BMP or TIFF · maximum 20 MB</small>
             </label>
-            <div class="camera-card"><span class="camera-icon">◉</span><h3>Use your camera</h3><p>Capture a receipt directly from this device.</p><button id="cameraButton" class="button secondary" type="button">Open camera</button></div>
+            <div class="capture-stack"><div class="camera-card"><span class="camera-icon">◉</span><h3>Use your camera</h3><p>Capture a receipt directly from this device.</p><button id="cameraButton" class="button secondary" type="button">Open camera</button></div><div class="camera-card phone-card"><span class="camera-icon">▯</span><h3>Scan with your phone</h3><p>Show a QR code, then snap receipts with your phone on the same Wi-Fi.</p><button class="button primary" type="button" data-phone-scan>Scan with phone</button></div></div>
           </div>
           <div id="bulkCard" class="bulk-card"><div><span class="upload-icon">▤</span><div><h3>Process a batch</h3><p>Queue up to 100 receipt images. You can choose files more than once; each selection is added to the same queue.</p></div></div><label class="button secondary" for="bulkInput">Add receipt images<input id="bulkInput" type="file" accept="image/jpeg,image/png,image/bmp,image/tiff" multiple hidden></label><button id="bulkButton" class="button primary" disabled>Process batch</button><p id="bulkSelection"></p></div>
           <div id="previewPanel" class="preview-card hidden">
@@ -112,13 +112,21 @@
           <div class="history-toolbar">
             <label class="search-box"><span>⌕</span><input id="historySearch" type="search" placeholder="Search merchant, receipt number or amount"></label>
             <select id="statusFilter" aria-label="Filter by status"><option value="all">All statuses</option><option value="needs_review">To verify</option><option value="reviewed">Reviewed</option><option value="archived">Archived</option></select>
-            <a class="button secondary" href="/api/export.xlsx" download>Export Excel</a><a class="button secondary" href="/api/quality-evaluation.csv" download>Evaluation CSV</a>
+            <span class="pack-group"><input id="packMonth" type="month" aria-label="Month for the accountant pack (leave empty for all receipts)" title="Leave empty for all receipts"><a id="accountantPackLink" class="button primary" href="/api/accountant-pack.zip" download title="Spreadsheet plus every receipt image, named by date, supplier and amount">Accountant pack</a></span><a class="button secondary" href="/api/export.xlsx" download>Export Excel</a><a class="button secondary" href="/api/quality-evaluation.csv" download>Evaluation CSV</a>
             <div class="view-toggle"><button id="gridViewButton" class="active" aria-label="Grid view">▦</button><button id="listViewButton" aria-label="List view">☷</button></div>
           </div>
           <div id="historyCount" class="history-count"></div>
           <div class="history-selection"><label><input id="selectVisibleReceipts" type="checkbox"> Select all shown</label><span id="selectionCount" aria-live="polite">0 selected</span><button id="deleteSelectedReceipts" class="button danger" type="button" disabled>Delete selected</button></div>
           <p id="selectionSummary" class="selection-summary" aria-live="polite"></p>
           <div id="historyGallery" class="gallery"></div>
+        </section>
+
+        <section id="financePage" class="page hidden">
+          <div class="finance-head"><div><p class="eyebrow dark">COMPANY EXPENSES</p><h2>Expense reporting</h2><p>Track receipt-backed and manually entered expenses by type and month. Verify scanned values before using reports for accounting.</p></div><div class="button-row"><button id="addExpenseButton" class="button secondary" type="button">Add manual expense</button><a class="button primary" href="/api/finance/export.xlsx" download>Export finance Excel</a></div></div>
+          <div class="finance-filters"><label>From<input id="financeFrom" type="date"></label><label>To<input id="financeTo" type="date"></label><label>Expense type<select id="financeCategory"><option value="all">All expense types</option></select></label><label>Source<select id="financeSource"><option value="all">All sources</option><option value="receipt">Scanned receipts</option><option value="manual">Manual expenses</option></select></label><button id="clearFinanceFilters" class="button secondary" type="button">Clear</button></div>
+          <div class="stat-grid finance-stats"><article><span class="stat-icon green">RM</span><div><small>Total expenses</small><strong id="financeTotal">RM 0.00</strong></div></article><article><span class="stat-icon blue">▦</span><div><small>Expense records</small><strong id="financeCount">0</strong></div></article><article><span class="stat-icon amber">!</span><div><small>Receipts to verify</small><strong id="financeReview">0</strong></div></article><article><span class="stat-icon green">÷</span><div><small>Average expense</small><strong id="financeAverage">RM 0.00</strong></div></article></div>
+          <div class="finance-grid"><article class="finance-card"><h3>Spending by type</h3><div id="financeByType" class="finance-bars"></div></article><article class="finance-card"><h3>Monthly spending</h3><div id="financeMonthly" class="finance-bars"></div></article></div>
+          <article class="finance-card"><div class="section-head"><div><h3>Expense ledger</h3><p id="financeNotice">Receipt values marked “To verify” are included but require checking.</p></div></div><div id="financeTable" class="table-wrap"></div></article>
         </section>
 
         <section id="detailPage" class="page hidden">
@@ -134,14 +142,17 @@
             <form id="reviewForm" class="review-card">
               <div class="card-title"><div><h3>Verify extracted details</h3><p>Checking every new receipt is a normal step. Compare values with the original, then save them for accounting.</p></div><span class="human-badge">Verify</span></div>
               <div id="duplicateWarning" class="reading-message hidden"></div>
-              <div class="form-grid"><label class="field full">Merchant<input id="merchantField" maxlength="160"><small id="merchantEvidence"></small></label><label class="field">Transaction date<input id="dateField" type="date"><small id="dateEvidence"></small></label><label class="field">Receipt / invoice number (if shown)<input id="numberField" maxlength="100"><small id="numberEvidence"></small></label><label class="field">Total amount<input id="totalField" inputmode="decimal" placeholder="e.g. 12.50" maxlength="18"><small id="totalEvidence"></small></label><label class="field">Review status<select id="reviewStatus"><option value="needs_review">To verify</option><option value="reviewed">Reviewed</option><option value="archived">Archived</option></select></label><label class="field full">Tags<input id="tagsField" placeholder="e.g. fuel, office, claim"></label><label class="field full">Notes<textarea id="notesField" rows="3" maxlength="4000" placeholder="Add a private note"></textarea></label></div>
-              <details class="accounting-fields" open><summary>Accounting and MyInvois evidence</summary><div class="form-grid"><label class="field">Document type<input id="documentTypeField" maxlength="100"></label><label class="field">Currency<input id="currencyField" maxlength="3"></label><label class="field">Supplier registration no.<input id="supplierRegistrationField" maxlength="100"></label><label class="field">Supplier tax no.<input id="supplierTaxField" maxlength="100"></label><label class="field full">Supplier address<textarea id="supplierAddressField" rows="2" maxlength="500"></textarea></label><label class="field">Supplier phone<input id="supplierPhoneField" maxlength="100"></label><label class="field">Supplier email<input id="supplierEmailField" maxlength="160"></label><label class="field">Payment method<input id="paymentMethodField" maxlength="100"></label><label class="field">Subtotal<input id="subtotalField" inputmode="decimal" maxlength="18"></label><label class="field">Discount<input id="discountField" inputmode="decimal" maxlength="18"></label><label class="field">Tax amount<input id="taxAmountField" inputmode="decimal" maxlength="18"></label></div></details>
+              <div class="form-grid"><label class="field full">Merchant<input id="merchantField" maxlength="160"><small id="merchantEvidence"></small><small id="purposeEvidence" class="purpose-line hidden"></small></label><label class="field">Transaction date<input id="dateField" type="date"><small id="dateEvidence"></small><button type="button" id="dateSuggestButton" class="date-suggest hidden"></button></label><label class="field">Receipt / invoice number (if shown)<input id="numberField" maxlength="100"><small id="numberEvidence"></small></label><label class="field">Total amount<input id="totalField" inputmode="decimal" placeholder="e.g. 12.50" maxlength="18"><small id="totalEvidence"></small></label><label class="field">Review status<select id="reviewStatus"><option value="needs_review">To verify</option><option value="reviewed">Reviewed</option><option value="archived">Archived</option></select></label><label class="field full">Tags<input id="tagsField" placeholder="e.g. fuel, office, claim"></label><label class="field full">Notes<textarea id="notesField" rows="3" maxlength="4000" placeholder="Add a private note"></textarea></label></div>
+              <details class="accounting-fields" open><summary>Accounting and MyInvois evidence</summary><div class="form-grid"><label class="field full">Supplier (business that issued the receipt)<input id="supplierNameField" maxlength="160"><small id="supplierNameEvidence"></small></label><label class="field">Document type<input id="documentTypeField" maxlength="100"></label><label class="field">Currency<input id="currencyField" maxlength="3"></label><label class="field">Supplier registration no.<input id="supplierRegistrationField" maxlength="100"></label><label class="field">Supplier tax no.<input id="supplierTaxField" maxlength="100"></label><label class="field full">Supplier address<textarea id="supplierAddressField" rows="2" maxlength="500"></textarea></label><label class="field">Supplier phone<input id="supplierPhoneField" maxlength="100"></label><label class="field">Supplier email<input id="supplierEmailField" maxlength="160"></label><label class="field">Payment method<input id="paymentMethodField" maxlength="100"></label><label class="field">Subtotal<input id="subtotalField" inputmode="decimal" maxlength="18"></label><label class="field">Discount<input id="discountField" inputmode="decimal" maxlength="18"></label><label class="field">Tax amount<input id="taxAmountField" inputmode="decimal" maxlength="18"></label></div></details>
               <div class="ocr-toolbar"><strong>Line items</strong><button id="addLineItemButton" class="button secondary compact" type="button">Add row</button></div><div id="lineItemEditor" class="table-wrap"></div>
               <p id="saveMessage" class="save-message"></p><button class="button primary wide" type="submit">Save review</button>
             </form>
           </div>
-          <details class="technical-card"><summary>Using this receipt with MyInvois</summary><p>Keep the original as supporting evidence. If you need an individual e-Invoice, request it from the supplier and check their validated e-Invoice. This app does not submit or validate e-Invoices.</p><div id="myinvoisChecklist" class="table-wrap"></div></details>
-          <section class="technical-card"><div class="card-title"><div><h3>Reading results</h3><p>Check unclear or handwritten details against the original image.</p></div><span id="integrityStatus" class="status-pill">Checking integrity</span></div><p id="readingMessage" class="reading-message"></p><details><summary>Show text found by the scanner</summary><div class="ocr-toolbar"><span>Text is shown in receipt reading order with its scan confidence.</span><a id="technicalDownload" class="button secondary" download>Technical record (JSON)</a></div><div id="ocrTable" class="table-wrap ocr-table"></div></details><div class="record-meta"><span>Processed in <b id="runtimeStatus"></b></span><span>Record <b id="recordId"></b></span></div></section>
+          <section id="myinvoisCard" class="technical-card myinvois-card">
+            <div class="card-title"><div><h3>e-Invoice (MyInvois)</h3><p>Read automatically from the receipt. As the buyer, you keep the receipt; the supplier issues any e-invoice. Nothing to fill in or submit.</p></div><span id="purchaseStatus" class="status-pill">Checking</span></div>
+            <div id="purchasePanel" class="purchase-panel"></div>
+          </section>
+          <section class="technical-card"><div class="card-title"><div><h3>Reading results</h3><p>Check unclear or handwritten details against the original image.</p></div><span id="integrityStatus" class="status-pill">Checking integrity</span></div><p id="readingMessage" class="reading-message"></p><button id="readingCopyButton" class="button secondary compact reading-copy-button" type="button" title="A clean, typed version of what the scanner read, for easy reading only">Reading copy</button><details id="ocrDetails"><summary>Show text found by the scanner</summary><div class="ocr-toolbar"><span>Text is shown in receipt reading order with its scan confidence.</span><a id="technicalDownload" class="button secondary" download>Technical record (JSON)</a></div><div id="ocrTable" class="table-wrap ocr-table"></div></details><div class="record-meta"><span>Processed in <b id="runtimeStatus"></b></span><span>Record <b id="recordId"></b></span></div></section>
         </section>
 
         <section id="adminPage" class="page hidden">
@@ -155,7 +166,43 @@
   </div>
 
   <dialog id="cameraDialog" class="camera-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close camera">×</button></form><h2>Photograph your receipt</h2><p>Keep all four edges inside the frame.</p><video id="cameraVideo" autoplay playsinline></video><canvas id="cameraCanvas" class="hidden"></canvas><button id="captureButton" class="button primary wide">Capture receipt</button></dialog>
+  <dialog id="expenseDialog" class="expense-dialog"><form id="expenseForm"><button id="closeExpenseButton" class="dialog-close" type="button" aria-label="Close expense form">×</button><h2>Add manual expense</h2><p>Use this for expenses without a scanned receipt.</p><div class="form-grid"><label class="field">Date<input id="expenseDate" type="date" required></label><label class="field">Supplier<input id="expenseSupplier" maxlength="160" required></label><label class="field full">Description<input id="expenseDescription" maxlength="500"></label><label class="field">Expense type<select id="expenseType" required></select></label><label class="field">Amount<input id="expenseAmount" inputmode="decimal" placeholder="0.00" required></label><label class="field">Currency<input id="expenseCurrency" value="MYR" maxlength="3"></label><label class="field">Payment method<input id="expensePayment" maxlength="100"></label><label class="field">Tax amount<input id="expenseTax" inputmode="decimal" placeholder="0.00"></label><label class="field full">Notes<textarea id="expenseNotes" rows="3" maxlength="2000"></textarea></label></div><p id="expenseError" class="field-error"></p><button class="button primary wide" type="submit">Save expense</button></form></dialog>
   <dialog id="imageDialog" class="image-dialog"><div class="image-dialog-head"><div><h2>Improved receipt</h2><p>Use the controls or your browser zoom to inspect small print.</p></div><button id="closeImageButton" class="dialog-close" type="button" aria-label="Close full-size image">×</button></div><div class="image-zoom-controls"><button id="zoomOutButton" class="button secondary compact" type="button" aria-label="Zoom out">−</button><output id="zoomLevel">100%</output><button id="zoomInButton" class="button secondary compact" type="button" aria-label="Zoom in">+</button><button id="zoomResetButton" class="button secondary compact" type="button">Fit</button></div><div id="fullImageViewport" class="full-image-viewport"><img id="fullImage" alt="Improved receipt at full size"></div></dialog>
+  <dialog id="settingsDialog" class="settings-dialog" aria-labelledby="settingsTitle">
+    <div class="settings-head"><h2 id="settingsTitle">Settings</h2><button id="closeSettingsButton" class="dialog-close" type="button" aria-label="Close settings">×</button></div>
+    <div class="settings-body"><nav id="settingsGroups" class="settings-groups" aria-label="Settings categories"></nav><div id="settingsPane" class="settings-pane"></div></div>
+    <div class="settings-foot"><span id="settingsMessage" class="save-message"></span><button id="settingsOk" class="button primary compact" type="button">OK</button><button id="settingsCancel" class="button secondary compact" type="button">Cancel</button></div>
+  </dialog>
+  <dialog id="phoneDialog" class="phone-dialog" aria-labelledby="phoneTitle">
+    <div class="settings-head"><h2 id="phoneTitle">Scan with your phone</h2><button id="closePhoneButton" class="dialog-close" type="button" aria-label="Close">×</button></div>
+    <div class="phone-body">
+      <div id="phoneQr" class="phone-qr" aria-live="polite">Preparing…</div>
+      <div class="phone-steps">
+        <ol><li>Connect the phone to the <b>same Wi-Fi</b> as this computer.</li><li>Point the phone camera at the QR code and open the link.</li><li>Take photos of your receipts. Each one is read here and saved on this computer.</li></ol>
+        <p id="phoneAddress" class="phone-small"></p>
+        <p id="phoneExpiry" class="phone-small"></p>
+        <h3>Received from the phone</h3>
+        <ul id="phoneReceived" class="phone-received"><li class="phone-small">Nothing yet.</li></ul>
+      </div>
+    </div>
+    <div class="settings-foot"><span class="phone-small">The code only works on your local network and stops working when you end pairing.</span><button id="endPhoneButton" class="button secondary compact" type="button">End pairing</button><button id="donePhoneButton" class="button primary compact" type="button">Done</button></div>
+  </dialog>
+  <dialog id="welcomeDialog" class="welcome-dialog" aria-labelledby="welcomeTitle">
+    <p class="eyebrow dark">WELCOME TO RESITTRACE</p>
+    <h2 id="welcomeTitle">Turn faded receipts into clean records for your accountant.</h2>
+    <ol class="welcome-steps">
+      <li><b>Scan</b><span>Upload a photo or scan with your phone. Faded and stained receipts are restored.</span></li>
+      <li><b>Check</b><span>The supplier, date and total are filled in for you. Fix anything marked to verify.</span></li>
+      <li><b>Send</b><span>Download the monthly accountant pack (Excel with receipt images).</span></li>
+    </ol>
+    <p class="welcome-note">Everything stays on this computer. No account or internet is needed.</p>
+    <div class="welcome-actions"><button id="welcomeScan" class="button primary" type="button">Scan your first receipt</button><button id="welcomePhone" class="button secondary" type="button">Scan with phone</button><button id="welcomeSkip" class="button text" type="button">Skip</button></div>
+  </dialog>
+  <dialog id="readingCopyDialog" class="reading-copy-dialog" aria-labelledby="readingCopyTitle">
+    <div class="settings-head"><div><h2 id="readingCopyTitle">Reading copy</h2><p class="reading-copy-note">Typed from the scanner's reading for easy reading only. It is not the receipt image and is not for audit or submission. Unread or unclear text may be missing or wrong; check the receipt image.</p></div><button id="closeReadingCopyButton" class="dialog-close" type="button" aria-label="Close reading copy">×</button></div>
+    <div id="readingCopyBody" class="reading-copy-paper"></div>
+  </dialog>
+  <button id="phoneChip" class="phone-chip hidden" type="button" aria-live="polite"><span class="phone-chip-dot"></span><span id="phoneChipText">Phone connected</span></button>
   <div id="toast" class="toast hidden" role="status"></div>
 </body>
 </html>

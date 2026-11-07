@@ -235,3 +235,35 @@ def test_guest_selection_validation_and_isolation(tmp_path: Path) -> None:
     assert other.post('/api/receipts/selection-summary', json={'ids': ['G-0']}, headers={'X-CSRF-Token': other_token}).status_code == 404
     assert guest_client.post('/api/logout', headers={'X-CSRF-Token': token}).status_code == 200
     assert guest_client.get('/api/dashboard').status_code == 401
+
+
+def test_finance_report_combines_receipts_manual_expenses_and_export(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    client = app.test_client(); login = client.post('/api/guest', headers={'X-CSRF-Token': csrf(client)})
+    token = login.get_json()['csrf_token']; user = login.get_json()['user']; store = app.extensions['receipt_store']; now = utc_now()
+    image = tmp_path / 'receipt.png'; image.write_bytes(b'x')
+    store.create_receipt({'public_id':'FIN-R1','user_id':user['id'],'source_name':'fuel.png','created_at':now,'updated_at':now,'status':'reviewed','merchant':'PETRONAS','transaction_date':'2026-10-01','receipt_number':'F1','total_amount':'50.00','tags':'["fuel"]','notes':'','ocr_text':'','audit_json':'{}','input_path':str(image),'restored_path':str(image),'runtime_seconds':0,'restoration_status':'ok','support_status':'unavailable','accounting_fields_json':'{"currency":"MYR","payment_method":"Card"}'})
+    created = client.post('/api/finance/expenses', json={'expense_date':'2026-10-02','supplier':'Office Shop','description':'Paper','expense_type':'office','amount':'12.50','currency':'MYR','tax_amount':'0.50'}, headers={'X-CSRF-Token':token})
+    assert created.status_code == 201
+    report = client.get('/api/finance?from=2026-10-01&to=2026-10-31').get_json()
+    assert report['summary']['total'] == '62.50' and report['summary']['count'] == 2
+    assert {row['code'] for row in report['by_type']} == {'fuel', 'office'}
+    assert client.patch('/api/finance/receipts/FIN-R1', json={'expense_type':'travel'}, headers={'X-CSRF-Token':token}).status_code == 200
+    assert client.get('/api/finance?category=travel').get_json()['summary']['total'] == '50.00'
+    export = client.get('/api/finance/export.xlsx')
+    assert export.status_code == 200 and export.headers['Content-Type'].startswith('application/vnd.openxmlformats')
+    assert client.delete('/api/finance/expenses/' + created.get_json()['public_id'], headers={'X-CSRF-Token':token}).status_code == 200
+
+
+def test_finance_expense_validation_and_frontend_module(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    client = app.test_client(); login = client.post('/api/guest', headers={'X-CSRF-Token': csrf(client)})
+    token = login.get_json()['csrf_token']
+    invalid = client.post('/api/finance/expenses', json={'expense_date':'2026-02-31','supplier':'','amount':'-1','expense_type':'unknown'}, headers={'X-CSRF-Token':token})
+    assert invalid.status_code == 400
+    assert {'expense_date','supplier','amount','expense_type'} <= set(invalid.get_json()['fields'])
+    html = client.get('/').get_data(as_text=True)
+    assert 'data-route="finance"' in html and 'id="financePage"' in html
+    assert '/api/finance/export.xlsx' in html

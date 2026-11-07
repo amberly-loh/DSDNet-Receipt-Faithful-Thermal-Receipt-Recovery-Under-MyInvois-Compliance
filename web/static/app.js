@@ -5,9 +5,11 @@ const setValue = (id, value = '') => {
   return element;
 };
 const fieldValue = id => String($(id)?.value ?? '').trim();
-const pages = ['overview', 'scan', 'history', 'detail', 'admin'];
+const pages = ['overview', 'scan', 'history', 'finance', 'detail', 'admin'];
 let csrf = '', user = null, authMode = 'login', selectedFile = null, cameraStream = null;
 let currentReceipt = null, historyMode = 'grid', searchTimer = null;
+let userSettings = {default_view: 'faithful', show_myinvois: true, open_reading_results: false, pack_images: true};
+
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -50,8 +52,13 @@ async function api(path, options = {}, allowSessionRetry = true) {
   return data;
 }
 
+let accessState = {};
 function showAuth() {
   user = null;
+  const open = Boolean(accessState.workspace_available);
+  $('workspaceButton').classList.toggle('hidden', !open);
+  $('workspaceNote').classList.toggle('hidden', !open);
+  $('authDivider').classList.toggle('hidden', !open);
   $('workspace').classList.add('hidden');
   $('authView').classList.remove('hidden');
 }
@@ -60,10 +67,15 @@ function showWorkspace() {
   $('authView').classList.add('hidden');
   $('workspace').classList.remove('hidden');
   $('profileName').textContent = user.name;
-  $('profileEmail').textContent = user.is_guest ? 'Guest session · local device' : user.email;
+  $('profileEmail').textContent = user.is_workspace ? 'This computer · no sign-in' : user.is_guest ? 'Guest session · local device' : user.email;
+  $('logoutButton').title = $('logoutButton').ariaLabel = accessState.sign_in_required ? 'Sign out' : 'Switch account';
+  sessionStorage.removeItem('signedOut');
   $('avatar').textContent = user.name.trim().charAt(0).toUpperCase();
   $('welcomeName').textContent = `Ready to recover a receipt, ${user.name.split(' ')[0]}?`;
   $('adminNav').classList.toggle('hidden', user.role !== 'admin');
+  loadUserSettings();
+  if (!user.welcome_seen && !$('welcomeDialog').open) $('welcomeDialog').showModal();
+  phoneWatchSeen = null; watchPhone();
   const requested = location.hash.slice(1) || 'overview';
   const lastReceipt = sessionStorage.getItem('lastReceiptId');
   if (requested === 'detail' && lastReceipt) openReceipt(lastReceipt); else route(requested, false);
@@ -109,7 +121,7 @@ $('authForm').onsubmit = async event => {
     const payload = {email: $('authEmail').value, password: $('authPassword').value};
     if (authMode === 'register') { payload.name = $('authName').value; payload.password_confirmation = $('authConfirmation').value; payload.policy_accepted = $('policyAccepted').checked; }
     const data = await api(`/api/${authMode === 'register' ? 'register' : 'login'}`, {method: 'POST', body: payload});
-    user = data.user; showWorkspace();
+    user = data.user; csrf = data.csrf_token || csrf; showWorkspace();
   } catch (error) {
     showFieldErrors(error.details?.fields);
     $('authError').textContent = error.message; $('authError').classList.remove('hidden');
@@ -118,10 +130,10 @@ $('authForm').onsubmit = async event => {
   }
 };
 
-$('guestButton').onclick = async () => {
-  const button = $('guestButton'); button.disabled = true;
+$('workspaceButton').onclick = async () => {
+  const button = $('workspaceButton'); button.disabled = true;
   try {
-    const data = await api('/api/guest', {method: 'POST'});
+    const data = await api('/api/workspace', {method: 'POST'});
     user = data.user; sessionStorage.removeItem('lastReceiptId'); history.replaceState(null, '', '#overview'); showWorkspace();
   } catch (error) { $('authError').textContent = error.message; $('authError').classList.remove('hidden'); }
   finally { button.disabled = false; }
@@ -131,7 +143,8 @@ $('logoutButton').onclick = async () => {
   if (user?.is_guest && !confirm('Guest receipts cannot be reopened after signing out. Export what you need first. Files remain on this computer. Sign out?')) return;
   try { await api('/api/logout', {method: 'POST'}); } finally {
     selectedReceipts.clear(); sessionStorage.removeItem('lastReceiptId'); currentReceipt = null;
-    csrf = ''; const state = await api('/api/auth'); csrf = state.csrf_token; showAuth();
+    sessionStorage.setItem('signedOut', '1');
+    csrf = ''; const state = await api('/api/auth'); csrf = state.csrf_token; accessState = state; showAuth();
   }
 };
 
@@ -139,6 +152,7 @@ const pageCopy = {
   overview: ['Overview', 'Your receipt recovery workspace'],
   scan: ['Scan receipt', 'Recover a faded thermal receipt'],
   history: ['Receipt history', 'Search, review and organise saved receipts'],
+  finance: ['Finance reports', 'Track company expenses and spending types'],
   detail: ['Receipt details', 'Compare the image and verify extracted fields']
   ,admin: ['Administration', 'Manage authorised users and audit activity']
 };
@@ -153,6 +167,7 @@ function route(name, updateHash = true) {
   window.scrollTo({top: 0, behavior: 'smooth'});
   if (name === 'overview') loadDashboard();
   if (name === 'history') loadHistory();
+  if (name === 'finance') loadFinance();
   if (name === 'scan') resetScan();
   if (name === 'admin') { if (user.role !== 'admin') return route('overview'); loadAdmin(); }
 }
@@ -192,6 +207,60 @@ async function loadDashboard() {
     wireReceiptLinks($('recentList'));
   } catch (error) { toast(error.message, true); }
 }
+
+let financeTypes = {};
+const financeParams = () => new URLSearchParams({
+  from: fieldValue('financeFrom'), to: fieldValue('financeTo'),
+  category: fieldValue('financeCategory') || 'all', source: fieldValue('financeSource') || 'all'
+});
+function financeBars(rows, labelKey) {
+  if (!rows.length) return '<p class="empty-copy">No expenses in this period.</p>';
+  const maximum = Math.max(...rows.map(row => Number(row.total) || 0), 1);
+  return rows.map(row => `<div class="finance-bar"><div><span>${escapeHtml(row[labelKey])}</span><b>RM ${escapeHtml(row.total)}</b></div><i style="width:${Math.max(2, (Number(row.total) / maximum) * 100)}%"></i></div>`).join('');
+}
+function financeTypeOptions(selected) {
+  return Object.entries(financeTypes).map(([code, label]) => `<option value="${escapeHtml(code)}" ${code === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+}
+function renderFinanceTable(entries) {
+  if (!entries.length) return '<div class="empty-state"><h3>No expenses found</h3><p>Change the filters, scan a receipt, or add a manual expense.</p></div>';
+  return `<table class="finance-table"><thead><tr><th>Date</th><th>Supplier / description</th><th>Type</th><th>Source</th><th>Status</th><th class="number">Amount</th><th></th></tr></thead><tbody>${entries.map(item => `<tr><td>${escapeHtml(item.date || 'Unknown')}</td><td><b>${escapeHtml(item.supplier)}</b><small>${escapeHtml(item.description)}</small></td><td><select data-finance-type="${escapeHtml(item.id)}" data-finance-source="${escapeHtml(item.source)}">${financeTypeOptions(item.expense_type)}</select></td><td>${item.source === 'receipt' ? 'Scanned receipt' : 'Manual'}</td><td><span class="status-pill ${escapeHtml(item.status)}">${escapeHtml(statusLabel(item.status))}</span></td><td class="number"><b>${item.amount ? `${escapeHtml(item.currency)} ${escapeHtml(item.amount)}` : 'Missing'}</b></td><td>${item.source === 'receipt' ? `<button class="text-button" data-finance-receipt="${escapeHtml(item.id)}">Open</button>` : `<button class="text-button danger-text" data-delete-expense="${escapeHtml(item.id)}">Delete</button>`}</td></tr>`).join('')}</tbody></table>`;
+}
+async function loadFinance() {
+  $('financeTable').innerHTML = '<div class="loading-state">Preparing expense report…</div>';
+  try {
+    const data = await api(`/api/finance?${financeParams()}`); financeTypes = data.types;
+    if ($('financeCategory').options.length === 1) $('financeCategory').insertAdjacentHTML('beforeend', financeTypeOptions(''));
+    if ($('expenseType').options.length === 0) $('expenseType').innerHTML = financeTypeOptions('other');
+    $('financeTotal').textContent = `RM ${data.summary.total}`; $('financeCount').textContent = data.summary.count;
+    $('financeReview').textContent = data.summary.needs_review; $('financeAverage').textContent = `RM ${data.summary.average}`;
+    $('financeByType').innerHTML = financeBars(data.by_type, 'label'); $('financeMonthly').innerHTML = financeBars(data.monthly, 'month');
+    $('financeNotice').textContent = `${data.summary.missing_amounts} record(s) have no usable amount. ${data.summary.needs_review} scanned receipt(s) still need verification.`;
+    $('financeTable').innerHTML = renderFinanceTable(data.entries);
+    $('financeTable').querySelectorAll('[data-finance-receipt]').forEach(button => button.onclick = () => openReceipt(button.dataset.financeReceipt));
+    $('financeTable').querySelectorAll('[data-finance-type]').forEach(select => select.onchange = async () => {
+      try {
+        const base = select.dataset.financeSource === 'receipt' ? '/api/finance/receipts/' : '/api/finance/expenses/';
+        await api(`${base}${encodeURIComponent(select.dataset.financeType)}`, {method:'PATCH', body:{expense_type:select.value}}); toast('Expense type updated.'); await loadFinance();
+      } catch (error) { toast(error.message, true); }
+    });
+    $('financeTable').querySelectorAll('[data-delete-expense]').forEach(button => button.onclick = async () => {
+      if (!confirm('Delete this manual expense?')) return;
+      try { await api(`/api/finance/expenses/${encodeURIComponent(button.dataset.deleteExpense)}`, {method:'DELETE'}); toast('Expense deleted.'); await loadFinance(); }
+      catch (error) { toast(error.message, true); }
+    });
+  } catch (error) { $('financeTable').innerHTML = `<div class="error-inline">${escapeHtml(error.message)}</div>`; }
+}
+
+['financeFrom','financeTo','financeCategory','financeSource'].forEach(id => $(id).onchange = loadFinance);
+$('clearFinanceFilters').onclick = () => { ['financeFrom','financeTo'].forEach(id => setValue(id)); setValue('financeCategory','all'); setValue('financeSource','all'); loadFinance(); };
+$('addExpenseButton').onclick = () => { $('expenseForm').reset(); setValue('expenseDate', new Date().toISOString().slice(0,10)); setValue('expenseCurrency','MYR'); $('expenseType').innerHTML = financeTypeOptions('other'); $('expenseError').textContent = ''; $('expenseDialog').showModal(); };
+$('closeExpenseButton').onclick = () => $('expenseDialog').close();
+$('expenseForm').onsubmit = async event => {
+  event.preventDefault(); $('expenseError').textContent = '';
+  const body = {expense_date:fieldValue('expenseDate'), supplier:fieldValue('expenseSupplier'), description:fieldValue('expenseDescription'), expense_type:fieldValue('expenseType'), amount:fieldValue('expenseAmount'), currency:fieldValue('expenseCurrency'), payment_method:fieldValue('expensePayment'), tax_amount:fieldValue('expenseTax'), notes:fieldValue('expenseNotes')};
+  try { await api('/api/finance/expenses', {method:'POST', body}); $('expenseDialog').close(); toast('Expense recorded.'); await loadFinance(); }
+  catch (error) { $('expenseError').textContent = error.message + (error.details?.fields ? ` ${Object.values(error.details.fields).join(' ')}` : ''); }
+};
 
 const selectedReceipts = new Set();
 let selectionRequest = 0;
@@ -360,6 +429,10 @@ async function openReceipt(id) {
     setValue('numberField', currentReceipt.receipt_number); setValue('totalField', currentReceipt.total_amount);
     setValue('reviewStatus', currentReceipt.status); setValue('tagsField', (currentReceipt.tags || []).join(', ')); setValue('notesField', currentReceipt.notes);
     const accounting = currentReceipt.accounting_fields || {};
+    setValue('supplierNameField', accounting.supplier_name || currentReceipt.merchant);
+    $('supplierNameEvidence').textContent = accounting.brand && accounting.supplier_name && accounting.supplier_name !== currentReceipt.merchant ? `Read from the receipt: the ${accounting.brand} station is run by this business. Use this name for your records.` : '';
+    const purpose = [accounting.business_type, accounting.purchase_summary && accounting.purchase_summary !== accounting.business_type ? accounting.purchase_summary : null, accounting.brand && accounting.supplier_name && accounting.supplier_name !== currentReceipt.merchant ? `issued by ${accounting.supplier_name}` : null].filter(Boolean).join(' · ');
+    $('purposeEvidence').textContent = purpose ? `Recognised: ${purpose}` : ''; $('purposeEvidence').title = accounting.recognised_from ? `From: ${accounting.recognised_from}` : ''; $('purposeEvidence').classList.toggle('hidden', !purpose);
     for (const [key,id] of Object.entries({document_type:'documentTypeField',currency:'currencyField',supplier_registration_number:'supplierRegistrationField',supplier_tax_number:'supplierTaxField',supplier_address:'supplierAddressField',supplier_phone:'supplierPhoneField',supplier_email:'supplierEmailField',payment_method:'paymentMethodField',subtotal:'subtotalField',discount:'discountField',tax_amount:'taxAmountField'})) setValue(id, accounting[key]);
     renderLineItems(currentReceipt.line_items || []);
     renderReadiness(currentReceipt);
@@ -369,7 +442,8 @@ async function openReceipt(id) {
     const evidence = new Map((currentReceipt.audit?.fields || []).map(field => [field.name, field]));
     for (const [name, elementId] of [['merchant','merchantEvidence'],['transaction_date','dateEvidence'],['receipt_invoice_number','numberEvidence'],['total_amount','totalEvidence']]) {
       const field = evidence.get(name), confidence = field?.ocr_confidence;
-      $(elementId).textContent = field?.value ? `${confidence == null ? 'Located in receipt' : `${(Number(confidence) * 100).toFixed(1)}% scanner score (not a guarantee)`} · verify against original` : 'Not read automatically · enter if shown';
+      $(elementId).textContent = field?.value ? `${confidence == null ? 'Located in receipt' : `${(Number(confidence) * 100).toFixed(1)}% scanner score (not a guarantee)`} · verify against original` : (field?.suggested ? `Year partly hidden · receipt shows ${field.hint}; only ${field.suggested.slice(0,4)} fits the digits read · check and accept` : field?.hint ? `Not fully read · receipt shows ${field.hint} (year unreadable) · enter the full date` : 'Not read automatically · enter if shown');
+      if (name === 'transaction_date') { const btn = $('dateSuggestButton'); btn.classList.toggle('hidden', !(field?.suggested && !$('dateField').value)); btn.dataset.value = field?.suggested || ''; btn.textContent = field?.suggested ? `Use ${field.suggested}` : ''; }
     }
     $('runtimeStatus').textContent = `${Number(currentReceipt.runtime_seconds).toFixed(2)} seconds`; $('recordId').textContent = currentReceipt.public_id;
     const integrity = currentReceipt.integrity?.status || 'legacy_unverified';
@@ -383,7 +457,9 @@ async function openReceipt(id) {
     const suggestions = new Map((currentReceipt.audit?.ocr_suggestions || []).map(item => [Number(item.line_index), item]));
     $('ocrTable').innerHTML = lines.length ? `<table><thead><tr><th>#</th><th>Scanner reading</th><th>Possible correction</th><th>Confidence</th></tr></thead><tbody>${lines.map((line, index) => { const suggestion = suggestions.get(index); return `<tr><td>${index + 1}</td><td>${escapeHtml(line.text)}</td><td>${suggestion ? `<span class="suggested-reading">${escapeHtml(suggestion.suggested)}</span><small>Verify against original</small>` : '<span class="no-suggestion">—</span>'}</td><td>${line.confidence == null ? '—' : `${(Number(line.confidence) * 100).toFixed(1)}%`}</td></tr>`; }).join('')}</tbody></table>` : '<p class="empty-copy">No text was recognised. Enter the receipt details manually.</p>';
     $('auditDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.pdf`; $('accountingDownload').href = `/api/receipts/${encodeURIComponent(id)}/ocr.xlsx`; $('technicalDownload').href = `/api/receipts/${encodeURIComponent(id)}/audit.json`; $('documentDownload').href = currentReceipt.restored_url;
-    setImageMode('faithful'); route('detail');
+    setImageMode(userSettings.default_view === 'original' ? 'original' : 'faithful'); route('detail');
+    applyDisplaySettings();
+    loadMyinvois(id);
   } catch (error) { toast(error.message, true); }
 }
 
@@ -411,7 +487,7 @@ function renderReadiness(receipt) {
     ['Tax evidence', [a.subtotal && `subtotal ${a.subtotal}`, a.discount && `discount ${a.discount}`, a.tax_amount && `tax ${a.tax_amount}`].filter(Boolean).join(' · ') || 'Not printed or not detected', 'Used as supporting accounting evidence'],
     ['MyInvois workflow', 'Supporting evidence prepared', 'This app prepares evidence; authorised submission remains separate'],
   ];
-  $('myinvoisChecklist').innerHTML = `<table><thead><tr><th>Field group</th><th>Current value</th><th>Status</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHtml(row[0])}</td><td>${escapeHtml(row[1] || '—')}</td><td>${escapeHtml(row[2])}</td></tr>`).join('')}</tbody></table>`;
+  if ($('myinvoisChecklist')) $('myinvoisChecklist').innerHTML = `<table><thead><tr><th>Field group</th><th>Current value</th><th>Status</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHtml(row[0])}</td><td>${escapeHtml(row[1] || '—')}</td><td>${escapeHtml(row[2])}</td></tr>`).join('')}</tbody></table>`;
 }
 
 function dedupeOcrLines(lines) {
@@ -479,13 +555,13 @@ $('zoomResetButton').onclick = () => { imageZoom = 1; updateFullImageZoom(); };
 
 $('reviewForm').onsubmit = async event => {
   event.preventDefault(); if (!currentReceipt) return;
-  const accounting_fields = {...(currentReceipt.accounting_fields || {}),supplier_name:fieldValue('merchantField'),document_number:fieldValue('numberField'),transaction_date:fieldValue('dateField'),payable_amount:fieldValue('totalField'),document_type:fieldValue('documentTypeField'),currency:fieldValue('currencyField'),supplier_registration_number:fieldValue('supplierRegistrationField'),supplier_tax_number:fieldValue('supplierTaxField'),supplier_address:fieldValue('supplierAddressField'),supplier_phone:fieldValue('supplierPhoneField'),supplier_email:fieldValue('supplierEmailField'),payment_method:fieldValue('paymentMethodField'),subtotal:fieldValue('subtotalField'),discount:fieldValue('discountField'),tax_amount:fieldValue('taxAmountField'),line_item_count:collectLineItems().length};
+  const accounting_fields = {...(currentReceipt.accounting_fields || {}),supplier_name:fieldValue('supplierNameField') || fieldValue('merchantField'),document_number:fieldValue('numberField'),transaction_date:fieldValue('dateField'),payable_amount:fieldValue('totalField'),document_type:fieldValue('documentTypeField'),currency:fieldValue('currencyField'),supplier_registration_number:fieldValue('supplierRegistrationField'),supplier_tax_number:fieldValue('supplierTaxField'),supplier_address:fieldValue('supplierAddressField'),supplier_phone:fieldValue('supplierPhoneField'),supplier_email:fieldValue('supplierEmailField'),payment_method:fieldValue('paymentMethodField'),subtotal:fieldValue('subtotalField'),discount:fieldValue('discountField'),tax_amount:fieldValue('taxAmountField'),line_item_count:collectLineItems().length};
   const payload = {merchant: fieldValue('merchantField'), transaction_date: fieldValue('dateField'), receipt_number: fieldValue('numberField'), total_amount: fieldValue('totalField'), status: fieldValue('reviewStatus'), tags: fieldValue('tagsField').split(',').map(v => v.trim()).filter(Boolean), notes: fieldValue('notesField'), line_items: collectLineItems(), accounting_fields};
   try {
     currentReceipt = await api(`/api/receipts/${encodeURIComponent(currentReceipt.public_id)}`, {method: 'PATCH', body: payload});
     $('detailStatus').textContent = statusLabel(currentReceipt.status); $('detailStatus').className = `status-pill ${currentReceipt.status}`;
     $('detailTitle').textContent = currentReceipt.merchant || currentReceipt.source_name;
-    $('saveMessage').textContent = 'Saved successfully.'; toast('Receipt review saved.'); setTimeout(() => $('saveMessage').textContent = '', 2500);
+    $('saveMessage').textContent = 'Saved successfully.'; if (currentReceipt) loadMyinvois(currentReceipt.public_id); toast('Receipt review saved.'); setTimeout(() => $('saveMessage').textContent = '', 2500);
   } catch (error) { $('saveMessage').textContent = [error.message, ...Object.values(error.details?.fields || {})].join(' '); }
 };
 
@@ -547,21 +623,286 @@ window.addEventListener('hashchange', () => { if (user) route(location.hash.slic
 
 (async function boot() {
   try {
-    const providers = await api('/api/auth/providers');
-    if (!providers.google.enabled) {
-      $('googleLogin').classList.add('disabled'); $('googleLogin').setAttribute('aria-disabled', 'true');
-      $('googleLogin').onclick = event => event.preventDefault();
-      $('googleStatus').textContent = 'Google sign-in requires the installation owner to configure OAuth credentials.';
-    } else {
-      $('googleStatus').textContent = 'Sign in securely with your Google Account. Receipt data remains on this device.';
+    const state = await api('/api/auth'); csrf = state.csrf_token; user = state.user; accessState = state;
+    // No sign-in needed on this computer: open its receipts straight away,
+    // unless the person just chose "Switch account".
+    if (!user && state.workspace_available && !sessionStorage.getItem('signedOut')) {
+      const data = await api('/api/workspace', {method: 'POST'}); user = data.user;
     }
-    const authError = new URLSearchParams(location.search).get('auth_error');
-    if (authError) {
-      const messages = {google_not_configured:'Google sign-in is not configured yet.',google_state:'Google sign-in could not be verified. Try again.',google_denied:'Google sign-in was cancelled.',google_unverified:'Google did not confirm this email address.',account_suspended:'This account has been suspended. Contact the application administrator.',google_failed:'Google sign-in could not be completed.'};
-      $('authError').textContent = messages[authError] || 'Sign-in could not be completed.'; $('authError').classList.remove('hidden');
-      history.replaceState(null, '', '/');
-    }
-    const state = await api('/api/auth'); csrf = state.csrf_token; user = state.user;
     if (user) showWorkspace(); else showAuth();
   } catch (_) { showAuth(); $('authError').textContent = 'We could not connect just now. Please refresh the page and try again.'; $('authError').classList.remove('hidden'); }
 })();
+
+
+// ---------------------------------------------------------------- MyInvois
+let myinvois = null;   // {draft, validation, schema}
+const SOURCE_LABEL = {receipt: 'From receipt', profile: 'Saved profile', default: 'Rule default', consolidated_rule: 'Consolidated rule', user: 'Entered'};
+const getPath = (object, path) => path.split('.').reduce((node, key) => (node == null ? undefined : node[key]), object);
+function setPath(object, path, value) {
+  const parts = path.split('.'); let node = object;
+  parts.slice(0, -1).forEach(key => { if (node[key] == null || typeof node[key] !== 'object') node[key] = {}; node = node[key]; });
+  node[parts.at(-1)] = value;
+}
+
+async function loadMyinvois(id) {
+  $('purchaseStatus').textContent = 'Checking'; $('purchaseStatus').className = 'status-pill';
+  try { myinvois = await api(`/api/receipts/${encodeURIComponent(id)}/myinvois`); renderPurchase(); }
+  catch (error) { $('purchasePanel').textContent = error.message; }
+}
+
+function issueMap(validation) {
+  const map = new Map();
+  for (const issue of validation.issues || []) if (!map.has(issue.path)) map.set(issue.path, issue);
+  return map;
+}
+
+function sourceBadge(path, value) {
+  const origin = myinvois.draft.provenance?.[path];
+  if (value === null || value === undefined || String(value).trim() === '') return '<span class="src src-missing">Needed</span>';
+  return origin ? `<span class="src src-${escapeHtml(origin)}">${escapeHtml(SOURCE_LABEL[origin] || origin)}</span>` : '<span class="src src-user">Entered</span>';
+}
+
+// What an expense record needs: who was paid, when, which document, how much.
+const PURCHASE_FIELDS = [
+  ['supplier_name', 'Supplier'], ['transaction_date', 'Date'], ['receipt_number', 'Receipt no.'],
+  ['total', 'Total (RM)'], ['tax', 'Tax (RM)', true], ['payment_mode', 'Payment', true],
+];
+
+function renderPurchase() {
+  const p = myinvois.purchase;
+  if (!p) { $('purchasePanel').innerHTML = ''; return; }
+  const tone = p.status === 'supplier_must_issue' ? 'warn' : (p.status === 'validated_einvoice' ? 'ready' : 'ready');
+  $('purchaseStatus').textContent = p.label; $('purchaseStatus').className = `status-pill ${tone}`;
+  const req = p.request || {};
+  let request = '';
+  if (p.status !== 'validated_einvoice') {
+    if (req.expired) request = `<p class="purchase-request">The window to ask the supplier for an individual e-invoice has passed${req.rule ? ` (${escapeHtml(req.rule)})` : ''}; the receipt remains your supporting document.</p>`;
+    else if (req.deadline && (req.printed_on_receipt || p.status === 'supplier_must_issue')) request = `<p class="purchase-request">Want an e-invoice in your business name? Ask the supplier ${req.printed_on_receipt ? 'as printed on the receipt ' : ''}by <b>${escapeHtml(req.deadline)}</b>${req.rule ? ` (${escapeHtml(req.rule)})` : ''}.</p>`;
+  }
+  const rows = PURCHASE_FIELDS.filter(([key, , optional]) => !optional || p.essentials?.[key]).map(([key, label]) => {
+    const value = p.essentials?.[key];
+    return `<div class="purchase-field"><span>${escapeHtml(label)}</span><b>${value ? escapeHtml(value) : '<em>not read — check image</em>'}</b></div>`;
+  }).join('');
+  const review = (p.needs_review || []).length ? `<p class="purchase-review">Check before use: ${escapeHtml(p.needs_review.join(', '))} could not be read. Correct it in the review form above.</p>` : '';
+  $('purchasePanel').innerHTML = `<p class="purchase-action">${escapeHtml(p.action)}</p>${request}${review}<div class="purchase-grid">${rows}</div><p class="purchase-note">For a batch of receipts, use <b>Accountant pack</b> on the history page: a spreadsheet plus every receipt image, no typing needed.</p>`;
+}
+
+// The buyer-side workflow only needs the purchase summary above; the
+// self-billed e-invoice draft editor was removed from the interface.
+
+
+
+// ---------------------------------------------------------------- settings
+let settingsSchema = [], settingsPresets = {}, settingsDraft = {}, settingsGroup = 'Processing';
+
+async function loadUserSettings() {
+  try {
+    const data = await api('/api/settings');
+    userSettings = data.values; settingsSchema = data.schema; settingsPresets = data.presets || {};
+    applyDisplaySettings();
+  } catch (error) { /* defaults stay */ }
+}
+
+function applyDisplaySettings() {
+  if ($('myinvoisCard')) $('myinvoisCard').classList.toggle('hidden', userSettings.show_myinvois === false);
+  if ($('ocrDetails')) $('ocrDetails').open = Boolean(userSettings.open_reading_results);
+  if ($('accountantPackLink')) {
+    const month = $('packMonth')?.value;
+    const base = userSettings.pack_images === false ? '/api/accountant-pack.xlsx' : '/api/accountant-pack.zip';
+    $('accountantPackLink').href = month ? `${base}?month=${encodeURIComponent(month)}` : base;
+    $('accountantPackLink').textContent = userSettings.pack_images === false ? 'Accountant pack (Excel)' : 'Accountant pack';
+  }
+}
+if ($('packMonth')) $('packMonth').onchange = applyDisplaySettings;
+
+let accessDraft = null, accessInfo = null;
+function renderAccessPane() {
+  const on = accessDraft.require_sign_in, needsCredentials = on && !accessInfo.has_password && !accessInfo.sign_in_required;
+  $('settingsPane').innerHTML = `<h3>Sign-in</h3>
+    <label class="settings-row settings-check"><input type="checkbox" id="requireSignIn" ${on ? 'checked' : ''}><span><span class="settings-label">Require sign-in on this computer</span><small>Off: the app opens straight to your receipts, like other desktop software. Receipts never leave this computer. Turn on only if several people share this computer and should not see each other's receipts.</small></span></label>
+    ${needsCredentials ? `<div class="settings-credentials"><p>Set an email and password for these receipts, so they stay yours once sign-in is required.</p>
+      <label>Name<input id="accessName" autocomplete="name" value="${escapeHtml(accessDraft.name || '')}"><small class="field-error" id="accessNameError"></small></label>
+      <label>Email<input id="accessEmail" type="email" autocomplete="email" value="${escapeHtml(accessDraft.email || '')}"><small class="field-error" id="accessEmailError"></small></label>
+      <label>Password<input id="accessPassword" type="password" autocomplete="new-password"><small class="field-error" id="accessPasswordError"></small></label>
+      <label>Confirm password<input id="accessConfirmation" type="password" autocomplete="new-password"><small class="field-error" id="accessConfirmationError"></small></label></div>` : ''}
+    ${!on && accessInfo.sign_in_required ? '<p class="settings-note">Turning this off makes your account open without a password on this computer.</p>' : ''}`;
+  $('requireSignIn').onchange = event => { accessDraft.require_sign_in = event.target.checked; renderAccessPane(); };
+  for (const [id, key] of [['accessName', 'name'], ['accessEmail', 'email'], ['accessPassword', 'password'], ['accessConfirmation', 'password_confirmation']]) {
+    if ($(id)) $(id).oninput = event => { accessDraft[key] = event.target.value; };
+  }
+}
+
+function renderSettings() {
+  const groups = [...new Set(settingsSchema.map(item => item.group))];
+  if (accessInfo && !user?.is_guest) groups.push('Sign-in');
+  if (!groups.includes(settingsGroup)) settingsGroup = groups[0];
+  if (settingsGroup === 'Sign-in') {
+    $('settingsGroups').innerHTML = groups.map(group => `<button type="button" class="${group === settingsGroup ? 'active' : ''}" data-settings-group="${escapeHtml(group)}">${escapeHtml(group)}</button>`).join('');
+    renderAccessPane();
+    document.querySelectorAll('[data-settings-group]').forEach(button => button.onclick = () => { settingsGroup = button.dataset.settingsGroup; renderSettings(); });
+    return;
+  }
+  $('settingsGroups').innerHTML = groups.map(group => `<button type="button" class="${group === settingsGroup ? 'active' : ''}" data-settings-group="${escapeHtml(group)}">${escapeHtml(group)}</button>`).join('');
+  const presets = settingsGroup === 'Processing' ? `<div class="settings-presets"><span>Quick choice</span>${['fast', 'balanced', 'thorough'].map(name => `<button type="button" class="button secondary compact" data-preset="${name}">${name[0].toUpperCase() + name.slice(1)}</button>`).join('')}<small>Fast skips the optional steps marked “slower”. Restoration and the two main scanner passes always run.</small></div>` : '';
+  $('settingsPane').innerHTML = `<h3>${escapeHtml(settingsGroup)}</h3>${presets}` + settingsSchema.filter(item => item.group === settingsGroup).map(item => {
+    const value = settingsDraft[item.key];
+    const slow = item.slow ? ' <span class="settings-slow">slower</span>' : '';
+    if (item.choices) return `<label class="settings-row"><span class="settings-label">${escapeHtml(item.label)}${slow}</span><select data-setting="${item.key}">${Object.entries(item.choices).map(([code, label]) => `<option value="${escapeHtml(code)}" ${value === code ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select>${item.description ? `<small>${escapeHtml(item.description)}</small>` : ''}</label>`;
+    return `<label class="settings-row settings-check"><input type="checkbox" data-setting="${item.key}" ${value ? 'checked' : ''}><span><span class="settings-label">${escapeHtml(item.label)}${slow}</span>${item.description ? `<small>${escapeHtml(item.description)}</small>` : ''}</span></label>`;
+  }).join('');
+  document.querySelectorAll('[data-settings-group]').forEach(button => button.onclick = () => { settingsGroup = button.dataset.settingsGroup; renderSettings(); });
+  document.querySelectorAll('[data-setting]').forEach(control => control.onchange = () => {
+    settingsDraft[control.dataset.setting] = control.type === 'checkbox' ? control.checked : control.value;
+  });
+  document.querySelectorAll('[data-preset]').forEach(button => button.onclick = () => {
+    Object.assign(settingsDraft, settingsPresets[button.dataset.preset] || {}); renderSettings();
+    $('settingsMessage').textContent = `${button.textContent} settings selected. Press OK to save.`;
+  });
+}
+
+async function openSettings() {
+  await loadUserSettings();
+  try { accessInfo = await api('/api/access'); accessDraft = {require_sign_in: accessInfo.sign_in_required, name: accessInfo.name === 'This computer' ? '' : accessInfo.name, email: accessInfo.email}; }
+  catch { accessInfo = null; }
+  settingsDraft = {...userSettings}; $('settingsMessage').textContent = '';
+  renderSettings(); $('settingsDialog').showModal();
+}
+async function saveSettings() {
+  try {
+    if (accessInfo && accessDraft && accessDraft.require_sign_in !== accessInfo.sign_in_required) {
+      try {
+        const result = await api('/api/access', {method: 'PATCH', body: accessDraft});
+        accessState = {...accessState, ...result};
+        if (result.user) { user = result.user; $('profileName').textContent = user.name; $('profileEmail').textContent = user.is_workspace ? 'This computer · no sign-in' : user.email; }
+        $('logoutButton').title = result.sign_in_required ? 'Sign out' : 'Switch account';
+        toast(result.sign_in_required ? 'Sign-in is now required on this computer.' : 'This computer now opens without sign-in.');
+      } catch (error) {
+        settingsGroup = 'Sign-in'; renderSettings();
+        Object.entries(error.details?.fields || {}).forEach(([key, message]) => { const node = $(`access${key[0].toUpperCase()}${key.slice(1)}Error`); if (node) node.textContent = message; });
+        $('settingsMessage').textContent = error.message; return;
+      }
+    }
+    const data = await api('/api/settings', {method: 'PATCH', body: settingsDraft});
+    userSettings = data.values; applyDisplaySettings(); $('settingsDialog').close(); toast('Settings saved. They apply to the next receipt you process.');
+  } catch (error) { $('settingsMessage').textContent = error.message; }
+}
+$('settingsNav').onclick = openSettings;
+$('settingsOk').onclick = saveSettings;
+$('settingsCancel').onclick = () => $('settingsDialog').close();
+$('closeSettingsButton').onclick = () => $('settingsDialog').close();
+
+// ---------------------------------------------------------------- reading copy
+function boxBounds(box) {
+  if (!Array.isArray(box) || !box.length) return null;
+  const xs = box.map(p => Number(p[0])), ys = box.map(p => Number(p[1]));
+  return {x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys)};
+}
+
+async function renderReadingCopy() {
+  if (!currentReceipt) return;
+  $('readingCopyBody').innerHTML = '<p class="empty-copy">Preparing…</p>';
+  let lines = [];
+  try { lines = (await api(`/api/receipts/${encodeURIComponent(currentReceipt.public_id)}/reading-copy`)).lines || []; } catch { lines = []; }
+  const items = lines.map(line => ({text: line.text, b: {x0: line.x0, y0: line.y0, x1: line.x1, y1: line.y1}})).filter(item => String(item.text).trim());
+  const width = Math.max(1, ...items.map(item => item.b.x1)), left = Math.min(0, ...items.map(item => item.b.x0));
+  const heights = items.map(item => item.b.y1 - item.b.y0).sort((a, b) => a - b);
+  const lineHeight = heights.length ? heights[Math.floor(heights.length / 2)] : 12;
+  items.sort((a, b) => (a.b.y0 + a.b.y1) - (b.b.y0 + b.b.y1));
+  const rows = [];
+  for (const item of items) {
+    const centre = (item.b.y0 + item.b.y1) / 2;
+    const row = rows.find(r => Math.abs(r.centre - centre) < 0.55 * lineHeight);
+    if (row) row.items.push(item); else rows.push({centre, items: [item]});
+  }
+  const field = (label, value) => `<div><span>${label}</span><b>${escapeHtml(value || '—')}</b></div>`;
+  const summary = `<div class="reading-copy-summary">${field('Supplier', $('supplierNameField').value || $('merchantField').value)}${field('For', currentReceipt?.accounting_fields?.purchase_summary || '')}${field('Date', $('dateField').value)}${field('Receipt no.', $('numberField').value)}${field('Total', $('totalField').value)}</div>`;
+  const body = rows.map(row => {
+    row.items.sort((a, b) => a.b.x0 - b.b.x0);
+    const only = row.items.length === 1 ? row.items[0] : null;
+    if (only && Math.abs(((only.b.x0 + only.b.x1) / 2 - left) / (width - left) - 0.5) < 0.08) return `<div class="rc-line rc-centre">${escapeHtml(only.text)}</div>`;
+    // lay the row out on a fixed character grid so pieces never print over each other
+    const columns = 44; let text = '';
+    for (const item of row.items) {
+      const column = Math.round(columns * (item.b.x0 - left) / (width - left));
+      text += (text ? ' ' : '') + ' '.repeat(Math.max(0, column - text.length - (text ? 1 : 0))) + item.text;
+    }
+    return `<div class="rc-line">${escapeHtml(text)}</div>`;
+  }).join('');
+  $('readingCopyBody').innerHTML = summary + (body || '<p class="empty-copy">No text was recognised on this receipt.</p>');
+}
+$('dateSuggestButton').onclick = () => { const b = $('dateSuggestButton'); if (b.dataset.value) { $('dateField').value = b.dataset.value; $('dateField').dispatchEvent(new Event('input', {bubbles: true})); b.classList.add('hidden'); } };
+$('readingCopyButton').onclick = () => { $('readingCopyDialog').showModal(); renderReadingCopy(); };
+$('closeReadingCopyButton').onclick = () => $('readingCopyDialog').close();
+
+
+// ---------------------------------------------------------------- first run
+async function closeWelcome(next) {
+  $('welcomeDialog').close(); if (user) user.welcome_seen = true;
+  try { await api('/api/welcome', {method: 'POST'}); } catch (_) { /* shown again next time */ }
+  if (next === 'scan') route('scan'); else if (next === 'phone') openPhoneDialog();
+}
+$('welcomeScan').onclick = () => closeWelcome('scan');
+$('welcomePhone').onclick = () => closeWelcome('phone');
+$('welcomeSkip').onclick = () => closeWelcome();
+$('welcomeDialog').addEventListener('cancel', () => closeWelcome());
+
+// ---------------------------------------------------------------- phone scanner
+let phonePoll = null, phoneSeen = 0, phoneWatch = null, phoneWatchSeen = null;
+// While a phone is paired, keep an eye on it from any page: show when a photo
+// is being read and announce each receipt as it arrives.
+function watchPhone() {
+  clearInterval(phoneWatch);
+  phoneWatch = setInterval(async () => {
+    if (!user) { clearInterval(phoneWatch); return; }
+    let pairing = null;
+    try { pairing = (await api('/api/phone/pair')).pairing; } catch (_) { return; }
+    const chip = $('phoneChip');
+    if (!pairing) { chip.classList.add('hidden'); clearInterval(phoneWatch); phoneWatchSeen = null; return; }
+    const received = pairing.received || [];
+    if (phoneWatchSeen === null) phoneWatchSeen = received.length;
+    chip.classList.remove('hidden');
+    chip.classList.toggle('busy', pairing.processing > 0);
+    $('phoneChipText').textContent = pairing.processing > 0
+      ? `Reading ${pairing.processing > 1 ? pairing.processing + ' receipts' : 'a receipt'} from your phone…`
+      : `Phone connected · ${received.length} received`;
+    if (received.length > phoneWatchSeen) {
+      const fresh = received.slice(phoneWatchSeen); phoneWatchSeen = received.length;
+      const last = fresh[fresh.length - 1];
+      toast(`New receipt from your phone: ${last.merchant || 'Receipt'}${last.total ? ' · RM ' + last.total : ''}`);
+      chip.dataset.last = last.public_id || '';
+      if (typeof loadDashboard === 'function' && location.hash.slice(1) === 'overview') loadDashboard().catch(() => {});
+    }
+  }, 2500);
+}
+
+function renderPhoneStatus(pairing) {
+  if (!pairing) { $('phoneExpiry').textContent = 'Pairing ended. Press Scan with phone again for a new code.'; $('phoneQr').classList.add('ended'); return; }
+  const minutes = Math.ceil(pairing.expires_in / 60);
+  $('phoneExpiry').textContent = `Code works for ${minutes} more minute${minutes === 1 ? '' : 's'}${pairing.processing ? ' · reading a photo now…' : ''}${pairing.failed ? ` · ${pairing.failed} photo(s) could not be read` : ''}.`;
+  const received = pairing.received || [];
+  $('phoneReceived').innerHTML = received.length ? received.slice().reverse().map(item => `<li><button type="button" class="link-button" data-open-receipt="${escapeHtml(item.public_id)}">${escapeHtml(item.merchant || 'Receipt')}</button><span>${escapeHtml([item.total ? 'RM ' + item.total : '', item.date || ''].filter(Boolean).join(' · '))}</span></li>`).join('') : '<li class="phone-small">Nothing yet.</li>';
+  document.querySelectorAll('[data-open-receipt]').forEach(button => button.onclick = () => { $('phoneDialog').close(); openReceipt(button.dataset.openReceipt); });
+  if (received.length > phoneSeen) { phoneSeen = received.length; if (typeof loadDashboard === 'function') loadDashboard().catch(() => {}); }
+}
+async function openPhoneDialog() {
+  $('phoneQr').classList.remove('ended'); $('phoneQr').textContent = 'Preparing…'; $('phoneAddress').textContent = ''; $('phoneExpiry').textContent = '';
+  $('phoneReceived').innerHTML = '<li class="phone-small">Nothing yet.</li>'; phoneSeen = 0;
+  if (!$('phoneDialog').open) $('phoneDialog').showModal();
+  try {
+    const data = await api('/api/phone/pair', {method: 'POST'});
+    $('phoneQr').innerHTML = data.qr_svg;
+    $('phoneAddress').textContent = `This computer on the Wi-Fi: ${data.address}` + (data.other_addresses?.length ? ` (if the phone cannot connect, this computer may be on another network: ${data.other_addresses.join(', ')})` : '');
+    renderPhoneStatus(data);
+    phoneWatchSeen = (data.received || []).length; watchPhone();
+    clearInterval(phonePoll);
+    phonePoll = setInterval(async () => {
+      if (!$('phoneDialog').open) { clearInterval(phonePoll); return; }
+      try { renderPhoneStatus((await api('/api/phone/pair')).pairing); } catch (_) { /* keep last view */ }
+    }, 3000);
+  } catch (error) { $('phoneQr').textContent = error.message; }
+}
+document.addEventListener('click', event => { const trigger = event.target.closest('[data-phone-scan]'); if (trigger) openPhoneDialog(); });
+$('closePhoneButton').onclick = $('donePhoneButton').onclick = () => $('phoneDialog').close();
+$('endPhoneButton').onclick = async () => { try { await api('/api/phone/pair', {method: 'DELETE'}); } finally { clearInterval(phonePoll); clearInterval(phoneWatch); $('phoneChip').classList.add('hidden'); renderPhoneStatus(null); $('phoneQr').textContent = 'Pairing ended.'; } };
+$('phoneChip').onclick = () => { const last = $('phoneChip').dataset.last; if (last && !$('phoneChip').classList.contains('busy')) openReceipt(last); else openPhoneDialog(); };
+$('phoneDialog').addEventListener('close', () => clearInterval(phonePoll));

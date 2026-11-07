@@ -68,8 +68,45 @@ CREATE TABLE IF NOT EXISTS audit_events (
     event_hash TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_audit_events_time ON audit_events(occurred_at DESC);
+CREATE TABLE IF NOT EXISTS myinvois_profiles (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    profile_key TEXT NOT NULL,
+    profile_json TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, kind, profile_key)
+);
 CREATE INDEX IF NOT EXISTS idx_audit_events_actor ON audit_events(actor_user_id, occurred_at DESC);
+CREATE TABLE IF NOT EXISTS user_settings (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    settings_json TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS manual_expenses (
+    id INTEGER PRIMARY KEY,
+    public_id TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expense_date TEXT NOT NULL,
+    supplier TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    expense_type TEXT NOT NULL DEFAULT 'other',
+    amount TEXT NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'MYR',
+    payment_method TEXT NOT NULL DEFAULT '',
+    tax_amount TEXT,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_manual_expenses_user_date ON manual_expenses(user_id, expense_date DESC);
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
+
+WORKSPACE_EMAIL = "workspace@this-computer.local.invalid"
 
 
 def utc_now() -> str:
@@ -99,6 +136,7 @@ class ReceiptStore:
             "retention_until": "TEXT", "deletion_verified_at": "TEXT", "content_sha256": "TEXT",
             "line_items_json": "TEXT NOT NULL DEFAULT '[]'",
             "accounting_fields_json": "TEXT NOT NULL DEFAULT '{}'",
+            "myinvois_json": "TEXT NOT NULL DEFAULT '{}'",
         }.items():
             if name not in receipt_columns:
                 db.execute(f"ALTER TABLE receipts ADD COLUMN {name} {definition}")
@@ -164,6 +202,54 @@ class ReceiptStore:
                 (identifier, "Guest", f"{identifier}@guest.local.invalid", "!guest-login-disabled", utc_now(), "user", "active"),
             )
             return dict(db.execute("SELECT id,public_id,name,email,created_at,role,status FROM users WHERE id=?", (cursor.lastrowid,)).fetchone())
+
+    # --- this computer's workspace ---------------------------------------
+    def app_setting(self, key: str, default: str | None = None) -> str | None:
+        with self.connect() as db:
+            row = db.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
+        return row["value"] if row else default
+
+    def set_app_setting(self, key: str, value: str) -> None:
+        with self.connect() as db:
+            db.execute("INSERT INTO app_settings(key,value,updated_at) VALUES(?,?,?) "
+                       "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at", (key, value, utc_now()))
+
+    def workspace_user(self) -> dict[str, Any]:
+        """The account that opens without a password on this computer.
+
+        First use picks the account the owner already works in (the most
+        recently signed-in active account) so earlier receipts stay in view;
+        a fresh install gets a "This computer" workspace."""
+        import uuid
+        chosen = self.app_setting("workspace_user_id")
+        if chosen:
+            user = self.user_by_id(int(chosen))
+            if user and user.get("status") == "active":
+                return user
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT id FROM users WHERE status='active' AND email NOT LIKE '%@guest.local.invalid' "
+                "ORDER BY (last_login_at IS NULL), last_login_at DESC, id LIMIT 1").fetchone()
+            if row:
+                user_id = row["id"]
+            else:
+                first_user = db.execute("SELECT COUNT(*) FROM users WHERE email NOT LIKE '%@guest.local.invalid'").fetchone()[0] == 0
+                user_id = db.execute(
+                    "INSERT INTO users(public_id,name,email,password_hash,created_at,role,status) VALUES(?,?,?,?,?,?,?)",
+                    (uuid.uuid4().hex, "This computer", WORKSPACE_EMAIL, "!workspace-no-password", utc_now(),
+                     "admin" if first_user else "user", "active")).lastrowid
+        self.set_app_setting("workspace_user_id", str(user_id))
+        return self.user_by_id(user_id)
+
+    def set_user_credentials(self, user_id: int, name: str, email: str, password_hash: str) -> dict[str, Any] | None:
+        with self.connect() as db:
+            db.execute("UPDATE users SET name=?, email=?, password_hash=? WHERE id=?", (name.strip(), email.strip().lower(), password_hash, user_id))
+        return self.user_by_id(user_id)
+
+    def user_has_password(self, user_id: int) -> bool:
+        with self.connect() as db:
+            row = db.execute("SELECT password_hash FROM users WHERE id=?", (user_id,)).fetchone()
+        return bool(row) and not str(row["password_hash"]).startswith("!")
 
     def user_by_email(self, email: str):
         with self.connect() as db:
@@ -326,6 +412,49 @@ class ReceiptStore:
             db.execute(f"UPDATE receipts SET {','.join(f'{k}=?' for k in clean)} WHERE user_id=? AND public_id=? AND deleted_at IS NULL", (*clean.values(), user_id, public_id))
         return self.get_receipt(user_id, public_id)
 
+    # ------------------------------------------------------------ MyInvois
+    def get_myinvois_draft(self, user_id: int, public_id: str) -> dict[str, Any] | None:
+        with self.connect() as db:
+            row = db.execute("SELECT myinvois_json FROM receipts WHERE user_id=? AND public_id=? AND deleted_at IS NULL",
+                             (user_id, public_id)).fetchone()
+        if not row:
+            return None
+        try:
+            return json.loads(row["myinvois_json"] or "{}")
+        except (TypeError, ValueError):
+            return {}
+
+    def save_myinvois_draft(self, user_id: int, public_id: str, draft: dict[str, Any]) -> bool:
+        with self.connect() as db:
+            cursor = db.execute("UPDATE receipts SET myinvois_json=?,updated_at=? WHERE user_id=? AND public_id=? AND deleted_at IS NULL",
+                                (json.dumps(draft), utc_now(), user_id, public_id))
+        return cursor.rowcount == 1
+
+    def get_settings(self, user_id: int) -> dict[str, Any]:
+        with self.connect() as db:
+            row = db.execute("SELECT settings_json FROM user_settings WHERE user_id=?", (user_id,)).fetchone()
+        return json.loads(row["settings_json"]) if row else {}
+
+    def save_settings(self, user_id: int, settings: dict[str, Any]) -> None:
+        with self.connect() as db:
+            db.execute("INSERT INTO user_settings(user_id,settings_json,updated_at) VALUES(?,?,?) "
+                       "ON CONFLICT(user_id) DO UPDATE SET settings_json=excluded.settings_json, updated_at=excluded.updated_at",
+                       (user_id, json.dumps(settings), utc_now()))
+
+    def get_myinvois_profile(self, user_id: int, kind: str, profile_key: str | None) -> dict[str, Any] | None:
+        if not profile_key:
+            return None
+        with self.connect() as db:
+            row = db.execute("SELECT profile_json FROM myinvois_profiles WHERE user_id=? AND kind=? AND profile_key=?",
+                             (user_id, kind, profile_key)).fetchone()
+        return json.loads(row["profile_json"]) if row else None
+
+    def save_myinvois_profile(self, user_id: int, kind: str, profile_key: str, profile: dict[str, Any]) -> None:
+        with self.connect() as db:
+            db.execute("INSERT INTO myinvois_profiles(user_id,kind,profile_key,profile_json,updated_at) VALUES(?,?,?,?,?) "
+                       "ON CONFLICT(user_id,kind,profile_key) DO UPDATE SET profile_json=excluded.profile_json, updated_at=excluded.updated_at",
+                       (user_id, kind, profile_key, json.dumps(profile), utc_now()))
+
     def update_receipt_audit(self, user_id: int, public_id: str, audit: dict[str, Any]) -> bool:
         with self.connect() as db:
             cursor = db.execute(
@@ -353,11 +482,52 @@ class ReceiptStore:
             values[row["status"]] = row["count"]; values["total"] += row["count"]
         return values
 
+    # ------------------------------------------------------------ Finance
+    def create_manual_expense(self, user_id: int, values: dict[str, Any]) -> dict[str, Any]:
+        import uuid
+        now = utc_now()
+        record = {
+            "public_id": f"EXP-{uuid.uuid4().hex[:12]}", "user_id": user_id,
+            "expense_date": values["expense_date"], "supplier": values["supplier"],
+            "description": values.get("description", ""), "expense_type": values.get("expense_type", "other"),
+            "amount": values["amount"], "currency": values.get("currency", "MYR"),
+            "payment_method": values.get("payment_method", ""), "tax_amount": values.get("tax_amount"),
+            "notes": values.get("notes", ""), "created_at": now, "updated_at": now,
+        }
+        with self.connect() as db:
+            keys = list(record)
+            db.execute(f"INSERT INTO manual_expenses({','.join(keys)}) VALUES({','.join('?' for _ in keys)})", tuple(record[k] for k in keys))
+        return record
+
+    def list_manual_expenses(self, user_id: int) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute("SELECT * FROM manual_expenses WHERE user_id=? ORDER BY expense_date DESC, id DESC", (user_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_manual_expense(self, user_id: int, public_id: str, values: dict[str, Any]) -> dict[str, Any] | None:
+        allowed = {"expense_date", "supplier", "description", "expense_type", "amount", "currency", "payment_method", "tax_amount", "notes"}
+        clean = {key: value for key, value in values.items() if key in allowed}
+        if not clean:
+            return None
+        clean["updated_at"] = utc_now()
+        with self.connect() as db:
+            cursor = db.execute(f"UPDATE manual_expenses SET {','.join(f'{key}=?' for key in clean)} WHERE user_id=? AND public_id=?", (*clean.values(), user_id, public_id))
+            if cursor.rowcount != 1:
+                return None
+            row = db.execute("SELECT * FROM manual_expenses WHERE user_id=? AND public_id=?", (user_id, public_id)).fetchone()
+        return dict(row)
+
+    def delete_manual_expense(self, user_id: int, public_id: str) -> bool:
+        with self.connect() as db:
+            cursor = db.execute("DELETE FROM manual_expenses WHERE user_id=? AND public_id=?", (user_id, public_id))
+        return cursor.rowcount == 1
+
     @staticmethod
     def present(row: dict[str, Any], compact: bool = False) -> dict[str, Any]:
         row["tags"] = json.loads(row.get("tags") or "[]")
         row["line_items"] = json.loads(row.pop("line_items_json", "[]") or "[]")
         row["accounting_fields"] = json.loads(row.pop("accounting_fields_json", "{}") or "{}")
+        row.pop("myinvois_json", None)   # served by the dedicated MyInvois endpoint
         row["fields"] = {
             "merchant": row.get("merchant"), "transaction_date": row.get("transaction_date"),
             "receipt_number": row.get("receipt_number"), "total_amount": row.get("total_amount"),

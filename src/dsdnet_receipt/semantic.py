@@ -7,6 +7,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from .ocr import deduplicate_lines
+from .receipt_context import _LEXICON_SET, reading_copy_lines, clean_address_line, is_transaction_line, recognise_receipt, tidy_text
 
 
 LINE_ITEM_KEYS = ("item", "description", "quantity", "unit", "unit_price", "discount", "amount", "review_note")
@@ -383,8 +384,146 @@ def _extract_unheaded_item_blocks(lines: list[dict[str, Any]]) -> list[dict[str,
     return rows
 
 
-def _fallback_line_items(lines: list[dict[str, Any]]) -> list[dict[str, str]]:
-    return _extract_stacked_thermal_items(lines) or _extract_unheaded_item_blocks(lines)
+def _fallback_line_items(lines: list[dict[str, Any]], raw: list[dict[str, Any]] | None = None) -> list[dict[str, str]]:
+    source = raw if raw is not None else lines
+    blocks = _extract_stacked_thermal_items(lines) or _extract_unheaded_item_blocks(lines)
+    # one-line "description  price" items are read from every OCR reading (the
+    # best reading of a spot may come from a different view than the merged lines)
+    priced = _extract_priced_lines(source)
+    grouped = _extract_priced_blocks(source)
+    candidates = [rows for rows in (grouped, priced, blocks) if rows]
+    if not candidates:
+        return []
+    total = _printed_total(source)
+
+    def amounts(rows):
+        values = [Decimal(row["amount"]) for row in rows if row.get("amount")]
+        return values
+
+    if total is not None:
+        for rows in candidates:  # items that add up to the printed total win
+            values = amounts(rows)
+            if values and len(values) == len(rows) and sum(values) == total:
+                return rows
+
+    def looks_split(rows):
+        # one item cut into several rows repeats the same price on each row
+        values = [row.get("amount") for row in rows if row.get("amount")]
+        return len(values) != len(set(values))
+
+    for rows in candidates:
+        if not looks_split(rows):
+            return rows
+    return candidates[0]
+
+
+def _printed_total(lines: list[dict[str, Any]]) -> Decimal | None:
+    from .fields import _spatial_total, _text_total
+    text = "\n".join(str(line.get("text", "")) for line in lines)
+    value = _spatial_total(lines) or _text_total(text)
+    try:
+        return Decimal(value) if value else None
+    except InvalidOperation:
+        return None
+
+
+_ITEM_DETAIL = re.compile(r"(?i)^\s*(?:\(|ser[il1]a[l1]|s/?n\b|imei|sku|barcode|item\s*code|code\s*:|model|warranty|disc(?:ount)?\b|-\s)")
+_ITEM_SECTION_END = re.compile(r"(?i)\b(?:sub\s*total|grand\s*total|total|payment|tender|rounding|cash|change|balance|tax|sst|gst)\b")
+_ITEM_SECTION_START = re.compile(r"(?i)\b(?:details?|description|items?|qty|particulars|goods)\b")
+
+
+def _extract_priced_blocks(lines: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Items printed over several lines, the price on the last one:
+
+        Nintendo Switch Black Pro Controller
+         + USB C Cable
+        (Switch Accessories, MY)        1 @   RM126.00
+        Serial Number : PDGN3AA
+
+    Each price line closes one item; the lines above it (since the previous
+    item) are its description. Detail lines right after a price (serial
+    numbers, bracketed notes) belong to the item above, not the next one."""
+    readable = reading_copy_lines(lines, tidy=False)  # item names stay exactly as read
+    if not readable:
+        return []
+    heights = sorted(line["y1"] - line["y0"] for line in readable)
+    row_gap = 0.55 * heights[len(heights) // 2]
+    rows: list[list[dict[str, Any]]] = []
+    for line in readable:
+        centre = (line["y0"] + line["y1"]) / 2
+        if rows and abs(centre - (rows[-1][0]["y0"] + rows[-1][0]["y1"]) / 2) <= row_gap:
+            rows[-1].append(line)
+        else:
+            rows.append([line])
+    texts = [" ".join(part["text"] for part in sorted(row, key=lambda item: item["x0"])) for row in rows]
+    price = re.compile(r"^(?P<left>.*?)(?:(?P<qty>\d{1,3})\s*(?:@|x|X)\s*)?(?:RM\s*)?(?P<amount>\d{1,6}\.\d{2})\s*(?:SR|ZR|T|S)?$")
+    start = next((i + 1 for i, text in enumerate(texts) if _ITEM_SECTION_START.search(text) and not price.match(text)), None)
+    if start is None:
+        return []
+    items: list[dict[str, str]] = []
+    pending: list[str] = []
+    for text in texts[start:]:
+        if _ITEM_SECTION_END.search(text):
+            break
+        match = price.match(text)
+        if match and (match.group("left").strip() or pending):
+            left = match.group("left").strip(" :-")
+            description = " ".join(part for part in pending + ([left] if left else []) if part)
+            description = re.sub(r"\s+", " ", description).strip()
+            if sum(ch.isalpha() for ch in description) < 3:
+                pending = []
+                continue
+            quantity = match.group("qty") or ""
+            amount = match.group("amount")
+            unit_price = ""
+            if quantity and int(quantity) > 0:
+                unit_price = amount
+                amount = f"{Decimal(amount) * int(quantity):.2f}"
+            items.append({"item": str(len(items) + 1), "description": description, "quantity": quantity, "unit": "",
+                          "unit_price": unit_price, "discount": "", "amount": amount,
+                          "review_note": "Item lines grouped up to their price; check against the image."})
+            pending = []
+            continue
+        if items and not pending and _ITEM_DETAIL.match(text):
+            items[-1]["description"] += " · " + text.strip()
+            continue
+        if any(ch.isalpha() for ch in text):
+            pending.append(text.strip())
+    return items if 1 <= len(items) <= 30 else []
+
+
+_NOT_AN_ITEM = re.compile(
+    r"(?i)\b(?:sub\s*total|total|rounding|round|cash|change|tender|balance|tax|sst|gst|service\s*charge|discount|"
+    r"paid|payment|card|visa|master|debit|credit|points?|date|time|tel|fax|no\.?|receipt|invoice|cashier|"
+    r"terminal|pump|approval|auth|ref|thank)\b")
+
+
+def _extract_priced_lines(lines: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Small till receipts (fuel, cafe, convenience) often print each purchase
+    as one line, "Primax 95 RM10.00" or "NASI LEMAK 5.50", with no table
+    header. Lines above the totals that carry words and one price are items;
+    the description and price are exactly what was read (spacing repaired)."""
+    readable = reading_copy_lines(lines)
+    totals_at = next((line["y0"] for line in readable if re.search(r"(?i)\b(?:sub\s*total|grand\s*total|total)\b", line["text"])), None)
+    rows: list[dict[str, str]] = []
+    for line in readable:
+        if totals_at is not None and line["y0"] >= totals_at - 2:
+            break
+        text = line["text"]
+        match = re.match(r"^(?P<desc>.*?[A-Za-z].*?)\s+(?:RM\s*)?(?P<amount>\d{1,6}\.\d{2})\s*(?:SR|ZR|T|S)?$", text)
+        if not match or _NOT_AN_ITEM.search(match.group("desc")):
+            continue
+        description = match.group("desc").strip(" :-")
+        quantity = None
+        qty = re.match(r"^(\d{1,3})\s*[xX@]?\s+(.+)$", description)
+        if qty and sum(ch.isalpha() for ch in qty.group(2)) >= 3:
+            quantity, description = qty.group(1), qty.group(2)
+        if sum(ch.isalpha() for ch in description) < 3:
+            continue
+        rows.append({"item": str(len(rows) + 1), "description": description, "quantity": quantity or "",
+                     "unit": "", "unit_price": "", "discount": "", "amount": match.group("amount"),
+                     "review_note": "Single-line item read from the receipt text; check against the image."})
+    return rows if len(rows) <= 15 else []
 
 
 def extract_line_items(lines: list[dict[str, Any]]) -> list[dict[str, str]]:
@@ -396,7 +535,7 @@ def extract_line_items(lines: list[dict[str, Any]]) -> list[dict[str, str]]:
     physical = _best_physical_lines(lines)
     layout = _detect_layout(physical)
     if not layout:
-        return _fallback_line_items(physical)
+        return _fallback_line_items(physical, lines)
     table = [line for line in physical if layout.header_y + 12 < _center(line)[1] < layout.end_y - 8]
     if not table:
         return []
@@ -431,7 +570,7 @@ def extract_line_items(lines: list[dict[str, Any]]) -> list[dict[str, str]]:
                 text = prefix.group(2)
             descriptions.append({"line": line, "text": text, "y": y})
     if not descriptions:
-        return _fallback_line_items(physical)
+        return _fallback_line_items(physical, lines)
 
     amount_cells = [cell for cell in numeric_cells if cell[0] == "amount"]
     # A single handwritten item often spans several description lines while
@@ -521,7 +660,11 @@ def extract_accounting_fields(text: str, lines: list[dict[str, Any]], primary: d
     if not phone:
         phone = first(r"(?m)^\s*((?:\+?60|0)\d{1,2}[- ]?\d{6,8})\s*$")
     email = first(r"([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})")
-    document_type = next((value for pattern, value in ((r"\btax\s*invoice\b", "Tax Invoice"), (r"\bcash\s*sale(?:s)?\b", "Cash Sale"), (r"\binvoice\b", "Invoice"), (r"\breceipt\b", "Receipt")) if re.search(pattern, evidence, re.I)), None)
+    tidy_evidence = evidence + "\n" + "\n".join(tidy_text(str(line.get("text", ""))) for line in lines or [])
+    document_type = next((value for pattern, value in ((r"\btax\s*invoice\b", "Tax Invoice"), (r"\bcash\s*sale(?:s)?\b", "Cash Sale"), (r"\binvoice\b", "Invoice"), (r"\breceipt\b", "Receipt")) if re.search(pattern, tidy_evidence, re.I)), None)
+    if not document_type and primary.get("total_amount"):
+        # a till slip with a total and no printed title is a receipt
+        document_type = "Receipt"
     payment_method = next((value for pattern, value in ((r"\bcredit\s+card\b", "Credit card"), (r"\bdebit\b", "Debit card"), (r"\be-?wallet\b", "E-wallet"), (r"\bcash\b", "Cash")) if re.search(pattern, evidence, re.I)), None)
     currency = "MYR" if re.search(r"\b(?:RM|MYR)\b", evidence, re.I) else None
 
@@ -567,6 +710,11 @@ def extract_accounting_fields(text: str, lines: list[dict[str, Any]], primary: d
             seen_merchant = True
             continue
         if seen_merchant:
+            if is_transaction_line(value):
+                # date, pump, cashier, amounts ... : the header address has ended
+                if address_parts:
+                    break
+                continue
             if re.fullmatch(r"(?i)\s*\d*\s*amount\s*", value):
                 continue
             if registration and registration.casefold() in value.casefold():
@@ -587,6 +735,16 @@ def extract_accounting_fields(text: str, lines: list[dict[str, Any]], primary: d
             if len(value) >= 6 and (re.search(r"\d", value) or re.search(r"(?i)\b(?:jalan|jln|lot|taman|medan|bandar|selangor|kuala|lumpur)\b", value)):
                 value = re.sub(r"(?i)\s+\d*\s*amount\b.*$", "", value).strip()
                 address_parts.append(value)
+            elif not address_parts and len(value) >= 6 and re.search(r"\d", tidy_text(value)) is None and \
+                    any(word in tidy_text(value).upper().split() for word in ("JALAN", "BATU", "LOT", "TAMAN", "MUKIM")):
+                address_parts.append(value)
+    address_parts = [part for part in (clean_address_line(value) for value in address_parts) if part]
+    address_parts = [_better_copy(part, lines) for part in address_parts]
+    context = recognise_receipt(evidence, physical, merchant, None)
+    if context.get("operator") and context.get("brand") and context["operator"].casefold() != merchant.casefold():
+        # a franchise brand (PETRONAS) over the dealer who issued the receipt
+        supplier_name = context["operator"]
+        address_parts = [part for part in address_parts if part.casefold() != context["operator"].casefold()]
     items = extract_line_items(lines)
     subtotal = labelled_amount(r"sub\s*total")
     if not subtotal and items and all(row.get("amount") for row in items):
@@ -621,5 +779,37 @@ def extract_accounting_fields(text: str, lines: list[dict[str, Any]], primary: d
         "tax_amount": tax_amount,
         "payable_amount": primary.get("total_amount"),
         "line_item_count": len(items),
+        "brand": context.get("brand"),
+        "business_type": context.get("business_type"),
+        "purchase_summary": context.get("purchase_summary"),
+        "suggested_expense_type": context.get("expense_type"),
+        "recognised_from": "; ".join(context.get("clues") or []) or None,
     }
+
+
+def _better_copy(part: str, lines: list[dict[str, Any]]) -> str:
+    """Receipts often print the station address twice (header and POS footer).
+    When another line holds the same address with more recognisable words,
+    use that reading."""
+    from difflib import SequenceMatcher
+
+    def key(value: str) -> str:
+        return re.sub(r"[^A-Z0-9]", "", value.upper())
+
+    def known(value: str) -> int:
+        return sum(word.upper().strip("(),.") in _LEXICON_SET for word in value.split())
+
+    target = key(part)
+    if len(target) < 10:
+        return part
+    best = part
+    for line in lines or []:
+        other = clean_address_line(str(line.get("text", "")))
+        if not other or other == part:
+            continue
+        start = other.upper().find(part.split()[0].upper())
+        candidate = other[start:] if start > 0 else other
+        if SequenceMatcher(None, key(candidate), target).ratio() >= 0.8 and known(candidate) > known(best):
+            best = candidate
+    return best
 

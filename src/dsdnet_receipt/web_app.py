@@ -18,13 +18,11 @@ from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
-from urllib.parse import urlencode
 from xml.sax.saxutils import escape
 
 import cv2
 import numpy as np
-import requests
-from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Flask, abort, jsonify, render_template, request, send_file, session
 from werkzeug.security import check_password_hash, generate_password_hash
 from openpyxl import Workbook
 from reportlab.lib import colors
@@ -45,7 +43,9 @@ from .ocr import PaddleOCRAdapter, deduplicate_lines
 from .preprocessing import preprocess
 from .restoration import RestorationEngine
 from .semantic import LINE_ITEM_KEYS, extract_accounting_fields, extract_line_items
-from .storage import ReceiptStore, utc_now
+from .receipt_context import reading_copy_lines
+from .phone import PhonePairings, lan_addresses, qr_svg
+from .storage import WORKSPACE_EMAIL, ReceiptStore, utc_now
 
 
 EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$")
@@ -57,6 +57,78 @@ COMMON_PASSWORDS = {
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/bmp", "image/tiff"}
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_PIXELS = 40_000_000
+
+EXPENSE_TYPES = {
+    "inventory": "Inventory / cost of goods", "office": "Office supplies", "fuel": "Fuel & transport",
+    "meals": "Meals & entertainment", "utilities": "Utilities", "maintenance": "Repairs & maintenance",
+    "travel": "Travel & accommodation", "professional": "Professional services", "rent": "Rent & premises",
+    "tax": "Tax, licences & government fees", "medical": "Medical & welfare", "other": "Other expense",
+}
+
+
+def _money(value: Any) -> Decimal | None:
+    try:
+        amount = Decimal(str(value).replace(",", "").replace("RM", "").strip())
+        return amount if amount.is_finite() and amount >= 0 and amount.as_tuple().exponent >= -2 else None
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def _expense_type(receipt: dict[str, Any]) -> str:
+    accounting = receipt.get("accounting_fields") or {}
+    explicit = str(accounting.get("expense_type") or "").strip().lower()
+    if explicit in EXPENSE_TYPES:
+        return explicit
+    suggested = str(accounting.get("suggested_expense_type") or "").strip().lower()
+    if suggested in EXPENSE_TYPES:
+        return suggested  # recognised from the receipt's own words (brand, fuel grade, items)
+    haystack = " ".join([
+        str(receipt.get("merchant") or ""), " ".join(receipt.get("tags") or []),
+        " ".join(str(line.get("description") or "") for line in receipt.get("line_items") or []),
+    ]).lower()
+    rules = {
+        "fuel": ("petron", "shell", "bhpetrol", "caltex", "fuel", "diesel", "petrol", "toll", "grab"),
+        "office": ("stationery", "paper", "printer", "office", "ink", "toner"),
+        "meals": ("restaurant", "cafe", "coffee", "food", "mart", "mcd", "kfc"),
+        "utilities": ("electric", "water", "telekom", "internet", "utility"),
+        "maintenance": ("hardware", "d.i.y", "diy", "repair", "maintenance", "tools"),
+        "travel": ("hotel", "airasia", "airlines", "flight", "booking"),
+        "professional": ("consult", "legal", "accounting", "audit", "service fee"),
+        "rent": ("rent", "rental", "premises"), "tax": ("licence", "license", "government", "assessment"),
+        "medical": ("clinic", "pharmacy", "medical", "hospital"),
+        "inventory": ("supplier", "trading", "wholesale", "stock", "inventory"),
+    }
+    for category, terms in rules.items():
+        if any(term in haystack for term in terms):
+            return category
+    return "other"
+
+
+def _finance_entries(store: ReceiptStore, user_id: int) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for receipt in store.list_receipts(user_id):
+        amount = _money(receipt.get("total_amount"))
+        accounting = receipt.get("accounting_fields") or {}
+        entries.append({
+            "id": receipt["public_id"], "source": "receipt", "receipt_id": receipt["public_id"],
+            "date": receipt.get("transaction_date") or str(receipt.get("created_at") or "")[:10],
+            "supplier": receipt.get("merchant") or receipt.get("source_name") or "Unknown supplier",
+            "description": "; ".join(str(line.get("description") or "") for line in receipt.get("line_items") or [] if line.get("description")) or accounting.get("purchase_summary") or "Receipt expense",
+            "expense_type": _expense_type(receipt), "amount": f"{amount:.2f}" if amount is not None else None,
+            "currency": str(accounting.get("currency") or "MYR").upper(),
+            "payment_method": accounting.get("payment_method") or "", "tax_amount": accounting.get("tax_amount"),
+            "status": receipt.get("status"), "notes": receipt.get("notes") or "", "has_amount": amount is not None,
+        })
+    for record in store.list_manual_expenses(user_id):
+        amount = _money(record.get("amount"))
+        entries.append({
+            "id": record["public_id"], "source": "manual", "receipt_id": None, "date": record["expense_date"],
+            "supplier": record["supplier"], "description": record["description"], "expense_type": record["expense_type"],
+            "amount": f"{amount:.2f}" if amount is not None else None, "currency": record["currency"],
+            "payment_method": record["payment_method"], "tax_amount": record["tax_amount"],
+            "status": "recorded", "notes": record["notes"], "has_amount": amount is not None,
+        })
+    return entries
 
 
 def _pdf_fonts() -> tuple[str, str]:
@@ -193,6 +265,224 @@ def _data_url(image: np.ndarray) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(encoded).decode("ascii")
 
 
+def second_reading(ocr_engine, extracted, faithful_content, source_shape):
+    """Read the cleaned faithful view only when the date, total or receipt
+    number could not be read from the first views, and fill only those."""
+    keys = ("transaction_date", "total_amount", "receipt_invoice_number")
+    missing = [key for key in keys if not (extracted.get(key) or {}).get("value")]
+    record = {"run": bool(missing), "missing_before": missing, "filled": []}
+    if not missing:
+        return record
+    view = faithful_content if faithful_content.ndim == 2 else cv2.cvtColor(faithful_content, cv2.COLOR_BGR2GRAY)
+    try:
+        second = ocr_engine.run_views([("faithful_recovery", view)])
+    except Exception as error:  # a second reading must never fail the upload
+        record["error"] = type(error).__name__
+        return record
+    if not second.lines:
+        return record
+    scale = view.shape[1] / float(source_shape[1]) if source_shape[1] else 1.0
+    found = extract_fields(second.text, second.lines)
+    for key in missing:
+        payload = found.get(key) or {}
+        if not payload.get("value"):
+            continue
+        box = payload.get("box")
+        if box is not None and scale and abs(scale - 1.0) > 1e-3:
+            try:
+                box = (np.asarray(box, dtype=float) / scale).tolist()
+            except (TypeError, ValueError):
+                box = None
+        extracted[key] = dict(payload, box=box)
+        record["filled"].append({"field": key, "value": payload["value"]})
+    return record
+
+
+_MONTH_NAMES = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
+
+
+def date_strip_views(source: np.ndarray, box, from_right: bool = False) -> list[np.ndarray]:
+    """Enlarged copies of the strip that holds a date, from the date label (or,
+    with from_right, from the end of the read part) to the right edge of the
+    receipt, where a faint or stained year often is. Print is measured against
+    its own surroundings at stroke scale, so a stain behind the digits becomes
+    background. Nothing is drawn."""
+    gray = source if source.ndim == 2 else cv2.cvtColor(source, cv2.COLOR_BGR2GRAY)
+    points = np.asarray(box, dtype=float)
+    x0, y0 = points.min(axis=0); x1, y1 = points.max(axis=0)
+    height = max(6.0, y1 - y0)
+    top, bottom = int(max(0, y0 - 0.45 * height)), int(min(gray.shape[0], y1 + 0.45 * height))
+    # from_right: start back at the month name (the reader anchors on it) and stop
+    # a little past the box, before any paper edge or stain band at the margin
+    left = int(max(0, (x1 - 2.4 * height) if from_right else (x0 - 0.3 * height)))
+    right = int(min(gray.shape[1], x1 + 2.2 * height)) if from_right else gray.shape[1]
+    strip = gray[top:bottom, left:right]
+    if strip.size == 0 or strip.shape[0] < 4 or strip.shape[1] < 8:
+        return []
+    scale = float(np.clip(52.0 / height, 2.0, 6.0))
+    big = cv2.resize(strip, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    big = cv2.fastNlMeansDenoising(big, None, h=5, templateWindowSize=7, searchWindowSize=21)
+    text_height = height * scale
+    views = []
+    for factor in (0.3, 0.42):
+        kernel = int(max(7, factor * text_height)) | 1
+        evidence = cv2.morphologyEx(big, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel, kernel))).astype(np.float32)
+        low, high = np.percentile(evidence, 60), np.percentile(evidence, 99.3)
+        tone = np.clip((evidence - low) / max(high - low, 1.0), 0, 1)
+        views.append(cv2.copyMakeBorder((255 - 255 * tone).astype(np.uint8), 12, 12, 12, 12, cv2.BORDER_CONSTANT, value=255))
+    # paper flattened by its own local brightest level: a stain over the digits is
+    # divided out, so the print under it keeps its own shape
+    raw = cv2.resize(strip, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC).astype(np.float32)
+    kernel = int(max(9, 0.48 * text_height)) | 1
+    paper = cv2.morphologyEx(raw, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel, kernel)))
+    ratio = raw / np.maximum(paper, 1.0)
+    low, high = np.percentile(ratio, 1), np.percentile(ratio, 75)
+    flat = (255 * np.clip((ratio - low) / max(high - low, 1e-3), 0, 1)).astype(np.uint8)
+    views.insert(0, cv2.copyMakeBorder(flat, 12, 12, 12, 12, cv2.BORDER_CONSTANT, value=255))
+    return views
+
+
+def year_from_strip_text(text: str, hint: str) -> str | None:
+    """Full date when the strip text shows the hinted day/month with a 4-digit year."""
+    from datetime import date
+    try:
+        day, month_name = hint.split()
+        month = _MONTH_NAMES.index(month_name[:3].upper()) + 1
+        day = int(day)
+    except (ValueError, AttributeError):
+        return None
+    cleaned = text.upper()
+    # the usual reader confusions inside a year: O/D/Q/C for 0, I/L for 1, Z for 2, S for 5, B for 8
+    pattern = _MONTH_NAMES[month - 1] + r"[A-Z]*\W{0,3}([12Z][09OQDC][0-9OQDCILZSB]{2})(?![0-9A-Z])"
+    match = re.search(pattern, cleaned)
+    if not match:
+        return None
+    year = match.group(1).translate(str.maketrans("OQDCILZSB", "000011258"))
+    try:
+        found = date(int(year), month, day)
+    except ValueError:
+        return None
+    if found > date.today() or found.year < 2000:
+        return None
+    return found.isoformat()
+
+
+def _year_only(text: str, hint: str) -> str | None:
+    """A strip read from just after the month: the year alone."""
+    match = re.match(r"\W*([12Z][09OQDC][0-9OQDCILZSB]{2})(?![0-9A-Z])", text.upper().strip())
+    return year_from_strip_text(f"{hint.split()[1]} {match.group(1)}", hint) if match and len(hint.split()) == 2 else None
+
+
+def _month_and_year(text: str, hint: str) -> str | None:
+    """Strip read from the month onward; the bare year is also accepted."""
+    return year_from_strip_text(text, hint) or _year_only(text, hint)
+
+
+def date_year_reading(ocr_engine, extracted, source: np.ndarray) -> dict:
+    """When only the day and month were read, re-read just the date strip:
+    first with line detection, then the strip as one line, then only the
+    part after the month. A year is accepted only when all four digits are
+    read; otherwise the year is left for the user."""
+    payload = extracted.get("transaction_date") or {}
+    record = {"run": False}
+    if payload.get("value") or not payload.get("hint") or payload.get("box") is None:
+        return record
+    record = {"run": True, "hint": payload["hint"], "readings": []}
+    hint, box = payload["hint"], payload["box"]
+    attempts = []
+    for view in date_strip_views(source, box):
+        attempts.append(("detect", view, year_from_strip_text))
+        attempts.append(("line", view, year_from_strip_text))
+    for view in date_strip_views(source, box, from_right=True):
+        attempts.append(("after_month", view, _month_and_year))
+        attempts.append(("after_month_detect", view, _month_and_year))
+    for mode, view, parse in attempts:
+        try:
+            if mode in ("line", "after_month") and hasattr(ocr_engine, "recognize"):
+                text, _ = ocr_engine.recognize(view)
+            else:
+                text = " ".join(line.get("text", "") for line in ocr_engine.run(view).lines)
+        except Exception as error:
+            record["error"] = type(error).__name__
+            continue
+        record["readings"].append(f"{mode}: {text[:60]}")
+        value = parse(text, hint)
+        if value:
+            extracted["transaction_date"] = dict(payload, value=value, hint=None)
+            record["filled"] = value
+            record["method"] = mode
+            break
+    else:
+        suggested = _partly_read_year(record["readings"], hint)
+        if suggested:
+            extracted["transaction_date"] = dict(payload, suggested=suggested)
+            record["suggested"] = suggested
+    return record
+
+
+def _partly_read_year(readings: list[str], hint: str) -> str | None:
+    """A year whose century digit is hidden (stain, fold) but whose first and last
+    two digits were read after the month: only one year from 2000 to today fits,
+    so it is offered as a suggestion for the user to accept, never filled in.
+    Two different candidates mean no suggestion."""
+    month = hint.split()[1][:3].upper() if len(hint.split()) == 2 else ""
+    if len(month) != 3:
+        return None
+    # the month with at most one misread letter (FEB, FED, F3B ...)
+    month_pattern = "(?:" + "|".join(re.escape(month[:i]) + "." + re.escape(month[i + 1:]) for i in range(3)) + ")"
+    candidates = set()
+    for reading in readings:
+        if not reading.startswith("after_month"):
+            continue
+        text = reading.split(":", 1)[1].upper()
+        match = re.search(month_pattern + r"\W{0,2}([0-9OQDCILZSB]{3,4})(?![0-9A-Z])", text)
+        if not match:
+            continue
+        digits = match.group(1).translate(str.maketrans("OQDCILZSB", "000011258"))
+        if len(digits) == 4:
+            year = digits if digits[:2] == "20" else None
+        else:
+            year = "20" + digits[1:] if digits[0] == "2" else None
+        if year:
+            candidates.add(year_from_strip_text(f"{hint.split()[1]} {year}", hint))
+    candidates.discard(None)
+    return candidates.pop() if len(candidates) == 1 else None
+
+
+def expense_category(receipt: dict) -> str:
+    """Expense type label shared with the finance view (user-editable)."""
+    return EXPENSE_TYPES[_expense_type(receipt)]
+
+
+def _alnum(value) -> str:
+    return re.sub(r"[^0-9A-Z]", "", str(value or "").upper())
+
+
+def possible_duplicate(a: dict, b: dict) -> bool:
+    """Same receipt uploaded twice, tolerant of OCR differences: identical
+    image, or same receipt number and total, or same date and total with a
+    similar supplier name."""
+    from difflib import SequenceMatcher
+    if a.get("content_sha256") and a.get("content_sha256") == b.get("content_sha256"):
+        return True
+    def amount(r):
+        try:
+            return Decimal(str(r.get("total_amount"))).quantize(Decimal("0.01"))
+        except (InvalidOperation, ValueError, TypeError):
+            return None
+    total = amount(a)
+    if total is None or total != amount(b):
+        return False
+    number_a, number_b = _alnum(a.get("receipt_number")), _alnum(b.get("receipt_number"))
+    if len(number_a) >= 3 and number_a == number_b:
+        return True
+    if a.get("transaction_date") and a.get("transaction_date") == b.get("transaction_date"):
+        name_a, name_b = _alnum(a.get("merchant")), _alnum(b.get("merchant"))
+        if name_a and name_b and SequenceMatcher(None, name_a, name_b).ratio() >= 0.6:
+            return True
+    return False
+
+
 def status_label_for_export(status: str | None) -> str:
     return {"needs_review": "Needs review", "reviewed": "Reviewed", "archived": "Archived"}.get(status or "", status or "Unknown")
 
@@ -309,13 +599,17 @@ def create_app(
     restoration_engine = RestorationEngine(config)
     ocr_engine = PaddleOCRAdapter(config)
     inference_lock = threading.Lock()
+    phone_pairings = PhonePairings()
+    app.config["PHONE_SCANNING"] = os.getenv("RECEIPT_PHONE", "0") == "1" or testing
 
     def current_user():
         user_id = session.get("user_id")
         user = store.user_by_id(int(user_id)) if user_id else None
         if user:
             user["is_guest"] = user["email"].endswith("@guest.local.invalid")
-            if user["is_guest"]: user["email"] = ""
+            user["is_workspace"] = user["email"] == WORKSPACE_EMAIL
+            if user["is_guest"] or user["is_workspace"]: user["email"] = ""
+            user["welcome_seen"] = user["is_guest"] or store.app_setting(f"welcome_seen:{user['id']}") is not None
         return user
 
     def require_auth(fn):
@@ -342,7 +636,8 @@ def create_app(
     @app.before_request
     def csrf_guard():
         session.setdefault("csrf_token", secrets.token_urlsafe(24))
-        if request.method in {"POST", "PATCH", "DELETE"} and request.endpoint not in {"static"}:
+        # phone uploads carry their own pairing code instead of a browser session
+        if request.method in {"POST", "PATCH", "DELETE"} and request.endpoint not in {"static", "phone_upload"}:
             supplied = request.headers.get("X-CSRF-Token", "")
             if not secrets.compare_digest(supplied, session["csrf_token"]):
                 return jsonify({"error": "Your session changed. Refresh the page and try again."}), 403
@@ -374,11 +669,83 @@ def create_app(
 
     @app.get("/api/auth")
     def auth_state():
+        return jsonify({"user": current_user(), "csrf_token": session["csrf_token"], **_access_state()})
+
+    def _local_request() -> bool:
+        import ipaddress
+        try:
+            local = ipaddress.ip_address(request.remote_addr or "").is_loopback
+        except ValueError:
+            local = False
+        return local and os.getenv("RECEIPT_HOST", "127.0.0.1") in {"127.0.0.1", "::1", "localhost"}
+
+    def sign_in_required() -> bool:
+        return store.app_setting("require_sign_in", "0") == "1"
+
+    def _access_state() -> dict[str, Any]:
+        return {"sign_in_required": sign_in_required(), "workspace_available": (not sign_in_required()) and _local_request()}
+
+    @app.post("/api/workspace")
+    def open_workspace():
+        """Open this computer's receipts without a password. Only from this
+        computer, and only while "Require sign-in" is off."""
+        if sign_in_required():
+            return jsonify({"error": "Sign-in is required on this computer."}), 403
+        if not _local_request():
+            return jsonify({"error": "The workspace opens only on the computer running the app."}), 403
+        user = store.workspace_user()
+        store.log_event(user["id"], "account.workspace_open", "user", user["public_id"])
+        session.clear(); session["user_id"] = user["id"]; session["csrf_token"] = secrets.token_urlsafe(24); session.permanent = True
         return jsonify({"user": current_user(), "csrf_token": session["csrf_token"]})
 
-    @app.get("/api/auth/providers")
-    def auth_providers():
-        return jsonify({"google": {"enabled": bool(os.getenv("GOOGLE_CLIENT_ID") and os.getenv("GOOGLE_CLIENT_SECRET")), "login_url": "/auth/google"}})
+    @app.get("/api/access")
+    @require_auth
+    def access_settings():
+        user = current_user()
+        return jsonify({**_access_state(), "has_password": store.user_has_password(user["id"]), "email": user.get("email") or "",
+                        "name": user.get("name") or ""})
+
+    @app.patch("/api/access")
+    @require_auth
+    def update_access_settings():
+        """Turn "Require sign-in" on or off for this computer.
+
+        Turning it on from the password-free workspace first gives that
+        workspace an email and password, so its receipts stay reachable.
+        Turning it off makes the signed-in account the one that opens
+        without a password."""
+        user = current_user()
+        if user.get("is_guest"):
+            return jsonify({"error": "Guest sessions cannot change sign-in settings."}), 403
+        payload = request.get_json(silent=True) or {}
+        required = payload.get("require_sign_in")
+        if not isinstance(required, bool):
+            return jsonify({"error": "Choose whether sign-in is required."}), 400
+        if required:
+            if not store.user_has_password(user["id"]):
+                name = str(payload.get("name") or user.get("name") or "").strip()
+                email = str(payload.get("email", "")).strip().lower()
+                password = str(payload.get("password", ""))
+                errors = {}
+                if not 2 <= len(name) <= 80: errors["name"] = "Enter a name using 2 to 80 characters."
+                if not _valid_email(email) or email.endswith(".local.invalid"): errors["email"] = "Enter a valid email address."
+                password_error = _password_error(password, name, email)
+                if password_error: errors["password"] = password_error
+                if str(payload.get("password_confirmation", "")) != password: errors["confirmation"] = "The passwords do not match."
+                other = store.user_by_email(email) if email else None
+                if other and other["id"] != user["id"]: errors["email"] = "Another account already uses this email."
+                if errors:
+                    return jsonify({"error": "Set an email and password first, so these receipts stay yours.", "fields": errors}), 400
+                store.set_user_credentials(user["id"], name, email,
+                                           generate_password_hash(unicodedata.normalize("NFC", password), method="scrypt"))
+            store.set_app_setting("require_sign_in", "1")
+        else:
+            if not store.user_has_password(user["id"]):
+                return jsonify({"error": "Sign in with an account to change this."}), 403
+            store.set_app_setting("require_sign_in", "0")
+            store.set_app_setting("workspace_user_id", str(user["id"]))
+        store.log_event(user["id"], "settings.require_sign_in", "app", None, details={"require_sign_in": required})
+        return jsonify({**_access_state(), "has_password": store.user_has_password(user["id"]), "user": current_user()})
 
     @app.post("/api/guest")
     def guest_login():
@@ -420,41 +787,6 @@ def create_app(
         session.clear(); session["user_id"] = user["id"]; session["csrf_token"] = secrets.token_urlsafe(24); session.permanent = True
         return jsonify({"user": user, "csrf_token": session["csrf_token"]}), 201
 
-    @app.get("/auth/google")
-    def google_login():
-        client_id = os.getenv("GOOGLE_CLIENT_ID")
-        if not client_id or not os.getenv("GOOGLE_CLIENT_SECRET"):
-            return redirect("/?auth_error=google_not_configured")
-        state = secrets.token_urlsafe(32); session["google_oauth_state"] = state
-        redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or url_for("google_callback", _external=True)
-        query = urlencode({"client_id": client_id, "redirect_uri": redirect_uri, "response_type": "code", "scope": "openid email profile", "state": state, "prompt": "select_account"})
-        return redirect(f"https://accounts.google.com/o/oauth2/v2/auth?{query}")
-
-    @app.get("/auth/google/callback")
-    def google_callback():
-        expected, supplied = session.pop("google_oauth_state", None), request.args.get("state")
-        if not expected or not supplied or not secrets.compare_digest(expected, supplied):
-            return redirect("/?auth_error=google_state")
-        code = request.args.get("code")
-        if not code: return redirect("/?auth_error=google_denied")
-        redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or url_for("google_callback", _external=True)
-        try:
-            token_response = requests.post("https://oauth2.googleapis.com/token", data={"code": code, "client_id": os.environ["GOOGLE_CLIENT_ID"], "client_secret": os.environ["GOOGLE_CLIENT_SECRET"], "redirect_uri": redirect_uri, "grant_type": "authorization_code"}, timeout=10)
-            token_response.raise_for_status(); access_token = token_response.json()["access_token"]
-            profile_response = requests.get("https://openidconnect.googleapis.com/v1/userinfo", headers={"Authorization": f"Bearer {access_token}"}, timeout=10)
-            profile_response.raise_for_status(); profile = profile_response.json()
-            if not profile.get("email_verified"): return redirect("/?auth_error=google_unverified")
-            user = store.user_by_email(profile["email"])
-            if not user:
-                user = store.create_user(uuid.uuid4().hex, profile.get("name") or profile["email"].split("@")[0], profile["email"], generate_password_hash(secrets.token_urlsafe(48), method="scrypt"))
-                store.log_event(user["id"], "account.register_google", "user", user["public_id"], details={"status": user["status"], "consent": "google_oauth_and_local_notice"})
-            if user.get("status") == "suspended": return redirect("/?auth_error=account_suspended")
-            store.record_login(user["id"], True); store.log_event(user["id"], "account.login_google", "user", user["public_id"])
-            session.clear(); session["user_id"] = user["id"]; session["csrf_token"] = secrets.token_urlsafe(24); session.permanent = True
-            return redirect("/#overview")
-        except Exception:
-            return redirect("/?auth_error=google_failed")
-
     @app.post("/api/login")
     def login():
         payload = request.get_json(silent=True) or {}
@@ -482,6 +814,132 @@ def create_app(
         user = current_user()
         recent = store.list_receipts(user["id"])[:6]
         return jsonify({"stats": store.stats(user["id"]), "recent": recent})
+
+    @app.get("/api/finance")
+    @require_auth
+    def finance_report():
+        user_id = current_user()["id"]
+        entries = _finance_entries(store, user_id)
+        date_from, date_to = request.args.get("from", ""), request.args.get("to", "")
+        category, source = request.args.get("category", "all"), request.args.get("source", "all")
+        if date_from: entries = [item for item in entries if item["date"] and item["date"] >= date_from]
+        if date_to: entries = [item for item in entries if item["date"] and item["date"] <= date_to]
+        if category != "all": entries = [item for item in entries if item["expense_type"] == category]
+        if source != "all": entries = [item for item in entries if item["source"] == source]
+        entries.sort(key=lambda item: (item.get("date") or "", item["id"]), reverse=True)
+        totals: dict[str, Decimal] = {}; monthly: dict[str, Decimal] = {}; total = Decimal("0")
+        missing = unreviewed = 0
+        for item in entries:
+            amount = _money(item.get("amount"))
+            if amount is None: missing += 1; continue
+            total += amount
+            totals[item["expense_type"]] = totals.get(item["expense_type"], Decimal("0")) + amount
+            month = (item.get("date") or "Unknown")[:7]
+            monthly[month] = monthly.get(month, Decimal("0")) + amount
+            if item["source"] == "receipt" and item["status"] != "reviewed": unreviewed += 1
+        return jsonify({
+            "entries": entries, "types": EXPENSE_TYPES,
+            "summary": {"total": f"{total:.2f}", "count": len(entries), "missing_amounts": missing,
+                        "needs_review": unreviewed, "average": f"{(total / (len(entries)-missing)):.2f}" if len(entries) > missing else "0.00"},
+            "by_type": [{"code": key, "label": EXPENSE_TYPES[key], "total": f"{value:.2f}"} for key, value in sorted(totals.items(), key=lambda pair: pair[1], reverse=True)],
+            "monthly": [{"month": key, "total": f"{monthly[key]:.2f}"} for key in sorted(monthly)],
+        })
+
+    def validate_expense(payload: dict[str, Any], partial: bool = False) -> tuple[dict[str, Any], dict[str, str]]:
+        clean: dict[str, Any] = {}; errors: dict[str, str] = {}
+        required = ("expense_date", "supplier", "amount")
+        for key in required:
+            if key in payload or not partial:
+                value = str(payload.get(key, "")).strip()
+                if not value: errors[key] = "This field is required."
+                else: clean[key] = value
+        if clean.get("expense_date"):
+            try: datetime.strptime(clean["expense_date"], "%Y-%m-%d")
+            except ValueError: errors["expense_date"] = "Use a valid date."
+        if "amount" in clean:
+            amount = _money(clean["amount"])
+            if amount is None or amount <= 0: errors["amount"] = "Enter a positive amount with up to two decimals."
+            else: clean["amount"] = f"{amount:.2f}"
+        category = str(payload.get("expense_type", "other")).strip().lower()
+        if "expense_type" in payload or not partial:
+            if category not in EXPENSE_TYPES: errors["expense_type"] = "Choose a valid expense type."
+            else: clean["expense_type"] = category
+        for key, limit in (("description", 500), ("payment_method", 100), ("notes", 2000)):
+            if key in payload: clean[key] = str(payload.get(key, "")).strip()[:limit]
+        if "currency" in payload or not partial:
+            currency = str(payload.get("currency", "MYR")).strip().upper()
+            if not re.fullmatch(r"[A-Z]{3}", currency): errors["currency"] = "Use a three-letter currency code."
+            else: clean["currency"] = currency
+        if "tax_amount" in payload:
+            raw_tax = str(payload.get("tax_amount") or "").strip()
+            tax = _money(raw_tax) if raw_tax else None
+            if raw_tax and tax is None: errors["tax_amount"] = "Enter a valid tax amount."
+            else: clean["tax_amount"] = f"{tax:.2f}" if tax is not None else None
+        return clean, errors
+
+    @app.post("/api/finance/expenses")
+    @require_auth
+    def create_finance_expense():
+        payload = request.get_json(silent=True) or {}
+        clean, errors = validate_expense(payload)
+        if errors: return jsonify({"error": "Check the expense fields.", "fields": errors}), 400
+        record = store.create_manual_expense(current_user()["id"], clean)
+        store.log_event(current_user()["id"], "finance.expense_create", "expense", record["public_id"], details={"amount": record["amount"], "type": record["expense_type"]})
+        return jsonify(record), 201
+
+    @app.patch("/api/finance/expenses/<expense_id>")
+    @require_auth
+    def update_finance_expense(expense_id: str):
+        payload = request.get_json(silent=True) or {}; clean, errors = validate_expense(payload, partial=True)
+        if errors: return jsonify({"error": "Check the expense fields.", "fields": errors}), 400
+        record = store.update_manual_expense(current_user()["id"], expense_id, clean)
+        if not record: return jsonify({"error": "Expense not found or no valid change supplied."}), 404
+        store.log_event(current_user()["id"], "finance.expense_update", "expense", expense_id)
+        return jsonify(record)
+
+    @app.delete("/api/finance/expenses/<expense_id>")
+    @require_auth
+    def delete_finance_expense(expense_id: str):
+        if not store.delete_manual_expense(current_user()["id"], expense_id): return jsonify({"error": "Expense not found."}), 404
+        store.log_event(current_user()["id"], "finance.expense_delete", "expense", expense_id)
+        return jsonify({"ok": True})
+
+    @app.patch("/api/finance/receipts/<receipt_id>")
+    @require_auth
+    def classify_receipt_expense(receipt_id: str):
+        category = str((request.get_json(silent=True) or {}).get("expense_type", "")).lower()
+        if category not in EXPENSE_TYPES: return jsonify({"error": "Choose a valid expense type."}), 400
+        receipt = store.get_receipt(current_user()["id"], receipt_id)
+        if not receipt: return jsonify({"error": "Receipt not found."}), 404
+        accounting = dict(receipt.get("accounting_fields") or {}); accounting["expense_type"] = category
+        updated = store.update_receipt(current_user()["id"], receipt_id, {"accounting_fields": accounting})
+        store.log_event(current_user()["id"], "finance.receipt_classify", "receipt", receipt_id, details={"expense_type": category})
+        return jsonify({"receipt": updated, "expense_type": category})
+
+    @app.get("/api/finance/export.xlsx")
+    @require_auth
+    def finance_export():
+        entries = _finance_entries(store, current_user()["id"])
+        workbook = Workbook(); ledger = workbook.active; ledger.title = "Expense ledger"
+        ledger.append(["Date", "Supplier", "Description", "Expense type", "Amount", "Currency", "Payment method", "Tax", "Source", "Review status", "Record ID"])
+        for item in sorted(entries, key=lambda row: row.get("date") or ""):
+            ledger.append([item["date"], safe_excel_value(item["supplier"]), safe_excel_value(item["description"]), EXPENSE_TYPES[item["expense_type"]], float(item["amount"]) if item["amount"] else None, item["currency"], safe_excel_value(item["payment_method"]), float(item["tax_amount"]) if _money(item["tax_amount"]) is not None else None, item["source"], item["status"], item["id"]])
+        for cell in ledger[1]:
+            font = copy(cell.font); font.bold = True; cell.font = font
+        for row in ledger.iter_rows(min_row=2): row[4].number_format = row[7].number_format = "0.00"
+        for column, width in {"A": 14, "B": 28, "C": 42, "D": 28, "E": 14, "F": 10, "G": 18, "H": 12, "I": 12, "J": 16, "K": 28}.items(): ledger.column_dimensions[column].width = width
+        by_type = workbook.create_sheet("By expense type"); by_type.append(["Expense type", "Records", "Total (RM)"])
+        grouped: dict[str, list[Decimal]] = {}
+        for item in entries:
+            amount = _money(item.get("amount"))
+            if amount is not None: grouped.setdefault(item["expense_type"], []).append(amount)
+        for category, amounts in sorted(grouped.items()): by_type.append([EXPENSE_TYPES[category], len(amounts), float(sum(amounts, Decimal("0")))])
+        for cell in by_type[1]:
+            font = copy(cell.font); font.bold = True; cell.font = font
+        by_type.column_dimensions["A"].width = 32; by_type.column_dimensions["B"].width = 12; by_type.column_dimensions["C"].width = 18
+        stream = io.BytesIO(); workbook.save(stream); stream.seek(0)
+        store.log_event(current_user()["id"], "finance.export", "expense", details={"records": len(entries)})
+        return send_file(stream, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name="expense-report.xlsx")
 
     @app.get("/api/policy")
     def policy():
@@ -555,6 +1013,15 @@ def create_app(
         return jsonify({"count": len(values), "total": f"{total:.2f}", "missing_amounts": missing,
                         "not_reviewed": unreviewed, "duplicate_images": duplicate_images, "currency": "MYR assumed"})
 
+    @app.get("/api/receipts/<receipt_id>/reading-copy")
+    @require_auth
+    def receipt_reading_copy(receipt_id: str):
+        """The scanner's text, one tidy reading per printed place, for the reading copy."""
+        receipt = store.get_receipt(current_user()["id"], receipt_id)
+        if not receipt:
+            return jsonify({"error": "Receipt not found."}), 404
+        return jsonify({"lines": reading_copy_lines((receipt.get("audit") or {}).get("ocr_lines") or [])})
+
     @app.get("/api/receipts/<receipt_id>")
     @require_auth
     def receipt_detail(receipt_id: str):
@@ -615,8 +1082,7 @@ def create_app(
             for candidate in store.list_receipts(current_user()["id"]):
                 if candidate["public_id"] == receipt_id: continue
                 exact_source = bool(receipt.get("content_sha256") and candidate.get("content_sha256") == receipt.get("content_sha256"))
-                same_business_record = all(receipt.get(key) and receipt.get(key) == candidate.get(key) for key in ("merchant", "transaction_date", "receipt_number", "total_amount"))
-                if exact_source or same_business_record:
+                if possible_duplicate(receipt, candidate):
                     duplicates.append({"public_id": candidate["public_id"], "exact_image": exact_source, "created_at": candidate["created_at"]})
             receipt["possible_duplicates"] = duplicates
         if receipt:
@@ -680,7 +1146,8 @@ def create_app(
         if "accounting_fields" in payload:
             permitted = {"supplier_name", "supplier_registration_number", "supplier_tax_number", "supplier_address",
                          "supplier_phone", "supplier_email", "document_type", "document_number", "transaction_date",
-                         "currency", "payment_method", "subtotal", "discount", "tax_amount", "payable_amount", "line_item_count"}
+                         "currency", "payment_method", "subtotal", "discount", "tax_amount", "payable_amount", "line_item_count",
+                         "expense_type", "suggested_expense_type", "brand", "business_type", "purchase_summary", "recognised_from"}
             fields = payload["accounting_fields"]
             if not isinstance(fields, dict) or any(key not in permitted for key in fields):
                 errors["accounting_fields"] = "Accounting evidence contains unsupported fields."
@@ -862,7 +1329,7 @@ def create_app(
             root = Path(receipt["restored_path"]).parent
             paths = [root / 'faithful_reference.png', root / 'registered_color.png', root / 'rectified_input.png', Path(receipt['input_path'])]
             path = str(next(item for item in paths if item.is_file()))
-        if not Path(path).is_file(): return jsonify({"error": "Image not found."}), 404
+        if not path or not Path(path).is_file(): return jsonify({"error": "Image not found."}), 404
         return send_file(path, mimetype="image/png", conditional=True)
 
     @app.get("/api/export.csv")
@@ -901,6 +1368,160 @@ def create_app(
         output = io.BytesIO(); workbook.save(output); output.seek(0)
         store.log_event(current_user()["id"], "receipt.export_xlsx", "receipt_collection", details={"count": len(rows)})
         return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name="receipt-register.xlsx")
+
+    def _accountant_records(user, start="", end=""):
+        from datetime import date
+        from .myinvois import assess_purchase_receipt
+        today = date.today().isoformat()
+        records = []
+        for row in store.list_receipts(user["id"]):
+            receipt = store.get_receipt(user["id"], row["public_id"])
+            if not receipt:
+                continue
+            assessed = assess_purchase_receipt(receipt, today=today)
+            when = assessed["essentials"]["transaction_date"] or ""
+            if (start and (not when or when < start)) or (end and (not when or when > end)):
+                continue
+            records.append((receipt, assessed))
+        records.sort(key=lambda item: (item[1]["essentials"]["transaction_date"] or "9999", item[1]["essentials"]["supplier_name"] or ""))
+        return records
+
+    def _pack_file_name(receipt, assessed, suffix):
+        e = assessed["essentials"]
+        supplier = re.sub(r"[^A-Za-z0-9]+", "-", (e["supplier_name"] or "unknown"))[:30].strip("-") or "unknown"
+        total = (e["total"] or "na").replace(".", "_")
+        return f"{e['transaction_date'] or 'undated'}_{supplier}_{total}_{receipt['public_id'][-6:]}_{suffix}.png"
+
+    def _accountant_workbook(records, start="", end="", with_images=False):
+        workbook = Workbook()
+        sheet = workbook.active; sheet.title = "Expenses"
+        headers = ["Date", "Supplier", "Receipt no.", "Total (RM)", "Tax (RM)", "Payment", "Expense type",
+                   "e-Invoice status", "Request e-invoice by", "Check before use", "Possible duplicate of",
+                   "Review status", "Receipt ID", "Receipt image"]
+        sheet.append(headers)
+        def number(value):
+            try:
+                return float(Decimal(str(value))) if value not in (None, "") else None
+            except (InvalidOperation, ValueError):
+                return None
+        receipts_only = [receipt for receipt, _ in records]
+        reviewed = 0
+        for receipt, assessed in records:
+            e = assessed["essentials"]; req = assessed["request"]
+            # a request date only matters when the receipt invites it or the sale is too large to consolidate
+            deadline = req["deadline"] if (assessed["status"] == "supplier_must_issue" or (req["possible"] and req["printed_on_receipt"])) else None
+            twins = [other["public_id"] for other in receipts_only if other is not receipt and possible_duplicate(receipt, other)]
+            reviewed += receipt.get("status") == "reviewed"
+            image_name = _pack_file_name(receipt, assessed, "recovered") if with_images else None
+            sheet.append([safe_excel_value(v) for v in [
+                e["transaction_date"], e["supplier_name"], e["receipt_number"], None, None, e["payment_mode"],
+                expense_category(receipt), assessed["label"], deadline, ", ".join(assessed["needs_review"]),
+                ", ".join(twins), status_label_for_export(receipt.get("status")), receipt["public_id"], image_name]])
+            row = sheet.max_row
+            for column, value in ((4, e["total"]), (5, e["tax"])):
+                amount = number(value)
+                if amount is not None:
+                    sheet.cell(row, column).value = amount
+                    sheet.cell(row, column).number_format = "0.00"
+            if image_name:
+                cell = sheet.cell(row, 14); cell.hyperlink = f"receipts/{image_name}"; cell.style = "Hyperlink"
+        if records:
+            sheet.append([]); sheet.append(["", "Total", "", f"=SUM(D2:D{len(records) + 1})", f"=SUM(E2:E{len(records) + 1})"])
+            sheet.cell(sheet.max_row, 4).number_format = "0.00"; sheet.cell(sheet.max_row, 5).number_format = "0.00"
+        summary = workbook.create_sheet("By supplier")
+        summary.append(["Month", "Supplier", "Receipts", "Total (RM)", "Needs supplier e-invoice"])
+        groups: dict[tuple[str, str], list] = {}
+        for receipt, assessed in records:
+            e = assessed["essentials"]
+            key = ((e["transaction_date"] or "")[:7] or "undated", e["supplier_name"] or "unknown")
+            groups.setdefault(key, []).append(assessed)
+        for (month, supplier), items in sorted(groups.items()):
+            total = sum((number(i["essentials"]["total"]) or 0.0) for i in items)
+            summary.append([month, safe_excel_value(supplier), len(items), round(total, 2),
+                            sum(1 for i in items if i["status"] == "supplier_must_issue")])
+            summary.cell(summary.max_row, 4).number_format = "0.00"
+        categories = workbook.create_sheet("By expense type")
+        categories.append(["Expense type", "Receipts", "Total (RM)"])
+        by_category: dict[str, list] = {}
+        for receipt, assessed in records:
+            by_category.setdefault(expense_category(receipt), []).append(number(assessed["essentials"]["total"]) or 0.0)
+        for name, amounts in sorted(by_category.items()):
+            categories.append([name, len(amounts), round(sum(amounts), 2)])
+            categories.cell(categories.max_row, 3).number_format = "0.00"
+        notes = workbook.create_sheet("Read me")
+        period = f"{start or 'first receipt'} to {end or 'latest receipt'}"
+        for line in [
+            "How to read this pack",
+            f"Period: {period}. Receipts: {len(records)}. Reviewed by the user: {reviewed}; still to verify: {len(records) - reviewed}.",
+            "These are purchase receipts. Under MyInvois the supplier issues the e-invoice; the buyer does not submit purchase receipts to LHDN.",
+            "Keep as supporting document: LHDN accepts normal receipts/bills to support tax deductions until the legislation is amended. Keep records for 7 years.",
+            "Supplier must issue an e-invoice: sales above RM10,000 cannot be consolidated, so obtain the supplier's validated e-invoice.",
+            "Request e-invoice by: shown only when the receipt prints a request rule or the sale is above RM10,000. Otherwise no action is needed.",
+            "Expense type comes from the type set on the receipt or, if none, from its tags and shop name; the accountant decides the final account code.",
+            "Possible duplicate of: another receipt with the same image, the same receipt number and total, or the same date, total and a similar supplier name. Check before claiming both.",
+            "Check before use: fields that could not be read from the receipt. Rows still marked 'To verify' have not been checked by the user.",
+            "Receipt image: the recovered image in the receipts folder of this pack (the original upload is next to it).",
+            "Supplier TIN, MSIC and SST numbers are the supplier's e-invoice fields; they are not needed to record a purchase.",
+            "Self-billed e-invoices are only issued by the buyer in LHDN's self-billed cases; use the per-receipt draft in the app for those.",
+        ]:
+            notes.append([line])
+        for ws in (sheet, summary, categories):
+            for cell in ws[1]:
+                font = copy(cell.font); font.bold = True; cell.font = font
+            ws.freeze_panes = "A2"
+            for column in ws.columns:
+                ws.column_dimensions[column[0].column_letter].width = min(48, max(10, max(len(str(c.value or "")) for c in column) + 2))
+        notes.column_dimensions["A"].width = 120
+        return workbook
+
+    def _pack_range():
+        month = request.args.get("month") or ""
+        start, end = request.args.get("from") or "", request.args.get("to") or ""
+        if re.fullmatch(r"\d{4}-\d{2}", month):
+            import calendar
+            year, mon = int(month[:4]), int(month[5:])
+            start, end = f"{month}-01", f"{month}-{calendar.monthrange(year, mon)[1]:02d}"
+        for value in (start, end):
+            if value and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                abort(400)
+        return start, end
+
+    @app.get("/api/accountant-pack.xlsx")
+    @require_auth
+    def export_accountant_pack():
+        """All purchase receipts in one workbook for the accountant."""
+        user = current_user(); start, end = _pack_range()
+        records = _accountant_records(user, start, end)
+        output = io.BytesIO(); _accountant_workbook(records, start, end).save(output); output.seek(0)
+        store.log_event(user["id"], "receipt.export_accountant_pack", "receipt_collection", details={"count": len(records), "format": "xlsx"})
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         as_attachment=True, download_name="accountant-pack.xlsx")
+
+    @app.get("/api/accountant-pack.zip")
+    @require_auth
+    def export_accountant_pack_zip():
+        """Workbook plus every receipt image: what an accountant needs as
+        supporting documents, named by date, supplier and amount."""
+        import zipfile
+        user = current_user(); start, end = _pack_range()
+        records = _accountant_records(user, start, end)
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+            book = io.BytesIO(); _accountant_workbook(records, start, end, with_images=True).save(book)
+            archive.writestr("accountant-pack.xlsx", book.getvalue())
+            for receipt, assessed in records:
+                root = Path(receipt["restored_path"]).parent
+                recovered = next((item for item in (root / "faithful_content.png", Path(receipt["restored_path"])) if item.is_file()), None)
+                if recovered:
+                    archive.write(recovered, f"receipts/{_pack_file_name(receipt, assessed, 'recovered')}")
+                original = Path(receipt["input_path"])
+                if original.is_file():
+                    archive.write(original, f"receipts/{_pack_file_name(receipt, assessed, 'original')}")
+        output.seek(0)
+        label = request.args.get("month") or (f"{start}_to_{end}" if start or end else "all")
+        store.log_event(user["id"], "receipt.export_accountant_pack", "receipt_collection", details={"count": len(records), "format": "zip"})
+        return send_file(output, mimetype="application/zip", as_attachment=True,
+                         download_name=f"accountant-pack-{re.sub(r'[^0-9A-Za-z_-]', '', label)}.zip")
 
     @app.get("/api/quality-evaluation.csv")
     @require_auth
@@ -947,6 +1568,122 @@ def create_app(
         data = build_audit_pdf(receipt, current_user(), _receipt_integrity(receipt), events)
         store.log_event(current_user()["id"], "receipt.export_audit_pdf", "receipt", receipt_id)
         return send_file(data, mimetype="application/pdf", as_attachment=True, download_name=f"{receipt_id}-audit-report.pdf")
+
+    # ------------------------------------------------------------ MyInvois
+    def _myinvois_state(user, receipt, saved=None):
+        from .myinvois import merge_draft, suggest_from_receipt, supplier_profile_key, validate_draft
+        base = suggest_from_receipt(receipt)
+        if saved is None:
+            saved = store.get_myinvois_draft(user["id"], receipt["public_id"]) or {}
+        supplier = base["supplier"]
+        supplier_profile = (store.get_myinvois_profile(user["id"], "supplier", supplier_profile_key(supplier.get("name"), supplier.get("id_value")))
+                            or store.get_myinvois_profile(user["id"], "supplier", supplier_profile_key(supplier.get("name"))))
+        buyer_profile = store.get_myinvois_profile(user["id"], "buyer", "self")
+        draft = merge_draft(base, saved or None, ("supplier", supplier_profile), ("buyer", buyer_profile))
+        return draft, validate_draft(draft)
+
+    @app.get("/api/settings")
+    @require_auth
+    def get_user_settings():
+        from .settings import PRESETS, SETTINGS, resolve
+        return jsonify({"values": resolve(store.get_settings(current_user()["id"])), "schema": SETTINGS, "presets": PRESETS})
+
+    @app.patch("/api/settings")
+    @require_auth
+    def save_user_settings():
+        from .settings import clean, resolve
+        user = current_user()
+        payload = request.get_json(silent=True) or {}
+        merged = dict(store.get_settings(user["id"])); merged.update(clean(payload))
+        store.save_settings(user["id"], merged)
+        store.log_event(user["id"], "settings.update", "user", str(user["id"]), details={"keys": sorted(clean(payload))})
+        return jsonify({"values": resolve(merged)})
+
+    def _purchase_state(receipt):
+        from datetime import date
+        from .myinvois import assess_purchase_receipt
+        return assess_purchase_receipt(receipt, today=date.today().isoformat())
+
+    def _clean_myinvois_payload(raw):
+        """Accept only the draft structure, with bounded sizes and plain values."""
+        if not isinstance(raw, dict):
+            return None, "The MyInvois draft must be an object."
+        if len(json.dumps(raw)) > 200_000:
+            return None, "The MyInvois draft is too large."
+        def scalar(value):
+            if value is None or isinstance(value, (bool, int, float)):
+                return value
+            if isinstance(value, str):
+                return value.strip()[:1000]
+            raise ValueError
+        def clean(value, depth=0):
+            if depth > 4:
+                raise ValueError
+            if isinstance(value, dict):
+                return {str(k)[:60]: clean(v, depth + 1) for k, v in list(value.items())[:80]}
+            if isinstance(value, list):
+                return [clean(v, depth + 1) for v in value[:500]]
+            return scalar(value)
+        try:
+            draft = {key: clean(raw[key]) for key in ("mode", "invoice", "supplier", "buyer", "lines", "totals", "provenance") if key in raw}
+        except ValueError:
+            return None, "The MyInvois draft contains unsupported values."
+        if draft.get("mode") not in (None, "individual", "consolidated"):
+            return None, "Mode must be individual or consolidated."
+        if "lines" in draft and not all(isinstance(row, dict) for row in draft["lines"]):
+            return None, "Each invoice line must be an object."
+        return draft, None
+
+    @app.get("/api/receipts/<receipt_id>/myinvois")
+    @require_auth
+    def myinvois_draft(receipt_id: str):
+        from .myinvois import form_schema
+        user = current_user()
+        receipt = store.get_receipt(user["id"], receipt_id)
+        if not receipt: return jsonify({"error": "Receipt not found."}), 404
+        draft, validation = _myinvois_state(user, receipt)
+        return jsonify({"draft": draft, "validation": validation, "schema": form_schema(),
+                        "purchase": _purchase_state(receipt),
+                        "scope": "Prepares and validates an unsigned MyInvois Invoice v1.0 document. Signing and submission are done by the authorised issuer."})
+
+    @app.patch("/api/receipts/<receipt_id>/myinvois")
+    @require_auth
+    def save_myinvois_draft(receipt_id: str):
+        from .myinvois import form_schema, profile_from_draft, supplier_profile_key
+        user = current_user()
+        receipt = store.get_receipt(user["id"], receipt_id)
+        if not receipt: return jsonify({"error": "Receipt not found."}), 404
+        payload = request.get_json(silent=True) or {}
+        saved, error = _clean_myinvois_payload(payload.get("draft"))
+        if error: return jsonify({"error": error}), 400
+        store.save_myinvois_draft(user["id"], receipt_id, saved)
+        draft, validation = _myinvois_state(user, receipt, saved)
+        if payload.get("remember_supplier"):
+            profile = profile_from_draft(draft, "supplier")
+            for key in {supplier_profile_key(profile.get("name"), profile.get("id_value")), supplier_profile_key(profile.get("name"))} - {None}:
+                store.save_myinvois_profile(user["id"], "supplier", key, profile)
+        if payload.get("remember_buyer") and draft.get("mode") != "consolidated":
+            store.save_myinvois_profile(user["id"], "buyer", "self", profile_from_draft(draft, "buyer"))
+        store.log_event(user["id"], "receipt.myinvois_draft_saved", "receipt", receipt_id,
+                        details={"ready": validation["ready"], "errors": validation["error_count"]})
+        return jsonify({"draft": draft, "validation": validation, "schema": form_schema(),
+                        "purchase": _purchase_state(receipt)})
+
+    @app.get("/api/receipts/<receipt_id>/myinvois.json")
+    @require_auth
+    def export_myinvois(receipt_id: str):
+        from .myinvois import build_ubl_json
+        user = current_user()
+        receipt = store.get_receipt(user["id"], receipt_id)
+        if not receipt: return jsonify({"error": "Receipt not found."}), 404
+        draft, validation = _myinvois_state(user, receipt)
+        if not validation["ready"]:
+            return jsonify({"error": "Complete the highlighted MyInvois fields before exporting.", "validation": validation}), 422
+        document = build_ubl_json(draft)
+        store.log_event(user["id"], "receipt.export_myinvois_json", "receipt", receipt_id)
+        data = io.BytesIO(json.dumps(document, indent=2, ensure_ascii=False).encode("utf-8"))
+        return send_file(data, mimetype="application/json", as_attachment=True,
+                         download_name=f"{receipt_id}-myinvois-invoice-v1.0.json")
 
     @app.get("/api/receipts/<receipt_id>/ocr.xlsx")
     @require_auth
@@ -1003,21 +1740,26 @@ def create_app(
         evidence.column_dimensions["E"].width = 18; evidence.column_dimensions["F"].width = 24
 
         coverage = workbook.create_sheet("MyInvois Coverage")
-        coverage.append(["Important", "This workbook supports review and accounting. It is not a MyInvois submission file.", ""])
+        coverage.append(["Important", "This workbook is not a MyInvois submission file. Fields are validated against the MyInvois Invoice v1.0 structure; download the MyInvois JSON from the receipt page. Signing and submission are done by the authorised issuer.", ""])
         coverage.append(["MyInvois field", "Current value", "Coverage status"])
         line_rows = export_items
-        coverage_rows = [
-            ("Supplier name", receipt.get("merchant"), "Captured" if receipt.get("merchant") else "Requires user input"),
-            ("Supplier TIN", None, "Requires user input"), ("Supplier registration / ID", None, "Requires user input"),
-            ("Supplier address and contact", None, "Requires user input"), ("Buyer name, TIN, ID, address and contact", None, "Requires user input"),
-            ("e-Invoice code / number", receipt.get("receipt_number"), "Captured" if receipt.get("receipt_number") else "Requires user input"),
-            ("Invoice date", receipt.get("transaction_date"), "Captured" if receipt.get("transaction_date") else "Requires user input"),
-            ("Invoice time", None, "Requires user input"), ("Invoice currency code", "MYR", "Application default; verify"),
-            ("Invoice line descriptions, quantities and prices", f"{len(line_rows)} candidate line(s)", "Review Line Items sheet" if line_rows else "Requires user input"),
-            ("Product / service classification", None, "Requires user input"), ("Tax type, rate and amount", None, "Requires user input"),
-            ("Tax-exclusive / tax-inclusive / payable totals", receipt.get("total_amount"), "Payable total captured; remaining totals require input"),
-            ("Digital signature and submission identifiers", None, "Created only by the authorised MyInvois workflow"),
-        ]
+        from .myinvois import FIELD_SPEC as _MI_FIELDS
+        _mi_draft, _mi_validation = _myinvois_state(current_user(), receipt)
+        _mi_issues = {}
+        for _issue in _mi_validation["issues"]:
+            _mi_issues.setdefault(_issue["path"], _issue["message"])
+        _origin = {"receipt": "From receipt", "profile": "From saved profile", "default": "Rule default; verify",
+                   "consolidated_rule": "Consolidated e-Invoice rule", "user": "Entered by user"}
+        coverage_rows = []
+        for _spec in _MI_FIELDS:
+            _value = _mi_draft
+            for _part in _spec["path"].split("."):
+                _value = _value.get(_part) if isinstance(_value, dict) else None
+            _status = _mi_issues.get(_spec["path"]) or _origin.get(_mi_draft["provenance"].get(_spec["path"]), "Captured" if _value else ("Optional" if _spec["rule"] != "M" else "Requires user input"))
+            coverage_rows.append((_spec["label"], _value, _status))
+        coverage_rows.append(("Invoice lines", f"{len(_mi_draft['lines'])} line(s)", "; ".join(i["message"] for i in _mi_validation["issues"] if i["path"].startswith("lines")) or "Complete"))
+        coverage_rows.append(("Overall", f"{_mi_validation['mandatory_filled']}/{_mi_validation['mandatory_total']} mandatory values", "Ready to export" if _mi_validation["ready"] else f"{_mi_validation['error_count']} item(s) to complete"))
+        coverage_rows.append(("Digital signature and submission identifiers", None, "Applied by the authorised issuer when submitting"))
         for row in coverage_rows: coverage.append([safe_excel_value(value) for value in row])
         for cell in coverage[2]:
             font = copy(cell.font); font.bold = True; cell.font = font
@@ -1062,18 +1804,27 @@ def create_app(
         processed = cv2.cvtColor(registered_color, cv2.COLOR_BGR2GRAY) if registered_color.ndim == 3 else registered_color
         faithful_refinement = {}
         from .restoration import assess_receipt_degradation, make_adaptive_document_view, make_faithful_content_view, make_readability_view, region_adaptive_source_fusion, select_faithful_recovery
+        from .settings import resolve as resolve_settings
+        user_settings = resolve_settings(store.get_settings(user["id"]))
+        stage_seconds: dict[str, float] = {}
+        def _lap(name, since):
+            stage_seconds[name] = round(time.perf_counter() - since, 2)
+            return time.perf_counter()
         with inference_lock:
+            lap = time.perf_counter()
             restoration = restoration_engine.run(processed)
+            lap = _lap("restoration_model", lap)
             degradation_profile = assess_receipt_degradation(processed)
             fused_recovery, fusion_record = region_adaptive_source_fusion(processed, restoration.image)
             faithfulness = select_faithful_recovery(processed, fused_recovery)
             selected_recovery = faithfulness.image
-            readability = make_readability_view(processed, selected_recovery)
-            ocr = ocr_engine.run_views([
-                ("rectified_input", processed),
-                ("source_preserving_recovery", selected_recovery),
-                ("readability_view", readability),
-            ])
+            ocr_views = [("rectified_input", processed), ("source_preserving_recovery", selected_recovery)]
+            third_pass = user_settings["extra_ocr_view"]
+            if third_pass == "always" or (third_pass == "auto" and {"faded", "blurred"} & set(degradation_profile.get("flags", []))):
+                ocr_views.append(("readability_view", make_readability_view(processed, selected_recovery)))
+            lap = _lap("fusion", lap)
+            ocr = ocr_engine.run_views(ocr_views)
+            lap = _lap(f"text_reading_{len(ocr_views)}_views", lap)
             if not ocr.lines:
                 raise ValueError(
                     "No recoverable receipt text was detected. Use a clearer image; "
@@ -1088,10 +1839,19 @@ def create_app(
                 source_color=registered_color if registered_color.ndim == 3 else None,
                 native_refinement=config.get('native_refinement'),
                 refinement_audit=faithful_refinement,
+                finishing_options=user_settings,
             )
+            lap = _lap("faithful_view_and_cleanup", lap)
             document_view = faithful_content
             display_mode = "faithful_recovery"
-        fields = route_fields(extract_fields(ocr.text, ocr.lines), support_available=False, model_available=restoration.model_available)
+            extracted = extract_fields(ocr.text, ocr.lines)
+            if user_settings["second_reading"]:
+                second_reading_record = second_reading(ocr_engine, extracted, faithful_content, processed.shape)
+                second_reading_record["date_strip"] = date_year_reading(ocr_engine, extracted, processed)
+                lap = _lap("second_reading", lap)
+            else:
+                second_reading_record = {"run": False, "disabled": True}
+        fields = route_fields(extracted, support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
         content_sha256 = hashlib.sha256(raw_bytes).hexdigest()
         verified_memory = store.verified_field_suggestions(
@@ -1141,7 +1901,7 @@ def create_app(
             "model_role": "independent source-trace support gate",
             "role": "Faithful proposed-method output",
         }
-        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path), "faithful_content": _file_sha256(audit_root / "faithful_content.png")}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "degradation_profile": degradation_profile, "region_adaptive_fusion": fusion_record, "faithfulness_gate": {"accepted": faithfulness.accepted, "reason": faithfulness.reason, "metrics": faithfulness.metrics, "fallback": None if faithfulness.accepted else "rectified_original"}, "display_image": display_mode, "faithful_display_image": "faithful_content.png", "faithful_display_policy": "degradation-adaptive, OCR-localised source-and-DSDNet-supported stroke regularisation; recognised strings are not rendered; exact rectified original used when the faithfulness gate rejects recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": ["rectified_input", "source_preserving_recovery", "readability_view"], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "localisation_only_for_faithful_stroke_regularisation; recognised_strings_not_rendered", "semantic_extraction": {"method": "layout_aware_receipt_semantics_v2", "line_items": semantic_items, "accounting_fields": accounting_fields}, "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
+        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path), "faithful_content": _file_sha256(audit_root / "faithful_content.png")}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "degradation_profile": degradation_profile, "region_adaptive_fusion": fusion_record, "faithfulness_gate": {"accepted": faithfulness.accepted, "reason": faithfulness.reason, "metrics": faithfulness.metrics, "fallback": None if faithfulness.accepted else "rectified_original"}, "display_image": display_mode, "faithful_display_image": "faithful_content.png", "faithful_display_policy": "degradation-adaptive, OCR-localised source-and-DSDNet-supported stroke regularisation; recognised strings are not rendered; exact rectified original used when the faithfulness gate rejects recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": [name for name, _ in ocr_views], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "localisation_only_for_faithful_stroke_regularisation; recognised_strings_not_rendered", "second_reading": second_reading_record, "stage_seconds": stage_seconds, "processing_settings": {k: user_settings[k] for k in ("extra_ocr_view", "second_reading", "severe_cleanup", "damage_separation", "stroke_joining")}, "semantic_extraction": {"method": "layout_aware_receipt_semantics_v2", "line_items": semantic_items, "accounting_fields": accounting_fields}, "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
         from .restoration import complete_document_preservation_mode
         faithful_mode = complete_document_preservation_mode(registered_color)
         if faithful_mode:
@@ -1177,6 +1937,84 @@ def create_app(
         return {"run_id": run_id, "receipt": record, "original": _data_url(image), "restored": _data_url(display_restoration), "diagnostic": _data_url(restoration.diagnostic_map) if restoration.diagnostic_map is not None else None, "ocr_text": ocr.text, "fields": [field.as_dict() for field in fields], "restoration_status": restoration.status, "support_status": "unavailable_for_natural_source", "runtime_seconds": runtime, "audit": audit}
 
     app.extensions['receipt_process_inline'] = _process_receipt
+
+    @app.post("/api/welcome")
+    @require_auth
+    def welcome_seen():
+        store.set_app_setting(f"welcome_seen:{current_user()['id']}", utc_now())
+        return jsonify({"ok": True})
+
+    # ------------------------------------------------------------ phone scanner
+    @app.post("/api/phone/pair")
+    @require_auth
+    def phone_pair():
+        user = current_user()
+        if user.get("is_guest"):
+            return jsonify({"error": "Phone scanning is not available in a guest session."}), 403
+        if not app.config.get("PHONE_SCANNING"):
+            return jsonify({"error": "Phone scanning is switched off. Restart the app with phone scanning on.", "reason": "off"}), 409
+        addresses = lan_addresses()
+        if not addresses:
+            return jsonify({"error": "This computer is not on a Wi-Fi or office network. Connect it to the same Wi-Fi as the phone.", "reason": "no_network"}), 409
+        port = request.host.rsplit(":", 1)[1] if ":" in request.host else "80"
+        pairing = phone_pairings.start(user["id"])
+        url = f"http://{addresses[0]}:{port}/phone#{pairing.pop('token')}"
+        store.log_event(user["id"], "phone.pair", "user", user["public_id"], details={"address": addresses[0]})
+        return jsonify({**pairing, "url": url, "address": addresses[0], "other_addresses": addresses[1:4], "qr_svg": qr_svg(url)})
+
+    @app.get("/api/phone/pair")
+    @require_auth
+    def phone_pair_status():
+        return jsonify({"pairing": phone_pairings.status(current_user()["id"])})
+
+    @app.delete("/api/phone/pair")
+    @require_auth
+    def phone_pair_end():
+        phone_pairings.end(current_user()["id"])
+        return jsonify({"ok": True})
+
+    @app.get("/phone")
+    def phone_page():
+        return render_template("phone.html")
+
+    def _phone_user():
+        token = request.headers.get("X-Phone-Token", "")
+        user_id = phone_pairings.user_for(token) if token else None
+        user = store.user_by_id(user_id) if user_id else None
+        if not user or user.get("status") != "active":
+            return None, token
+        user["is_guest"] = False
+        user["is_workspace"] = user["email"] == WORKSPACE_EMAIL
+        return user, token
+
+    @app.get("/api/phone/check")
+    def phone_check():
+        user, _ = _phone_user()
+        if not user:
+            return jsonify({"error": "This pairing has ended. Scan the QR code on the computer again."}), 401
+        return jsonify({"ok": True, "name": user.get("name")})
+
+    @app.post("/api/phone/upload")
+    def phone_upload():
+        user, token = _phone_user()
+        if not user:
+            return jsonify({"error": "This pairing has ended. Scan the QR code on the computer again."}), 401
+        upload = request.files.get("receipt")
+        if upload is None or not upload.filename:
+            return jsonify({"error": "No photo was received."}), 400
+        phone_pairings.note(token, busy=1)
+        try:
+            result = process_receipt(upload, user)
+        except ValueError as error:
+            phone_pairings.note(token, failed=True, busy=-1)
+            return jsonify({"error": str(error)}), 400
+        except Exception:
+            phone_pairings.note(token, failed=True, busy=-1)
+            raise
+        receipt = result.get("receipt") or {}
+        phone_pairings.note(token, receipt=receipt, busy=-1)
+        store.log_event(user["id"], "phone.upload", "receipt", receipt.get("public_id"))
+        return jsonify({"receipt": {key: receipt.get(key) for key in ("public_id", "merchant", "total_amount", "transaction_date", "review_status")}})
 
     @app.post("/api/analyze")
     @require_auth

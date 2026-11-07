@@ -34,6 +34,27 @@ GOOGLE_REDIRECT_URI=http://127.0.0.1:5055/auth/google/callback
 
 The Google Cloud OAuth client must list the same callback as an authorised redirect URI. Never commit OAuth credentials or local receipt data.
 
+### Degradation-aware finishing of the faithful view
+
+After the faithful view is selected, `receipt_cleanup.finish_faithful_view` applies a final source-anchored stage to degraded neutral receipts (degradation profile `faded` or `blurred`, or small low-resolution captures). Clean and colour receipts are returned unchanged.
+
+- Faded A4/A5 invoices use `severe_document.make_severe_document_view`: paper normalisation, stroke-scale black-hat evidence, hysteresis growth of confident ink, removal of fold ridges, speckle and diagonal fold lines away from glyphs, and a locally normalised ink tone.
+- Small, faint captures (shorter side under 450 px) use `make_faint_document_view`: the image is enlarged and shown as a contrast-normalised grey view whose filter width follows the measured stroke width, so water-stain tide lines and fold shadows drop out.
+- `suppress_receipt_artifacts` then works on every degraded view. Torn or punched holes are shown as flat grey. Outside OCR- or geometry-localised text lines it returns speckle, crease webs, long traces and stain bands to paper, while keeping logos, halftone pictures, table grids, dotted rules, signatures and punctuation. Inside OCR text lines, faint print is normalised to each line's strongest source strokes.
+
+OCR is used for localisation only; no recognised text is drawn. The stage records its decisions in the audit under `native_refinement.degradation_finishing`.
+
+### MyInvois e-Invoice draft
+
+Each receipt page has a MyInvois panel built on `myinvois.py`, following the LHDN MyInvois SDK Invoice v1.0 data structure and code lists (state, payment mode, tax type and the 45 classification codes).
+
+- **Draft from the receipt.** Supplier name, BRN, SST number, address split into lines, postcode, city and state, E.164 phone, e-mail, document number, transaction date and time, payment mode, line items and totals are prefilled. Each line item is checked against its printed row so that quantity × unit price = amount.
+- **Source of every value.** Each field is labelled as coming from the receipt, a saved profile, a rule default, the consolidated rule or the user.
+- **Profiles.** Supplier details that receipts do not print (TIN, MSIC code, business activity) are remembered per supplier. The user's own business is remembered as the buyer, so later receipts are completed automatically.
+- **Consolidated mode.** This applies the General Public buyer: TIN EI00000000010, "NA" identifiers and address, state 17 and classification 004.
+- **Validation.** Mandatory fields, lengths, code lists, TIN, BRN, MyKad, SST, MSIC, phone and e-mail formats, and the arithmetic chain are checked: line totals, total excluding tax, plus tax, plus rounding, equals the receipt total.
+- **Export.** Once valid, the draft downloads as an unsigned MyInvois Invoice v1.0 UBL 2.1 JSON document. The e-Invoice issue date and time are set at export. The supplier, as issuer, signs (required for document version 1.1) and submits it with their MyInvois credentials. The app does not call the MyInvois API.
+
 ## Malaysian datasets
 
 - SROIE-Malaysia: 987 Malaysian English-language scanned receipts with OCR and key-field annotations for controlled degradation and evaluation.
