@@ -49,7 +49,7 @@ sys.path.insert(0, str(ROOT / "src"))
 OUT = ROOT / "artifacts" / "final_evaluation_20261107"
 MANIFEST = ROOT / "artifacts" / "protocol_lock" / "generation_manifest_611_sources.jsonl"
 REFERENCES = ROOT.parent / "FYP datasets" / "External" / "SROIE-Malaysia" / "sroie_protocol_manifest.csv"
-BASELINE_ORDER = ["A_direct", "B_otsu", "B_sauvola", "C_perceptual", "D_dsdnet_raw", "P_fast", "P_full"]
+BASELINE_ORDER = ["A_direct", "B_otsu", "B_sauvola", "C_perceptual", "D_dsdnet_raw", "P_full"]
 LABELS = {
     "A_direct": "A Direct extraction", "B_otsu": "B Otsu", "B_sauvola": "B Sauvola",
     "C_perceptual": "C Perceptual", "D_dsdnet_raw": "D DSDNet raw", "P_fast": "Proposed (fast)",
@@ -202,7 +202,30 @@ def rule_factor(name: str, value: str | None) -> float:
     return 1.0
 
 
-def collect(limit: int | None) -> None:
+SAMPLE_SEED = 20261107
+
+
+def sampled_variants(variants: list[dict], test_sources: int | None, validation_sources: int | None) -> list[dict]:
+    """Seeded source-level sample, fixed before any outcome is scored. All three
+    severities of a chosen source are kept. Test and validation sources are
+    interleaved so an interrupted run still holds a usable, balanced subset."""
+    rng = np.random.default_rng(SAMPLE_SEED)
+    chosen = {}
+    for partition, count in (("test", test_sources), ("validation", validation_sources)):
+        pool = sorted({v["source_id"] for v in variants if v["project_partition"] == partition})
+        order = list(rng.permutation(pool))
+        chosen[partition] = order[:count] if count else order
+    sequence = []
+    for i in range(max(len(chosen["test"]), len(chosen["validation"]))):
+        for partition in ("test", "validation"):
+            if i < len(chosen[partition]):
+                sequence.append(chosen[partition][i])
+    rank = {source: i for i, source in enumerate(sequence)}
+    picked = [v for v in variants if v["source_id"] in rank]
+    return sorted(picked, key=lambda v: (rank[v["source_id"]], v["variant_id"]))
+
+
+def collect(limit: int | None, test_sources: int | None = None, validation_sources: int | None = None) -> None:
     from dsdnet_receipt.baselines import BASELINES
     from dsdnet_receipt.config import load_config
     from dsdnet_receipt.fields import extract_fields
@@ -211,6 +234,7 @@ def collect(limit: int | None) -> None:
     from dsdnet_receipt.restoration import RestorationEngine
     from dsdnet_receipt.validation import stroke_fidelity_metrics
     from dsdnet_receipt.web_app import create_app
+    from dsdnet_receipt.receipt_context import reading_copy_lines
 
     OUT.mkdir(parents=True, exist_ok=True)
     config, _ = load_config(ROOT / "configs" / "default.json")
@@ -220,6 +244,11 @@ def collect(limit: int | None) -> None:
         keep = sorted({v["source_id"] for v in variants if v["project_partition"] == "test"})[:limit] + \
             sorted({v["source_id"] for v in variants if v["project_partition"] == "validation"})[:limit]
         variants = [v for v in variants if v["source_id"] in keep]
+    variants = sampled_variants(variants, test_sources, validation_sources)
+    (OUT / "sample_plan.json").parent.mkdir(parents=True, exist_ok=True)
+    (OUT / "sample_plan.json").write_text(json.dumps({
+        "seed": SAMPLE_SEED, "test_sources_requested": test_sources, "validation_sources_requested": validation_sources,
+        "order": [f"{v['source_id']}/{v['variant_id']}" for v in variants]}, indent=1), encoding="utf-8")
     records_path = OUT / "records.jsonl"
     done = set()
     if records_path.exists():
@@ -340,7 +369,7 @@ def collect(limit: int | None) -> None:
                     row["field_evidence"] = evidence
                     row["support_calibration"] = {k: calibration.get(k) for k in ("scales", "decision_threshold", "checkpoint_sha256")}
                     sink.write(json.dumps(row) + "\n"); sink.flush()
-                for method, preset in (("P_fast", "fast"), ("P_full", "balanced")):
+                for method, preset in (("P_full", "balanced"),):
                     if method not in needed:
                         continue
                     set_preset(preset)
@@ -360,8 +389,16 @@ def collect(limit: int | None) -> None:
                         receipt = body.get("receipt") or {}
                         values = {"merchant": receipt.get("merchant"), "transaction_date": receipt.get("transaction_date"),
                                   "total_amount": receipt.get("total_amount")}
-                        score_text(row, body.get("ocr_text") or "", values, None)
                         audit = body.get("audit") or {}
+                        ocr_lines = audit.get("ocr_lines") or []
+                        reading = "\n".join(line["text"] for line in reading_copy_lines(ocr_lines, tidy=False))
+                        reading_tidy = "\n".join(line["text"] for line in reading_copy_lines(ocr_lines, tidy=True))
+                        # primary transcription: the deduplicated reading copy (one reading per printed place)
+                        score_text(row, reading, values, None)
+                        row["cer_merged_views"] = float(cer(reference_text, norm_text(body.get("ocr_text") or "")))
+                        row["cer_reading_tidy"] = float(cer(reference_text, norm_text(reading_tidy)))
+                        row["merged_line_count"] = len(ocr_lines)
+                        row["reading_line_count"] = reading.count("\n") + 1 if reading else 0
                         row.update({"total_seconds": elapsed, "stage_seconds": audit.get("stage_seconds"),
                                     "line_items": len(receipt.get("line_items") or []),
                                     "processing_settings": audit.get("processing_settings")})
@@ -738,8 +775,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=("collect", "analyse"))
     parser.add_argument("--limit", type=int, default=None, help="sources per partition (smoke run)")
+    parser.add_argument("--test-sources", type=int, default=None, help="seeded sample of test source groups")
+    parser.add_argument("--validation-sources", type=int, default=None, help="seeded sample of validation source groups")
     args = parser.parse_args()
     if args.command == "collect":
-        collect(args.limit)
+        collect(args.limit, args.test_sources, args.validation_sources)
     else:
         analyse()
