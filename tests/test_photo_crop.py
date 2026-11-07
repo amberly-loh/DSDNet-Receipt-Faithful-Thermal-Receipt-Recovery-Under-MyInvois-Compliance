@@ -80,7 +80,7 @@ def test_upside_down_photo_is_turned_by_reading_both_ways():
 
 
 def test_receipt_on_white_tiles_is_cut_by_its_print_without_losing_text():
-    from dsdnet_receipt.preprocessing import preprocess, _print_block
+    from dsdnet_receipt.preprocessing import preprocess, _print_block, _keeps_print
     rng = np.random.default_rng(11)
     canvas = np.full((1600, 1200, 3), 222, np.uint8)  # glossy white tile, as white as the paper
     cv2.line(canvas, (0, 90), (1200, 90), (150, 150, 150), 6)  # tile grout
@@ -94,9 +94,10 @@ def test_receipt_on_white_tiles_is_cut_by_its_print_without_losing_text():
     warped = cv2.warpAffine(paper, matrix, (1200, 1600)); mask = cv2.warpAffine(np.full(paper.shape[:2], 255, np.uint8), matrix, (1200, 1600))
     canvas[mask > 0] = warped[mask > 0]
     cv2.ellipse(canvas, (330, 500), (90, 300), 15, 0, 360, (120, 150, 200), -1)  # a finger beside the receipt
-    before = len(_print_block(canvas)["points"])
+    block = _print_block(canvas)
     out, record = preprocess(canvas, {"preprocessing": {"max_long_edge": 4000}}, preserve_color=True)
-    assert record["boundary_detection"]["status"] == "rectified"
+    boundary = record["boundary_detection"]
+    assert boundary["status"] == "rectified"
     assert out.shape[0] > 2 * out.shape[1]  # a tall strip
-    after = _print_block(out)
-    assert after is not None and len(after["points"]) >= 0.85 * before  # the print is kept
+    # the cut, drawn on the original photo, keeps the receipt's print
+    assert _keeps_print(boundary["corners"], block, needed=0.95)
