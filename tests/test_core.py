@@ -968,3 +968,16 @@ def test_faithful_selector_falls_back_when_most_text_is_deleted() -> None:
     selected = select_faithful_display_candidate(source, candidate, [])
     # Source-normalized fallback must recover evidence from lower text rows.
     assert np.count_nonzero(selected[200:330] < 238) > 30
+
+
+def test_merchant_skips_address_and_registration_and_joins_split_company_name() -> None:
+    def line(text, y, conf=0.97):
+        return {"text": text, "confidence": conf, "box": [[10, y], [300, y], [300, y + 20], [10, y + 20]]}
+    split = [line("POPULAR BOOK", 10), line("CO. (M) SDN BHD", 40), line("(CO. NO. 113825-W)", 70), line("NO 8 JALAN 7/118B", 100)]
+    assert extract_fields("\n".join(l["text"] for l in split), split)["merchant"]["value"] == "POPULAR BOOK CO. (M) SDN BHD"
+    numbered = [line("99 SPEED MART S/B (519537-X)", 10), line("LOT P.T. 2811", 40), line("TAMAN BERKELEY", 70)]
+    assert extract_fields("\n".join(l["text"] for l in numbered), numbered)["merchant"]["value"] == "99 SPEED MART S/B"
+    # repeated readings from several cleaned views, with the legal form glued on
+    repeated = [line("LOT13.JALAN IPOH", 40), line("LOT13.JALAN IPOH", 41, 0.95), line("SINLIANHAPSDNBHD", 10, 0.9),
+                line("SIN LIANHAP SDN BHD", 11, 0.8), line("COMPANY NO: 000200101-A", 70)]
+    assert extract_fields("\n".join(l["text"] for l in repeated), repeated)["merchant"]["value"] in {"SINLIANHAPSDNBHD", "SIN LIANHAP SDN BHD"}

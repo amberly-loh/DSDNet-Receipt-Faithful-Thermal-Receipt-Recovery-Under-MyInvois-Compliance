@@ -399,19 +399,54 @@ def _spatial_invoice_number(lines: list[dict[str, Any]]) -> str | None:
     return max(fallbacks, default=(0, None), key=lambda item: item[0])[1]
 
 
+_COMPANY_SUFFIX = re.compile(r"(?i)(?:sdn\.?\s*bhd|\bbhd\b|\bs/b\b|\bplt\b|enterprise|trading|\bcompany\b|\bstore\b|\bmart\b|restaurant|\bkedai\b)")
+_ADDRESS_START = re.compile(r"(?i)^\s*(?:no\.?\s*\d|lot\s*\d|lot\b|jalan\b|jln\b|taman\b|tmn\b|lorong\b|persiaran\b|kg\.?\s|kampung\b|\d{1,4}[,\s]+jalan\b)")
+_ADDRESS_ANY = re.compile(r"(?i)\b\d{5}\b|\b(?:jalan|jln|taman|tmn)\b")
+
+
 def _merchant_candidate(lines: list[dict[str, Any]]) -> str | None:
-    reject = re.compile(r"(?i)\b(?:receipt|invoice|cash\s+sale|address|tel|date|item|qty|quantity|price|amount|total|tax|sst|thank)\b")
+    reject = re.compile(r"(?i)\b(?:receipt|invoice|cash\s+sale|address|tel|date|item|qty|quantity|price|amount|total|tax|sst|thank)\b|\b(?:company|co|reg|roc|gst)\.?\s*(?:reg\.?\s*)?(?:no|id)\b")
     ordered = sorted(lines, key=lambda item: _line_position(item.get("box")))
-    candidates: list[tuple[float, str]] = []
-    for index, line in enumerate(ordered[:18]):
-        value = str(line.get("text", "")).strip(" -:|")
+    # The reader may return the same printed line several times (one per
+    # cleaned view); rank lines by printed row so duplicates do not push the
+    # business name down the list.
+    rows: list[float] = []
+    row_text: dict[int, str] = {}
+    candidates: list[tuple[float, str, int]] = []
+    for line in ordered:
+        top = _line_position(line.get("box"))[0]
+        if not rows or abs(top - rows[-1]) > 6:
+            rows.append(top)
+        row_index = len(rows) - 1
+        if row_index >= 18:
+            break
+        value = _strip_registration(str(line.get("text", "")).strip(" -:|"))
         letters = sum(ch.isalpha() for ch in value)
+        if row_index not in row_text or float(line.get("confidence") or 0) > 0:
+            row_text.setdefault(row_index, value)
         if 3 <= len(value) <= 80 and letters >= 3 and not reject.search(value) and not re.fullmatch(r"[\d\W]+", value):
             confidence = float(line.get("confidence") or 0)
-            company_bonus = 4.0 if re.search(r"(?i)\b(?:sdn\.?\s*bhd|enterprise|trading|company|store|mart|restaurant|kedai)\b", value) else 0.0
+            company_bonus = 4.0 if _COMPANY_SUFFIX.search(value) else 0.0
+            address_penalty = 3.0 if _ADDRESS_START.search(value) or (not company_bonus and _ADDRESS_ANY.search(value)) else 0.0
             noise_penalty = 3.0 if letters / max(len(value), 1) < 0.55 else 0.0
-            candidates.append((company_bonus + confidence * 2.0 - index * 0.08 - noise_penalty, value))
-    return max(candidates, default=(0, None), key=lambda item: item[0])[1]
+            candidates.append((company_bonus + confidence * 2.0 - row_index * 0.08 - noise_penalty - address_penalty, value, row_index))
+    if not candidates:
+        return None
+    _, best, best_row = max(candidates, key=lambda item: item[0])
+    # A company name printed over two lines ("POPULAR BOOK" / "CO. (M) SDN BHD"):
+    # when the chosen line is only the legal-form tail, join the line above.
+    tail = re.fullmatch(r"(?i)\s*(?:[A-Z&.]+\s+)?(?:co\.?\s*)?(?:\(m\)\s*)?(?:sdn\.?\s*bhd\.?|bhd\.?|s/b)\s*", best)
+    above = row_text.get(best_row - 1)
+    if tail and above and not reject.search(above) and not _ADDRESS_START.search(above) and not re.search(r"\d", above) \
+            and sum(ch.isalpha() for ch in above) >= 3 \
+            and sum(ch.isalpha() or ch in " &'.-" for ch in above) / max(len(above), 1) >= 0.85:
+        best = f"{above} {best}".strip()
+    return best
+
+
+def _strip_registration(value: str) -> str:
+    """Drop a trailing company registration number such as "(519537-X)"."""
+    return re.sub(r"\s*[\(\[]?\s*(?:co\.?\s*(?:no\.?)?\s*:?\s*)?\d{3,}[-\s]?[A-Za-z]?\s*[\)\]]?\s*$", "", value).strip() or value
 
 
 def _line_position(box: Any) -> tuple[float, float]:
