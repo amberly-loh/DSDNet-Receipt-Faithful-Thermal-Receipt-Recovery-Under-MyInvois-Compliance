@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 from difflib import SequenceMatcher
+from functools import lru_cache
 from typing import Any
 
 # --- lexicon -----------------------------------------------------------------
@@ -117,6 +118,7 @@ _PROTECTED = _LEXICON_SET | {b for b in BRANDS if b.isalpha()}
 _SHAPES = str.maketrans({"1": "I", "L": "I", "|": "I", "0": "O", "5": "S", "8": "B", "6": "G", "2": "Z"})
 
 
+@lru_cache(maxsize=400_000)
 def _similar(token: str, word: str) -> float:
     a, b = token.upper(), word.upper()
     plain = SequenceMatcher(None, a, b).ratio()
@@ -124,6 +126,7 @@ def _similar(token: str, word: str) -> float:
     return max(plain, shaped)
 
 
+@lru_cache(maxsize=50_000)
 def correct_word(token: str, prefer: frozenset = frozenset()) -> str:
     """The lexicon word a token was clearly meant to be, else the token itself.
     Short tokens, numbers and codes are never changed."""
@@ -166,8 +169,7 @@ def _break_glued(run: str) -> list[str]:
             if best[start] is None:
                 continue
             piece = upper[start:end]
-            if len(piece) >= 3 and (piece in _LEXICON_SET or max((_similar(piece, w) for w in _LEXICON
-                                                                 if abs(len(w) - len(piece)) <= 1), default=0) >= 0.8):
+            if len(piece) >= 3 and (piece in _LEXICON_SET or _near_lexicon(piece) >= 0.8):
                 gain = len(piece) * (1.0 if piece in _LEXICON_SET else 0.8)
             else:
                 gain = -1.0 * len(piece)  # unknown characters cost
@@ -181,13 +183,24 @@ def _break_glued(run: str) -> list[str]:
     return [run[s:e] for s, e in spans]
 
 
+@lru_cache(maxsize=100_000)
+def _near_lexicon(piece: str) -> float:
+    """Best similarity of a piece to any lexicon word of about the same length (cached:
+    the same pieces recur across lines and views, and each check is costly)."""
+    return max((_similar(piece, w) for w in _LEXICON if abs(len(w) - len(piece)) <= 1), default=0)
+
+
 def gain_ok(piece: str) -> bool:
-    return max((_similar(piece, w) for w in _LEXICON if abs(len(w) - len(piece)) <= 1), default=0) >= 0.8
+    return _near_lexicon(piece) >= 0.8
 
 
 def tidy_text(text: str) -> str:
     """Restore spacing and repair lexicon words in one OCR line."""
-    value = str(text or "")
+    return _tidy_text(str(text or ""))
+
+
+@lru_cache(maxsize=50_000)
+def _tidy_text(value: str) -> str:
     value = re.sub(r"(?<=[A-Za-z])[()](?=[a-z])", "", value)        # stray bracket inside a word: Lun)pur
     value = re.sub(r"\b[0-9](?=[a-z]{2,}(?![a-z]))", lambda m: m.group(0).translate(_SHAPES), value)  # 8atu -> Batu
     value = re.sub(r"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z]{2})", " ", value)  # BatuJalan, PSBatu

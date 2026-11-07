@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from dataclasses import dataclass
 from pathlib import Path
 import json
@@ -221,7 +223,7 @@ class RestorationEngine:
             weights = np.zeros_like(padded, dtype=np.float32)
             diagnostic_accumulated = np.zeros_like(padded, dtype=np.float32)
             positions = [(top, left) for top in tops for left in lefts]
-            batch_size = max(1, int(self.config["dsdnet"].get("tile_batch_size", 1)))
+            batch_size = max(1, int(os.environ.get("RECEIPT_TILE_BATCH") or self.config["dsdnet"].get("tile_batch_size", 1)))
             calibration_path = Path(self.config["dsdnet"].get("evidence_support_calibration", ""))
             if calibration_path.is_file():
                 calibration = json.loads(calibration_path.read_text(encoding="utf-8"))

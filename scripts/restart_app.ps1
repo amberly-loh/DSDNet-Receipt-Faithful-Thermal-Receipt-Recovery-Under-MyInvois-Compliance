@@ -14,6 +14,13 @@ Get-CimInstance Win32_Process | Where-Object {
     "stopping PID $($_.ProcessId): $($_.CommandLine)" | Out-File $log -Append
     Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
 }
+# the GPU text-reader helper processes of the stopped server (spawned by multiprocessing)
+Get-CimInstance Win32_Process | Where-Object {
+    $_.CommandLine -and $_.CommandLine -like "*spawn_main*" -and $_.CommandLine -like "*receipt_recovery*"
+} | ForEach-Object {
+    "stopping helper PID $($_.ProcessId)" | Out-File $log -Append
+    Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+}
 # anything else still holding port 5055
 Get-NetTCPConnection -LocalPort 5055 -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
     "stopping port owner PID $($_.OwningProcess)" | Out-File $log -Append

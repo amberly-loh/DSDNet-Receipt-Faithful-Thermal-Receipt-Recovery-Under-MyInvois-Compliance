@@ -1822,12 +1822,13 @@ def create_app(
         registered_color, preprocessing_record = preprocess(image, config, preserve_color=True)
         if (preprocessing_record.get("boundary_detection") or {}).get("method") == "photographed_paper":
             registered_color, preprocessing_record["upright_check"] = upright_by_reading(registered_color, ocr_engine)
+        preprocess_seconds = round(time.perf_counter() - started, 2)
         processed = cv2.cvtColor(registered_color, cv2.COLOR_BGR2GRAY) if registered_color.ndim == 3 else registered_color
         faithful_refinement = {}
         from .restoration import assess_receipt_degradation, make_adaptive_document_view, make_faithful_content_view, make_readability_view, region_adaptive_source_fusion, select_faithful_recovery
         from .settings import resolve as resolve_settings
         user_settings = resolve_settings(store.get_settings(user["id"]))
-        stage_seconds: dict[str, float] = {}
+        stage_seconds: dict[str, float] = {"preprocess_and_upright": preprocess_seconds}
         def _lap(name, since):
             stage_seconds[name] = round(time.perf_counter() - since, 2)
             return time.perf_counter()
@@ -1878,6 +1879,7 @@ def create_app(
                 lap = _lap("second_reading", lap)
             else:
                 second_reading_record = {"run": False, "disabled": True}
+        lap = time.perf_counter()
         fields = route_fields(extracted, support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
         content_sha256 = hashlib.sha256(raw_bytes).hexdigest()
@@ -1900,6 +1902,7 @@ def create_app(
         inferred_tags = infer_receipt_tags(ocr.text, field_map.get("merchant"))
         semantic_items = extract_line_items(ocr.lines)
         accounting_fields = extract_accounting_fields(ocr.text, ocr.lines, field_map)
+        lap = _lap("fields_and_rules", lap)
         run_id = f"USER-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         audit_root = Path(config["artifacts_root"]) / "user_runs" / run_id
         input_path, restored_path, diagnostic_path = audit_root / "input.png", audit_root / "restored.png", audit_root / "diagnostic.png"
@@ -1919,6 +1922,7 @@ def create_app(
             write_image(audit_root / 'faithful_reference.png', reference)
         if restoration.model_output is not None: write_image(audit_root / "model_output_x8.png", restoration.model_output)
         if restoration.diagnostic_map is not None: write_image(diagnostic_path, restoration.diagnostic_map)
+        lap = _lap("save_images", lap)
         runtime = time.perf_counter() - started
         policy = {
             "text": "OCR-localised source pixels", "rules": "thin linear structures",

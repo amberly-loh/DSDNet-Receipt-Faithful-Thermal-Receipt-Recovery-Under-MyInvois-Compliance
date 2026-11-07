@@ -9,6 +9,90 @@ from typing import Any
 import numpy as np
 
 
+def ocr_on_gpu() -> bool:
+    """The text reader runs on the GPU when RECEIPT_OCR_GPU=1 and a GPU build is importable."""
+    return os.environ.get("RECEIPT_OCR_GPU", "0") == "1"
+
+
+# The GPU build of PaddlePaddle and PyTorch cannot share one process (both register the
+# same CUDA types with pybind11; whichever loads second fails). The GPU text reader
+# therefore runs in one helper process that never imports PyTorch; the application
+# sends it images and receives the same predictions PaddleOCR returns in-process.
+_GPU_POOL = None
+_GPU_ENGINE = None
+
+
+def _gpu_worker_init(settings: dict) -> None:
+    global _GPU_ENGINE
+    os.environ["RECEIPT_OCR_GPU_WORKER"] = "1"
+    _prepare_gpu_runtime()
+    from paddleocr import PaddleOCR
+    _GPU_ENGINE = PaddleOCR(use_angle_cls=False, show_log=False, use_gpu=True, **settings)
+
+
+def _gpu_worker_ocr(image: np.ndarray, det: bool):
+    if det:
+        return _GPU_ENGINE.ocr(image, cls=False)
+    return _GPU_ENGINE.ocr(image, det=False, cls=False)
+
+
+def shutdown_gpu_worker() -> None:
+    """Stop the GPU text-reader helper process (also registered to run at exit), so a
+    finished script never waits on it."""
+    global _GPU_POOL
+    pool, _GPU_POOL = _GPU_POOL, None
+    if pool is None:
+        return
+    for process in list(getattr(pool, "_processes", {}).values()):
+        try:
+            process.terminate()
+        except Exception:
+            pass
+    try:
+        pool.shutdown(wait=False, cancel_futures=True)
+    except Exception:
+        pass
+
+
+def _gpu_pool(settings: dict):
+    global _GPU_POOL
+    if _GPU_POOL is None:
+        import atexit
+        atexit.register(shutdown_gpu_worker)
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+        _GPU_POOL = ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn"),
+                                        initializer=_gpu_worker_init, initargs=(settings,))
+    return _GPU_POOL
+
+
+class _GpuEngine:
+    """Same .ocr() interface as PaddleOCR, served by the GPU helper process."""
+
+    def __init__(self, settings: dict) -> None:
+        self.settings = settings
+
+    def ocr(self, image, cls=False, det=True):
+        return _gpu_pool(self.settings).submit(_gpu_worker_ocr, image, det).result()
+
+
+def _prepare_gpu_runtime() -> None:
+    # On Windows the GPU build of PaddlePaddle needs the CUDA 11 / cuDNN 8 libraries;
+    # the PyTorch CUDA 11.8 wheel already ships them, so reuse that folder. PyTorch itself
+    # must not be imported first: both libraries register the same GPU type with pybind11,
+    # so PaddlePaddle has to be imported before PyTorch (see dsdnet_receipt/__init__.py).
+    if os.name == "nt":
+        import importlib.util
+        spec = importlib.util.find_spec("torch")
+        if spec and spec.origin:
+            lib = os.path.join(os.path.dirname(spec.origin), "lib")
+            if os.path.isdir(lib):
+                os.add_dll_directory(lib)
+                os.environ["PATH"] = lib + os.pathsep + os.environ.get("PATH", "")
+    # Share the 4 GB laptop GPU with DSDNet: grow on demand instead of reserving most of it.
+    os.environ.setdefault("FLAGS_allocator_strategy", "auto_growth")
+
+
 @dataclass
 class OCRResult:
     text: str
@@ -31,6 +115,14 @@ class PaddleOCRAdapter:
 
     def _load(self) -> Any:
         if self._engine is None:
+            gpu = ocr_on_gpu() or bool(self.config["ocr"].get("use_gpu", False))
+            if gpu and self.version.startswith("2.7"):
+                self._engine = _GpuEngine({
+                    "lang": self.config["ocr"]["language"],
+                    "ocr_version": self.config["ocr"]["ocr_version"],
+                    "gpu_mem": int(self.config["ocr"].get("gpu_mem", 800)),
+                })
+                return self._engine
             from paddleocr import PaddleOCR
 
             if self.version.startswith("2.7"):
@@ -39,9 +131,10 @@ class PaddleOCRAdapter:
                     ocr_version=self.config["ocr"]["ocr_version"],
                     use_angle_cls=False,
                     show_log=False,
-                    enable_mkldnn=bool(self.config["ocr"].get("enable_mkldnn", False)) and os.getenv("FLAGS_use_mkldnn", "1") != "0",
+                    enable_mkldnn=(not gpu) and bool(self.config["ocr"].get("enable_mkldnn", False)) and os.getenv("FLAGS_use_mkldnn", "1") != "0",
                     cpu_threads=int(self.config["ocr"].get("cpu_threads", 1)),
-                    use_gpu=bool(self.config["ocr"].get("use_gpu", False)),
+                    use_gpu=gpu,
+                    gpu_mem=int(self.config["ocr"].get("gpu_mem", 800)),
                 )
             else:
                 self._engine = PaddleOCR(
