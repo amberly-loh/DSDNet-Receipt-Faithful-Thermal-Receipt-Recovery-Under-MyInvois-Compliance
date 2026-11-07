@@ -415,6 +415,96 @@ def collect(limit: int | None, test_sources: int | None = None, validation_sourc
     write_provenance(config)
 
 
+def word_bag_scores(reference: str, hypothesis: str) -> dict:
+    """Order-independent word precision, recall and F1 (multiset of words), as in
+    SROIE text recognition scoring; complements page CER, which also counts line order."""
+    from collections import Counter
+    ref, hyp = Counter(reference.split()), Counter(hypothesis.split())
+    common = sum((ref & hyp).values())
+    precision = common / max(sum(hyp.values()), 1)
+    recall = common / max(sum(ref.values()), 1)
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {"word_precision": precision, "word_recall": recall, "word_f1": f1}
+
+
+def collect_texts(test_sources: int) -> None:
+    """Transcription pass on the same seeded test sample: stores every method's text
+    and scores page CER/WER and order-independent word F1. Added after a reading-order
+    defect in the reading copy was found on validation receipts (diagnostic_reading_copy)."""
+    from dsdnet_receipt.baselines import BASELINES
+    from dsdnet_receipt.config import load_config
+    from dsdnet_receipt.metrics import cer, wer
+    from dsdnet_receipt.ocr import PaddleOCRAdapter
+    from dsdnet_receipt.restoration import RestorationEngine
+    from dsdnet_receipt.receipt_context import reading_copy_lines
+    from dsdnet_receipt.web_app import create_app
+    from dsdnet_receipt.settings import PRESETS
+
+    config, _ = load_config(ROOT / "configs" / "default.json")
+    references = load_references()
+    variants = [v for v in sampled_variants(load_variants(), test_sources, 0) if v["project_partition"] == "test"]
+    path = OUT / "records_text.jsonl"
+    done = set()
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                row = json.loads(line); done.add((row["variant_key"], row["method"]))
+    ocr = PaddleOCRAdapter(config)
+    engine = RestorationEngine(config)
+    sandbox = OUT / "sandbox_text"; sandbox.mkdir(exist_ok=True)
+    app_config = dict(config); app_config["artifacts_root"] = str(sandbox / "artifacts")
+    cfg = OUT / "config_snapshot_text.json"; cfg.write_text(json.dumps(app_config, indent=2), encoding="utf-8")
+    app = create_app(cfg, testing=True, database_path=sandbox / "evaluation_text.sqlite3")
+    client = app.test_client()
+    token = client.get("/api/auth").get_json()["csrf_token"]
+    token = client.post("/api/workspace", headers={"X-CSRF-Token": token}).get_json()["csrf_token"]
+    if client.patch("/api/settings", json=dict(PRESETS["balanced"]), headers={"X-CSRF-Token": token}).status_code != 200:
+        raise RuntimeError("settings preset failed")
+    started = time.perf_counter()
+    with path.open("a", encoding="utf-8") as sink:
+        for index, variant in enumerate(variants, start=1):
+            key = f"{variant['source_id']}/{variant['variant_id']}"
+            needed = [m for m in BASELINE_ORDER if (key, m) not in done]
+            if not needed:
+                continue
+            reference_text = norm_text(references[variant["source_id"]]["ocr_reference_text"])
+            degraded = read_gray(variant["degraded_path"])
+
+            def emit(method: str, text: str, extra: dict | None = None) -> None:
+                hypothesis = norm_text(text)
+                row = {"variant_key": key, "source_id": variant["source_id"], "variant_id": variant["variant_id"],
+                       "partition": "test", "severity": variant["severity"], "method": method,
+                       "cer": float(cer(reference_text, hypothesis)), "wer": float(wer(reference_text, hypothesis)),
+                       **word_bag_scores(reference_text, hypothesis), "text": hypothesis, **(extra or {})}
+                sink.write(json.dumps(row) + "\n"); sink.flush()
+
+            try:
+                for method in [m for m in needed if m in BASELINES]:
+                    emit(method, ocr.run(BASELINES[method](degraded)).text)
+                if "D_dsdnet_raw" in needed:
+                    restoration = engine.run(degraded, float(variant["parameters"]["blur_sigma"]))
+                    image = restoration.model_output if restoration.model_output is not None else restoration.image
+                    emit("D_dsdnet_raw", ocr.run(image).text)
+                if "P_full" in needed:
+                    ok, encoded = cv2.imencode(".png", degraded)
+                    response = client.post("/api/analyze", data={"receipt": (io.BytesIO(encoded.tobytes()), f"{variant['source_id']}_{variant['variant_id']}.png")},
+                                           headers={"X-CSRF-Token": token}, content_type="multipart/form-data")
+                    body = response.get_json(silent=True) or {}
+                    if response.status_code != 200:
+                        emit("P_full", "", {"error": body.get("error") or f"HTTP {response.status_code}"})
+                    else:
+                        lines = (body.get("audit") or {}).get("ocr_lines") or []
+                        merged = norm_text(body.get("ocr_text") or "")
+                        tidy = norm_text("\n".join(l["text"] for l in reading_copy_lines(lines, tidy=True)))
+                        emit("P_full", "\n".join(l["text"] for l in reading_copy_lines(lines, tidy=False)),
+                             {"cer_merged_views": float(cer(reference_text, merged)), "cer_reading_tidy": float(cer(reference_text, tidy)),
+                              **{f"tidy_{k}": v for k, v in word_bag_scores(reference_text, tidy).items()}})
+                        client.delete(f"/api/receipts/{(body.get('receipt') or {}).get('public_id')}", headers={"X-CSRF-Token": token})
+            except Exception as error:  # keep going; failures are recorded, not hidden
+                sink.write(json.dumps({"variant_key": key, "method": "ERROR", "error": repr(error)}) + "\n"); sink.flush()
+            print(f"[text {index}/{len(variants)}] {key} done in {(time.perf_counter() - started) / 60:.1f} min", flush=True)
+
+
 def write_provenance(config: dict) -> None:
     import torch
     checkpoint = Path(config["dsdnet"]["checkpoint"])
@@ -773,12 +863,14 @@ def analyse() -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("collect", "analyse"))
+    parser.add_argument("command", choices=("collect", "texts", "analyse"))
     parser.add_argument("--limit", type=int, default=None, help="sources per partition (smoke run)")
     parser.add_argument("--test-sources", type=int, default=None, help="seeded sample of test source groups")
     parser.add_argument("--validation-sources", type=int, default=None, help="seeded sample of validation source groups")
     args = parser.parse_args()
-    if args.command == "collect":
+    if args.command == "texts":
+        collect_texts(args.test_sources or 40)
+    elif args.command == "collect":
         collect(args.limit, args.test_sources, args.validation_sources)
     else:
         analyse()

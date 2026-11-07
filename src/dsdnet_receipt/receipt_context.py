@@ -406,8 +406,26 @@ def reading_copy_lines(lines: list[dict[str, Any]], *, tidy: bool = True) -> lis
         if float(line.get("confidence") or 0) < 0.55:
             continue
         out.append({"text": text, "x0": box[0], "y0": box[1], "x1": box[2], "y1": box[3]})
-    out.sort(key=lambda item: ((item["y0"] + item["y1"]) / 2, item["x0"]))
-    return out
+    return _reading_order(out)
+
+
+def _reading_order(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Top-to-bottom, and left-to-right within a printed row. Pieces of one row
+    ("Cash" ... "10.00") rarely share exactly the same height, so rows are formed
+    from vertical overlap rather than from the exact centre of each box."""
+    rows: list[list[dict[str, Any]]] = []
+    for item in sorted(items, key=lambda item: (item["y0"] + item["y1"]) / 2):
+        height = max(item["y1"] - item["y0"], 1)
+        if rows:
+            top = min(other["y0"] for other in rows[-1])
+            bottom = max(other["y1"] for other in rows[-1])
+            row_height = max(min(other["y1"] - other["y0"] for other in rows[-1]), 1)
+            shared = min(bottom, item["y1"]) - max(top, item["y0"])
+            if shared >= 0.5 * min(height, row_height):
+                rows[-1].append(item)
+                continue
+        rows.append([item])
+    return [item for row in rows for item in sorted(row, key=lambda item: item["x0"])]
 
 
 _TOTAL_LABELS = ("SUBTOTAL", "ROUNDING", "TOTAL", "GRAND TOTAL", "CHANGE", "CASH", "TAX", "DISCOUNT", "BALANCE")

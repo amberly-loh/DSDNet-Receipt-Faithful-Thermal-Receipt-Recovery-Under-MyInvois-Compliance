@@ -1,4 +1,4 @@
-from dsdnet_receipt.receipt_context import clean_address_line, recognise_receipt, tidy_text
+from dsdnet_receipt.receipt_context import clean_address_line, reading_copy_lines, recognise_receipt, tidy_text
 from dsdnet_receipt.semantic import extract_accounting_fields
 
 
@@ -75,3 +75,11 @@ def test_tags_follow_the_recognised_business():
     from dsdnet_receipt.fields import infer_receipt_tags
     assert "electronics" in infer_receipt_tags("CeX AEON Rawang\nExchange Goods Details", "CeX AEON Rawang")
     assert infer_receipt_tags("PETRONAS\nPrimax 95 RM10.00", "PETRONAS")[0] == "fuel"
+
+
+def test_reading_copy_keeps_label_before_amount_on_the_same_row() -> None:
+    def line(text, x0, y0, x1, y1, conf=0.95):
+        return {"text": text, "confidence": conf, "box": [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]}
+    lines = [line("10.00", 300, 98, 360, 118), line("Cash", 20, 101, 80, 121),
+             line("8.55", 300, 131, 360, 149), line("Change", 20, 128, 100, 150)]
+    assert [item["text"] for item in reading_copy_lines(lines, tidy=False)] == ["Cash", "10.00", "Change", "8.55"]
