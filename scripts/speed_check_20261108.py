@@ -94,10 +94,14 @@ if __name__ == "__main__":
     parser.add_argument("--validation-count", type=int, default=5)
     parser.add_argument("--preset", default="balanced")
     parser.add_argument("--fp32", action="store_true", help="force fast_restoration off")
+    parser.add_argument("--override", default="{}", help="JSON settings overrides")
     a = parser.parse_args()
     if a.label in ("current", "batch16_cpu_skip"):
         # superseded: the previous configuration's validation times and outputs are already
         # recorded by the confirmatory validation check (P_full on the same 5 sources)
         sys.exit(0)
-    main(a.label, a.validation_count, a.preset, {"fast_restoration": False} if a.fp32 else None)
+    ov = json.loads(a.override)
+    if a.fp32:
+        ov["fast_restoration"] = False
+    main(a.label, a.validation_count, a.preset, ov or None)
     _finish()
