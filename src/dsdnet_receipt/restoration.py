@@ -163,7 +163,7 @@ class RestorationEngine:
         self._device = None
         self._loaded_checkpoint: Path | None = None
 
-    def run(self, image: np.ndarray, blur_sigma: float | None = None) -> RestorationResult:
+    def run(self, image: np.ndarray, blur_sigma: float | None = None, half_precision: bool = False) -> RestorationResult:
         checkpoint_value = self.config["dsdnet"].get("checkpoint")
         if not checkpoint_value:
             return RestorationResult(image.copy(), False, "checkpoint_unavailable", None, None)
@@ -241,13 +241,16 @@ class RestorationEngine:
                     ])
                     observed = torch.from_numpy(tiles).unsqueeze(1).to(device)
                     batch_kernel = kernel.expand(len(batch_positions), -1, -1)
-                    output = model(observed, batch_kernel, retain_diagnostics=True, summarize_diagnostics=True)
-                    restored_batch = output["restored"]
-                    diagnostic_batch = evidence_support_from_output(
-                        model, observed, batch_kernel, output, scales
-                    )["combined"].squeeze(1)
-                    restored_batch = restored_batch.detach().clamp(0, 1).squeeze(1).cpu().numpy()
-                    diagnostic_batch = diagnostic_batch.detach().clamp(0, 1).cpu().numpy()
+                    # Optional half precision (Fast preset only): mixed-precision inference on the GPU.
+                    use_half = bool(half_precision) and device.type == "cuda"
+                    with torch.autocast("cuda", dtype=torch.float16, enabled=use_half):
+                        output = model(observed, batch_kernel, retain_diagnostics=True, summarize_diagnostics=True)
+                        restored_batch = output["restored"]
+                        diagnostic_batch = evidence_support_from_output(
+                            model, observed, batch_kernel, output, scales
+                        )["combined"].squeeze(1)
+                    restored_batch = restored_batch.detach().float().clamp(0, 1).squeeze(1).cpu().numpy()
+                    diagnostic_batch = diagnostic_batch.detach().float().clamp(0, 1).cpu().numpy()
                     for restored_tile, diagnostic_tile, (top, left) in zip(restored_batch, diagnostic_batch, batch_positions):
                         accumulated[top : top + tile_size, left : left + tile_size] += restored_tile * window
                         diagnostic_accumulated[top : top + tile_size, left : left + tile_size] += diagnostic_tile * window

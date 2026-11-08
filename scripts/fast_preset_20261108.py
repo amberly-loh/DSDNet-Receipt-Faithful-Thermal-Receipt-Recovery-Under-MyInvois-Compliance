@@ -12,7 +12,7 @@ import dsdnet_receipt  # noqa: E402,F401
 OUT = fe.ROOT / "artifacts" / "final_run_20261108"
 
 
-def main():
+def main(label: str = "fast_preset"):
     from dsdnet_receipt.config import load_config
     from dsdnet_receipt.metrics import cer, wer
     from dsdnet_receipt.receipt_context import reading_copy_lines
@@ -23,7 +23,7 @@ def main():
     test = [v for v in fe.sampled_variants(fe.load_variants(), 95, 0) if v["project_partition"] == "test"]
     order = list(dict.fromkeys(v["source_id"] for v in test)); pos = {s: i + 1 for i, s in enumerate(order)}
     work = [v for v in test if pos[v["source_id"]] > 40]
-    sandbox = OUT / "sandbox_fast"; sandbox.mkdir(exist_ok=True)
+    sandbox = OUT / f"sandbox_{label}"; sandbox.mkdir(exist_ok=True)
     cfg = dict(config); cfg["artifacts_root"] = str(sandbox / "artifacts")
     (sandbox / "cfg.json").write_text(json.dumps(cfg), encoding="utf-8")
     app = create_app(sandbox / "cfg.json", testing=True, database_path=sandbox / "fast.sqlite3")
@@ -33,7 +33,7 @@ def main():
     assert client.patch("/api/settings", json=dict(PRESETS["fast"]), headers={"X-CSRF-Token": token}).status_code == 200
     ok, enc = cv2.imencode(".png", fe.read_gray(work[0]["degraded_path"]))
     client.post("/api/analyze", data={"receipt": (io.BytesIO(enc.tobytes()), "warm.png")}, headers={"X-CSRF-Token": token}, content_type="multipart/form-data")
-    path = OUT / "fast_preset.jsonl"; done = set()
+    path = OUT / f"{label}.jsonl"; done = set()
     if path.exists():
         done = {json.loads(l)["variant_key"] for l in path.read_text(encoding="utf-8").splitlines() if l.strip()}
     with path.open("a", encoding="utf-8") as sink:
@@ -63,10 +63,10 @@ def main():
                     row[f"{n}_value"] = None; row[f"{n}_correct"] = False
             sink.write(json.dumps(row) + "\n"); sink.flush()
             print(key, f"{secs:.1f}s", flush=True)
-    (OUT / "DONE_fast.txt").write_text("done", encoding="utf-8")
+    (OUT / f"DONE_{label}.txt").write_text("done", encoding="utf-8")
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1] if len(sys.argv) > 1 else "fast_preset")
     from dsdnet_receipt.ocr import shutdown_gpu_worker
     shutdown_gpu_worker()

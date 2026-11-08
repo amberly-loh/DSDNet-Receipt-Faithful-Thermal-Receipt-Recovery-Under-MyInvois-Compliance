@@ -10,6 +10,8 @@ SETTINGS: list[dict[str, Any]] = [
      "default": "auto", "choices": {"auto": "Automatic (faded or blurred receipts only)", "always": "Always", "never": "Never (fastest)"}, "slow": True},
     {"key": "second_reading", "group": "Processing", "label": "Re-read the cleaned image when the date, total or number is missing",
      "description": "Only runs when one of these fields was not found.", "default": True, "slow": True},
+    {"key": "fast_restoration", "group": "Processing", "label": "Faster restoration (half precision on the GPU)",
+     "description": "Runs the restoration network in half precision. Part of the Fast preset.", "default": False, "slow": False},
     {"key": "severe_cleanup", "group": "Restoration", "label": "Show-through and crease cleanup",
      "description": "Tries an extra cleaned version of creased or show-through receipts and keeps it only if it is better.",
      "default": True, "slow": True},
@@ -26,9 +28,9 @@ SETTINGS: list[dict[str, Any]] = [
      "description": "Turn off for a smaller, faster download with the spreadsheet only.", "default": True},
 ]
 PRESETS = {
-    "fast": {"extra_ocr_view": "never", "second_reading": False, "severe_cleanup": False},
-    "balanced": {"extra_ocr_view": "auto", "second_reading": True, "severe_cleanup": True},
-    "thorough": {"extra_ocr_view": "always", "second_reading": True, "severe_cleanup": True, "damage_separation": True, "stroke_joining": True},
+    "fast": {"extra_ocr_view": "never", "second_reading": False, "severe_cleanup": False, "fast_restoration": True},
+    "balanced": {"extra_ocr_view": "auto", "second_reading": True, "severe_cleanup": True, "fast_restoration": False},
+    "thorough": {"extra_ocr_view": "always", "second_reading": True, "severe_cleanup": True, "damage_separation": True, "stroke_joining": True, "fast_restoration": False},
 }
 _BY_KEY = {item["key"]: item for item in SETTINGS}
 

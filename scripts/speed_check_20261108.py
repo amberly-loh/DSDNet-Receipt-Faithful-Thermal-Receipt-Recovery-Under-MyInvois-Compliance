@@ -20,7 +20,7 @@ import dsdnet_receipt  # noqa: E402,F401  (loads the GPU text reader first when 
 OUT = fe.OUT / "speed_20261108"
 
 
-def main(label: str, validation_count: int) -> None:
+def main(label: str, validation_count: int, preset: str = "balanced", overrides: dict | None = None) -> None:
     from dsdnet_receipt.config import load_config
     from dsdnet_receipt.metrics import cer, wer
     from dsdnet_receipt.receipt_context import reading_copy_lines
@@ -41,7 +41,7 @@ def main(label: str, validation_count: int) -> None:
     client = app.test_client()
     token = client.get("/api/auth").get_json()["csrf_token"]
     token = client.post("/api/workspace", headers={"X-CSRF-Token": token}).get_json()["csrf_token"]
-    client.patch("/api/settings", json=dict(PRESETS["balanced"]), headers={"X-CSRF-Token": token})
+    assert client.patch("/api/settings", json={**PRESETS[preset], **(overrides or {})}, headers={"X-CSRF-Token": token}).status_code == 200
 
     def analyse(image, name):
         ok, encoded = cv2.imencode(".png", image)
@@ -92,10 +92,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--label", required=True)
     parser.add_argument("--validation-count", type=int, default=5)
+    parser.add_argument("--preset", default="balanced")
+    parser.add_argument("--fp32", action="store_true", help="force fast_restoration off")
     a = parser.parse_args()
     if a.label in ("current", "batch16_cpu_skip"):
         # superseded: the previous configuration's validation times and outputs are already
         # recorded by the confirmatory validation check (P_full on the same 5 sources)
         sys.exit(0)
-    main(a.label, a.validation_count)
+    main(a.label, a.validation_count, a.preset, {"fast_restoration": False} if a.fp32 else None)
     _finish()
