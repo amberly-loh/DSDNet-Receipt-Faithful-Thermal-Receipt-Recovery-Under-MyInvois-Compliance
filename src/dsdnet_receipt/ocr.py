@@ -233,7 +233,7 @@ class PaddleOCRAdapter:
                 )
                 if duplicate_index is None:
                     merged.append(candidate)
-                elif float(candidate.get("confidence") or 0) > float(merged[duplicate_index].get("confidence") or 0):
+                elif _reading_preference(candidate) > _reading_preference(merged[duplicate_index]):
                     merged[duplicate_index] = candidate
         lines = sorted(merged, key=lambda item: _line_position(item.get("box")))
         return OCRResult("\n".join(str(line["text"]) for line in lines), lines, self.version,
@@ -248,8 +248,16 @@ def deduplicate_lines(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not normalized: continue
         index = next((i for i, old in enumerate(merged) if _normalise_text(old.get("text")) == normalized and _same_physical_line(old.get("box"), line.get("box"))), None)
         if index is None: merged.append(line)
-        elif float(line.get("confidence") or 0) > float(merged[index].get("confidence") or 0): merged[index] = line
+        elif _reading_preference(line) > _reading_preference(merged[index]): merged[index] = line
     return sorted(merged, key=lambda item: _line_position(item.get("box")))
+
+
+def _reading_preference(line: dict[str, Any]) -> tuple[int, float]:
+    """Two views that read the same letters at the same place differ only in
+    spacing ("SDNBHD" / "SDN BHD"). The reader drops word gaps far more often than
+    it invents them, so the reading with more word gaps is kept, then the more
+    confident one (RQ1 revision, chosen on validation receipts, 9 Nov 2026)."""
+    return (len(str(line.get("text") or "").split()), float(line.get("confidence") or 0))
 
 
 def _line_position(box: Any) -> tuple[float, float]:

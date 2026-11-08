@@ -416,7 +416,9 @@ def reading_copy_lines(lines: list[dict[str, Any]], *, tidy: bool = True) -> lis
         letters = re.sub(r"[^A-Za-z]", "", text)
         if not re.search(r"\d", text) and len(letters) <= 3 and letters.upper() not in _KEEP_SHORT | _LEXICON_SET:
             continue
-        if float(line.get("confidence") or 0) < 0.55:
+        # The reader itself already drops readings below 0.50; a stricter cut here only
+        # deleted real (faint) words (RQ1 revision, chosen on validation receipts, 9 Nov 2026).
+        if float(line.get("confidence") or 0) < 0.50:
             continue
         out.append({"text": text, "x0": box[0], "y0": box[1], "x1": box[2], "y1": box[3]})
     return _reading_order(out)
