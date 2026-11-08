@@ -28,3 +28,10 @@ artifacts/controlled_degradation_sroie/
 artifacts/corpus_generation/
 artifacts/training_development/*.pt
 artifacts/training_feasibility/
+
+# Large local folders and run sandboxes
+gpu_ocr_pkgs/
+tmp/
+output/
+artifacts/*/sandbox*/
+artifacts/*/*.sqlite3
