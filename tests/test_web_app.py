@@ -59,13 +59,18 @@ def test_account_and_owned_receipt_workflow(tmp_path: Path) -> None:
     assert client.get("/api/dashboard").get_json()["stats"]["total"] == 1
     update = client.patch(
         "/api/receipts/USER-TEST-001",
-        json={"merchant": "Local Shop", "status": "reviewed", "tags": ["claim"], "line_items": [{"item":"1","description":"Office paper","quantity":"2","unit":"pack","unit_price":"5.00","discount":"0.00","amount":"10.00","review_note":"Verified"}]},
+        json={"merchant": "Local Shop", "status": "reviewed", "tags": ["claim"], "line_items": [{"item":"1","description":"Office paper","quantity":"2","unit":"pack","unit_price":"5.00","discount":"0.00","amount":"10.00","review_note":"Verified"}], "accounting_fields": {"document_type":"Tax Invoice","currency":"MYR","supplier_registration_number":"206259-X","supplier_address":"No. 2, Jalan Jati Utama 2","supplier_phone":"03-60573046","payment_method":"Cash","subtotal":"12.50","tax_amount":"0.00"}},
         headers={"X-CSRF-Token": token},
     )
     assert update.status_code == 200
     assert update.get_json()["merchant"] == "Local Shop"
     assert update.get_json()["status"] == "reviewed"
     assert update.get_json()["line_items"][0]["description"] == "Office paper"
+    assert update.get_json()["accounting_fields"]["document_type"] == "Tax Invoice"
+    detail = client.get("/api/receipts/USER-TEST-001")
+    assert detail.status_code == 200
+    assert detail.get_json()["accounting_fields"]["supplier_registration_number"] == "206259-X"
+    assert detail.get_json()["accounting_fields"]["currency"] == "MYR"
     assert client.get("/api/export.csv").status_code == 200
     assessment = client.post(
         "/api/receipts/USER-TEST-001/quality-assessment",
@@ -80,6 +85,39 @@ def test_account_and_owned_receipt_workflow(tmp_path: Path) -> None:
 
     assert client.post("/api/logout", headers={"X-CSRF-Token": token}).status_code == 200
     assert client.get("/api/dashboard").status_code == 401
+
+
+def test_verified_receipt_memory_requires_consensus_and_strong_match(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    store = app.extensions["receipt_store"]
+    user = store.create_guest()
+    now = utc_now()
+    common = {
+        "user_id": user["id"], "source_name": "receipt.jpg", "created_at": now,
+        "updated_at": now, "status": "reviewed", "merchant": "CHOP HOCK CHUAN HIN",
+        "receipt_number": "61036", "total_amount": "340.00", "tags": "[]",
+        "notes": "", "ocr_text": "", "audit_json": "{}", "input_path": "a.png",
+        "restored_path": "b.png", "runtime_seconds": 0, "restoration_status": "ok",
+        "support_status": "unavailable", "content_sha256": "same-hash",
+    }
+    store.create_receipt({**common, "public_id": "VERIFIED-1", "transaction_date": "2024-03-19"})
+    exact = store.verified_field_suggestions(
+        user["id"], content_sha256="same-hash", merchant=None,
+        receipt_number=None, total_amount=None,
+    )
+    assert exact["transaction_date"] == "2024-03-19"
+    assert exact["method"] == "global_exact_source_sha256"
+    reusable = store.verified_field_suggestions(
+        user["id"], content_sha256="different", merchant="CHOP HOCK CHUAN HIN",
+        receipt_number="61036", total_amount="340",
+    )
+    assert reusable["transaction_date"] == "2024-03-19"
+    weak = store.verified_field_suggestions(
+        user["id"], content_sha256="different", merchant="CHOP HOCK CHUAN HIN",
+        receipt_number=None, total_amount="340",
+    )
+    assert weak["transaction_date"] is None
 
 
 def test_mutation_requires_csrf(tmp_path: Path) -> None:
@@ -147,7 +185,8 @@ def test_receipt_view_has_only_faithful_original_and_compare(tmp_path: Path) -> 
     assert 'Optional reading copy' not in html  # runtime label depends on the receipt
     assert 'id="compareViewButton"' in html
     assert 'id="originalViewButton"' in html
-    assert 'id="qualityForm"' in html
+    assert 'id="qualityForm"' not in html
+    assert 'Accounting and MyInvois evidence' in html
     assert '/api/quality-evaluation.csv' in html
 
 
@@ -156,6 +195,15 @@ def test_frontend_refreshes_stale_csrf_token_once() -> None:
     assert "allowSessionRetry = true" in script
     assert "fetch('/api/auth', {cache: 'no-store'})" in script
     assert "return api(path, options, false)" in script
+
+
+def test_frontend_supports_large_additive_batch_queue() -> None:
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "web" / "static" / "app.js").read_text(encoding="utf-8")
+    html = (root / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+    assert ".slice(0, 100)" in script
+    assert "100 receipt images" in html
+    assert "timeoutMs: 330000" in script
 
 
 def test_guest_selection_validation_and_isolation(tmp_path: Path) -> None:
@@ -187,3 +235,35 @@ def test_guest_selection_validation_and_isolation(tmp_path: Path) -> None:
     assert other.post('/api/receipts/selection-summary', json={'ids': ['G-0']}, headers={'X-CSRF-Token': other_token}).status_code == 404
     assert guest_client.post('/api/logout', headers={'X-CSRF-Token': token}).status_code == 200
     assert guest_client.get('/api/dashboard').status_code == 401
+
+
+def test_finance_report_combines_receipts_manual_expenses_and_export(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    client = app.test_client(); login = client.post('/api/guest', headers={'X-CSRF-Token': csrf(client)})
+    token = login.get_json()['csrf_token']; user = login.get_json()['user']; store = app.extensions['receipt_store']; now = utc_now()
+    image = tmp_path / 'receipt.png'; image.write_bytes(b'x')
+    store.create_receipt({'public_id':'FIN-R1','user_id':user['id'],'source_name':'fuel.png','created_at':now,'updated_at':now,'status':'reviewed','merchant':'PETRONAS','transaction_date':'2026-10-01','receipt_number':'F1','total_amount':'50.00','tags':'["fuel"]','notes':'','ocr_text':'','audit_json':'{}','input_path':str(image),'restored_path':str(image),'runtime_seconds':0,'restoration_status':'ok','support_status':'unavailable','accounting_fields_json':'{"currency":"MYR","payment_method":"Card"}'})
+    created = client.post('/api/finance/expenses', json={'expense_date':'2026-10-02','supplier':'Office Shop','description':'Paper','expense_type':'office','amount':'12.50','currency':'MYR','tax_amount':'0.50'}, headers={'X-CSRF-Token':token})
+    assert created.status_code == 201
+    report = client.get('/api/finance?from=2026-10-01&to=2026-10-31').get_json()
+    assert report['summary']['total'] == '62.50' and report['summary']['count'] == 2
+    assert {row['code'] for row in report['by_type']} == {'fuel', 'office'}
+    assert client.patch('/api/finance/receipts/FIN-R1', json={'expense_type':'travel'}, headers={'X-CSRF-Token':token}).status_code == 200
+    assert client.get('/api/finance?category=travel').get_json()['summary']['total'] == '50.00'
+    export = client.get('/api/finance/export.xlsx')
+    assert export.status_code == 200 and export.headers['Content-Type'].startswith('application/vnd.openxmlformats')
+    assert client.delete('/api/finance/expenses/' + created.get_json()['public_id'], headers={'X-CSRF-Token':token}).status_code == 200
+
+
+def test_finance_expense_validation_and_frontend_module(tmp_path: Path) -> None:
+    config = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+    app = create_app(config, testing=True, database_path=tmp_path / "receipts.sqlite3")
+    client = app.test_client(); login = client.post('/api/guest', headers={'X-CSRF-Token': csrf(client)})
+    token = login.get_json()['csrf_token']
+    invalid = client.post('/api/finance/expenses', json={'expense_date':'2026-02-31','supplier':'','amount':'-1','expense_type':'unknown'}, headers={'X-CSRF-Token':token})
+    assert invalid.status_code == 400
+    assert {'expense_date','supplier','amount','expense_type'} <= set(invalid.get_json()['fields'])
+    html = client.get('/').get_data(as_text=True)
+    assert 'data-route="finance"' in html and 'id="financePage"' in html
+    assert '/api/finance/export.xlsx' in html

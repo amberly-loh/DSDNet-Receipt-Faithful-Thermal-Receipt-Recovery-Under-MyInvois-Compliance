@@ -16,20 +16,26 @@ def _execute(payload):
     if _app is None:
         _app = create_app(payload['config'],database_path=payload['database'],isolated_worker=True)
     upload = FileStorage(stream=io.BytesIO(payload['bytes']),filename=payload['filename'],content_type=payload['mimetype'])
-    return _app.extensions['receipt_process_inline'](upload,payload['user'])
+    return _app.extensions['receipt_process_inline'](upload,payload['user'],payload.get('geometry'))
 
 
 def _serve(connection,handler):
     if handler is _execute:
         faulthandler.enable()
-        for name in ('OMP_NUM_THREADS','MKL_NUM_THREADS','OPENBLAS_NUM_THREADS','NUMEXPR_NUM_THREADS'):
-            os.environ.setdefault(name,'1')
-        os.environ.setdefault('FLAGS_use_mkldnn','0')
+        gpu_reader = os.environ.get('RECEIPT_OCR_GPU', '0') == '1'
+        if not gpu_reader:
+            # The CPU text reader is kept single-threaded in this worker for stability.
+            for name in ('OMP_NUM_THREADS','MKL_NUM_THREADS','OPENBLAS_NUM_THREADS','NUMEXPR_NUM_THREADS'):
+                os.environ.setdefault(name,'1')
+            os.environ.setdefault('FLAGS_use_mkldnn','0')
         import cv2
-        cv2.setNumThreads(1)
+        # With the GPU text reader (its own helper process) the image steps may use every core,
+        # as in the evaluation; OpenCV's parallel loops give the same output as one thread.
+        cv2.setNumThreads(-1 if gpu_reader else 1)
         cv2.ocl.setUseOpenCL(False)
-        import torch
-        torch.set_num_threads(1)
+        if not gpu_reader:
+            import torch
+            torch.set_num_threads(1)
     try:
         while True:
             payload = connection.recv()
@@ -75,7 +81,9 @@ class IsolatedReceiptWorker:
             if self.process is None or not self.process.is_alive():
                 self.close()
                 self.connection,child = self.context.Pipe()
-                self.process=self.context.Process(target=_serve,args=(child,self.handler),daemon=True)
+                # Not a daemon: the worker may start the GPU text-reader helper process, which a daemonic
+                # process is not allowed to do. close() (registered at exit) still stops it.
+                self.process=self.context.Process(target=_serve,args=(child,self.handler),daemon=False)
                 self.process.start()
                 child.close()
             try:

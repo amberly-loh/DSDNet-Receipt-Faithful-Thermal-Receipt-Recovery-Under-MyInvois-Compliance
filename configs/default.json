@@ -8,7 +8,7 @@
   "base_seed": 56,
   "app": {
     "retention_days": 2555,
-    "max_bulk_files": 25,
+    "max_bulk_files": 100,
     "storage_mode": "local_sqlite"
   },
   "dataset_root": "../../FYP datasets/Real life",
@@ -18,96 +18,18 @@
     "default_language_script": "English/Latin (requires confirmation)",
     "default_consent_status": "requires confirmation",
     "default_source_type": "naturally_degraded",
-    "high_risk_fields": [
-      "transaction_date",
-      "receipt_invoice_number",
-      "total_amount"
-    ]
+    "high_risk_fields": ["transaction_date", "receipt_invoice_number", "total_amount"]
   },
-  "partition": {
-    "train": 0.7,
-    "validation": 0.15,
-    "test": 0.15
-  },
-  "preprocessing": {
-    "max_long_edge": 1600,
-    "boundary_detection": true,
-    "orientation_correction": true
-  },
+  "partition": {"train": 0.70, "validation": 0.15, "test": 0.15},
+  "preprocessing": {"max_long_edge": 1600, "boundary_detection": true, "orientation_correction": true},
   "degradation": {
     "variants_per_source": 3,
     "severities": {
-      "light": {
-        "blur_sigma": [
-          0.3,
-          0.6
-        ],
-        "contrast": [
-          0.8,
-          1.0
-        ],
-        "noise_sigma": [
-          0.0,
-          0.02
-        ],
-        "foreground_dropout": [
-          0.0,
-          0.05
-        ],
-        "illumination_amplitude": [
-          0.0,
-          0.1
-        ]
-      },
-      "moderate": {
-        "blur_sigma": [
-          0.6,
-          1.0
-        ],
-        "contrast": [
-          0.6,
-          0.8
-        ],
-        "noise_sigma": [
-          0.02,
-          0.04
-        ],
-        "foreground_dropout": [
-          0.05,
-          0.12
-        ],
-        "illumination_amplitude": [
-          0.0,
-          0.2
-        ]
-      },
-      "severe": {
-        "blur_sigma": [
-          1.0,
-          1.5
-        ],
-        "contrast": [
-          0.4,
-          0.6
-        ],
-        "noise_sigma": [
-          0.04,
-          0.06
-        ],
-        "foreground_dropout": [
-          0.12,
-          0.2
-        ],
-        "illumination_amplitude": [
-          0.0,
-          0.3
-        ]
-      }
+      "light": {"blur_sigma": [0.30, 0.60], "contrast": [0.80, 1.00], "noise_sigma": [0.00, 0.02], "foreground_dropout": [0.00, 0.05], "illumination_amplitude": [0.00, 0.10]},
+      "moderate": {"blur_sigma": [0.60, 1.00], "contrast": [0.60, 0.80], "noise_sigma": [0.02, 0.04], "foreground_dropout": [0.05, 0.12], "illumination_amplitude": [0.00, 0.20]},
+      "severe": {"blur_sigma": [1.00, 1.50], "contrast": [0.40, 0.60], "noise_sigma": [0.04, 0.06], "foreground_dropout": [0.12, 0.20], "illumination_amplitude": [0.00, 0.30]}
     },
-    "abrasion_area": [
-      0.0,
-      0.05
-    ],
+    "abrasion_area": [0.00, 0.05],
     "visibility_threshold": 0.05
   },
   "ocr": {
@@ -118,10 +40,12 @@
     "language": "en",
     "use_doc_orientation_classify": false,
     "use_doc_unwarping": false,
-    "use_textline_orientation": false
+    "use_textline_orientation": false,
+    "enable_mkldnn": true,
+    "cpu_threads": 6
   },
   "dsdnet": {
-    "source_path": "../vendor/DSDNet",
+    "source_path": "../../vendor/DSDNet",
     "source_commit": "8a2822e44ea1e00970ed429a8230e4116034e2f9",
     "stages": 8,
     "maxout_branches": 4,
@@ -129,7 +53,7 @@
     "data_channels": 16,
     "tile_size": 128,
     "tile_overlap": 32,
-    "tile_batch_size": 2,
+    "tile_batch_size": 16,
     "restoration_blend_alpha": 1.0,
     "evidence_support_calibration": "../artifacts/formal_run/support_calibration.json",
     "checkpoint": "../artifacts/training_generalization_v2/checkpoint_0000500.pt"

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23176b5c%22/%3E%3Cpath%20d%3D%22M20%2012h24v40l-6-4-6%204-6-4-6%204z%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%224%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M26%2025h12M26%2033h12%22%20stroke%3D%22%23fff%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#16584b">
+  <title>ClearReceipt · Phone scanner</title>
+  <style>
+    :root { --ink:#13231f; --muted:#5f6f6a; --accent:#1b6b5a; --line:#e2e8e6; --bg:#f4f7f6; --bad:#a3342c; }
+    * { box-sizing:border-box; }
+    body { margin:0; font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg); }
+    header { background:#16584b; color:#fff; padding:18px 18px 22px; }
+    header b { display:block; font-size:1.15rem; }
+    header small { opacity:.85; }
+    main { padding:16px; max-width:520px; margin:0 auto; }
+    .state { background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:14px; font-size:.95rem; }
+    .state.bad { border-color:#e7c3bf; background:#fff6f5; color:var(--bad); }
+    .actions { display:grid; gap:10px; margin-bottom:18px; }
+    label.button { display:flex; align-items:center; justify-content:center; gap:8px; min-height:56px; border-radius:14px; font-weight:700; font-size:1.05rem; cursor:pointer; }
+    label.primary { background:var(--accent); color:#fff; }
+    label.secondary { background:#fff; color:var(--ink); border:1px solid var(--line); font-size:.95rem; min-height:48px; }
+    label.disabled { opacity:.45; pointer-events:none; }
+    input[type=file] { display:none; }
+    h2 { font-size:.95rem; color:var(--muted); margin:6px 2px 8px; font-weight:600; }
+    ul { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+    li { display:flex; gap:12px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; }
+    li img { width:52px; height:68px; object-fit:cover; border-radius:6px; background:#ddd; flex:none; }
+    li b { display:block; font-size:.95rem; }
+    li small { color:var(--muted); }
+    li.done small { color:var(--accent); }
+    li.failed small { color:var(--bad); }
+    li.warn small { color:#8a5a00; }
+    li.warn { border-color:#f0dca8; background:#fffaf0; }
+    .tip { color:var(--muted); font-size:.85rem; margin-top:16px; }
+    .adjust { position:fixed; inset:0; z-index:20; background:#0d1f1b; color:#fff; display:flex; flex-direction:column; padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+    .adjust[hidden] { display:none; }
+    body.adjusting { overflow:hidden; }
+    .adjust-head { display:flex; justify-content:space-between; align-items:baseline; padding:14px 16px 6px; }
+    .adjust-head b { font-size:1.05rem; }
+    .adjust-head span { font-size:.8rem; opacity:.7; }
+    .crop-stage { flex:1; min-height:0; position:relative; }
+    .crop-stage canvas { position:absolute; inset:0; touch-action:none; }
+    .crop-hint { margin:6px 16px 10px; font-size:.86rem; line-height:1.4; color:#cfe7df; min-height:2.6em; }
+    .crop-hint.bad { color:#ffc9c2; }
+    .crop-tools { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:0 12px 10px; }
+    .crop-tools button { display:flex; flex-direction:column; align-items:center; gap:3px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.07); color:#fff; border-radius:12px; padding:9px 4px; font:600 .74rem system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+    .crop-tools svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+    .crop-foot { display:grid; grid-template-columns:1fr 1.6fr; gap:10px; padding:0 12px 14px; }
+    .crop-foot button { min-height:52px; border-radius:14px; border:0; font:700 1rem system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+    .crop-foot .ghost { background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.22); }
+    .crop-foot .go { background:#3ee0a8; color:#0d1f1b; }
+  .retry-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}.retry-row button{border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:600 .85rem system-ui,sans-serif;background:#fff;color:var(--ink);min-height:40px}.retry-row button.button:not(.secondary){background:var(--accent);color:#fff;border-color:var(--accent)}
+</style>
+</head>
+<body>
+  <header><b>ClearReceipt phone scanner</b><small>Photos go straight to the computer on this Wi-Fi.</small></header>
+  <main>
+    <div id="state" class="state">Connecting to the computer…</div>
+    <div class="actions">
+      <label id="cameraLabel" class="button primary disabled" for="cameraInput">📷 Take a photo of a receipt</label>
+      <input id="cameraInput" type="file" accept="image/*" capture="environment">
+      <label id="galleryLabel" class="button secondary disabled" for="galleryInput">Choose photos from the gallery</label>
+      <input id="galleryInput" type="file" accept="image/*" multiple>
+    </div>
+    <h2 id="listTitle" hidden>This session</h2>
+    <ul id="list"></ul>
+    <p class="tip">Lay the receipt flat on a darker surface, in good light. After each photo you can check the outline and turn it upright before it is sent. You can take the next photo while earlier ones are still being read. Each photo is processed on the computer and saved there, not on this phone.</p>
+  </main>
+  <div id="adjust" class="adjust" role="dialog" aria-modal="true" aria-labelledby="cropTitle" hidden>
+    <div class="adjust-head"><b id="cropTitle">Check the crop</b><span id="cropCount"></span></div>
+    <div id="cropStage" class="crop-stage"><canvas id="cropCanvas" aria-label="Photo with the receipt outline. Drag the round corners to adjust it."></canvas></div>
+    <p id="cropHint" class="crop-hint" aria-live="polite"></p>
+    <div class="crop-tools">
+      <button id="cropRotateLeft" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v6h6"/><path d="M4.5 10A8 8 0 1 1 6 17"/></svg>Turn left</button>
+      <button id="cropRotateRight" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v6h-6"/><path d="M19.5 10A8 8 0 1 0 18 17"/></svg>Turn right</button>
+      <button id="cropAuto" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M12 8v8M8 12h8"/></svg>Auto</button>
+      <button id="cropWhole" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>Whole photo</button>
+    </div>
+    <div class="crop-foot"><button id="cropRetake" class="ghost" type="button">Retake</button><button id="cropSend" class="go" type="button">Send to computer</button></div>
+  </div>
+  <script src="/static/phone.js?v=20261112-1"></script>
+</body>
+</html>

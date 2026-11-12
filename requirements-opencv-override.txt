@@ -1,4 +1,0 @@
-# The development environment reports OpenCV 4.8.1.78. PaddleOCR 2.7.0.3 declares
-# opencv-python<=4.6.0.66, so install the compatible dependency graph first,
-# then apply this recorded override and verify with the OCR smoke test.
-opencv-python==4.8.1.78

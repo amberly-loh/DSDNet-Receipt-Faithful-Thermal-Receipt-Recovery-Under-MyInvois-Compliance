@@ -126,6 +126,214 @@ def _rectify_receipt(image: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
     return rectified, {"status": "rectified", "corners": candidate.tolist(), "output_shape": [target_height, target_width]}
 
 
+def _print_block(image: np.ndarray) -> dict[str, Any] | None:
+    """Locate a receipt from its print: dense rows of small dark marks. A floor
+    tile or a white desk can be as white as the paper, but it carries no print.
+    Returns the print points (full-image coordinates) of the largest print block."""
+    full_h, full_w = image.shape[:2]
+    scale = min(1.0, 1200.0 / max(full_h, full_w))
+    small = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) if scale < 1 else image
+    gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY) if small.ndim == 3 else small
+    h, w = gray.shape
+    ink = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 25, 18)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(ink, 8)
+    keep = np.zeros(count, np.uint8)
+    for i in range(1, count):
+        x, y, bw, bh, area = stats[i]
+        if 4 <= bh <= h * 0.06 and 1 <= bw <= w * 0.08 and 6 <= area <= 0.8 * bw * bh + 1:
+            keep[i] = 255
+    marks = keep[labels]
+    joined = cv2.dilate(marks, cv2.getStructuringElement(cv2.MORPH_RECT, (max(9, w // 60), max(5, h // 120))))
+    joined = cv2.morphologyEx(joined, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (max(15, w // 30), max(15, h // 40))))
+    blocks, block_labels, _, _ = cv2.connectedComponentsWithStats(joined, 8)
+    if blocks < 2:
+        return None
+    per_block = np.bincount(block_labels[marks > 0].ravel(), minlength=blocks)
+    best = int(np.argmax(per_block[1:]) + 1)
+    if per_block[best] < 200:
+        return None
+    ys, xs = np.where((block_labels == best) & (marks > 0))
+    points = np.stack([xs, ys], axis=1).astype(np.float32) / scale
+    return {"points": points, "share": float(per_block[best] / max(1, per_block[1:].sum()))}
+
+
+def _crop_by_print(image: np.ndarray, block: dict[str, Any]) -> tuple[np.ndarray, dict[str, Any]]:
+    """Cut out and straighten the print block with a small paper margin."""
+    (cx, cy), (rw, rh), angle = cv2.minAreaRect(block["points"])
+    if rw > rh:  # make the long side vertical: receipts are tall strips
+        rw, rh, angle = rh, rw, angle - 90.0
+    margin = 0.04 * min(rw, rh) + 12
+    rect = ((cx, cy), (rw + 2 * margin, rh + 2 * margin), angle)
+    corners = cv2.boxPoints(rect).astype(np.float32)
+    corners = _order_points(corners)
+    out_w, out_h = int(round(rw + 2 * margin)), int(round(rh + 2 * margin))
+    destination = np.array([[0, 0], [out_w - 1, 0], [out_w - 1, out_h - 1], [0, out_h - 1]], np.float32)
+    transform = cv2.getPerspectiveTransform(corners, destination)
+    cropped = cv2.warpPerspective(image, transform, (out_w, out_h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+    return cropped, {"status": "rectified", "method": "photographed_paper", "cut": "print_block",
+                     "corners": corners.round(1).tolist(), "output_shape": [out_h, out_w], "tilt_degrees": round(float((angle + 45.0) % 90.0 - 45.0), 1)}
+
+
+def _keeps_print(corners: list, block: dict[str, Any] | None, needed: float = 0.95) -> bool:
+    if block is None:
+        return True
+    polygon = np.asarray(corners, np.float32).reshape(-1, 1, 2)
+    points = block["points"][:: max(1, len(block["points"]) // 4000)]
+    inside = sum(cv2.pointPolygonTest(polygon, (float(x), float(y)), False) >= 0 for x, y in points)
+    return inside / max(1, len(points)) >= needed
+
+
+def _crop_photographed_paper(image: np.ndarray, _turned: bool = False) -> tuple[np.ndarray, dict[str, Any]]:
+    """Find a receipt photographed on a table, keyboard or hand and cut it out.
+
+    Phone photos show the receipt as a bright, low-colour strip on a darker or
+    busier background, often slightly tilted or in perspective, and sometimes
+    running off the top or bottom of the frame. The paper is found by
+    brightness and low saturation, rows where the background joins it (a
+    white wall, a laptop screen) are trimmed by the paper's own width, and
+    straight lines are fitted to its left and right edges so the cut follows
+    the receipt, not a box around it. Scans that are already mostly paper are
+    left alone.
+    """
+    if image.ndim != 3:
+        return image, {"status": "not_applicable"}
+    full_h, full_w = image.shape[:2]
+    scale = min(1.0, 1000.0 / max(full_h, full_w))
+    small = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) if scale < 1 else image
+    h, w = small.shape[:2]
+    hsv = cv2.cvtColor(cv2.GaussianBlur(small, (5, 5), 0), cv2.COLOR_BGR2HSV)
+    value, saturation = hsv[:, :, 2], hsv[:, :, 1]
+    # Receipt paper is bright AND colourless. Scoring "whiteness" as brightness
+    # minus saturation separates it from beige cloth, wood or a cream wall,
+    # which can be nearly as bright but carry some colour.
+    whiteness = np.clip(value.astype(np.int16) - 2 * saturation.astype(np.int16), 0, 255).astype(np.uint8)
+    neutral = whiteness[saturation <= 75]
+    sample = neutral if neutral.size >= 0.05 * value.size else whiteness.ravel()
+    threshold, _ = cv2.threshold(sample.reshape(-1, 1), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    paper = ((whiteness >= max(110, threshold)) & (saturation <= 75)).astype(np.uint8)
+    paper = cv2.morphologyEx(paper, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    paper = cv2.morphologyEx(paper, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(paper, 8)
+    if count < 2:
+        return image, {"status": "not_detected"}
+    label = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    area_share = stats[label, cv2.CC_STAT_AREA] / float(h * w)
+    if not 0.06 <= area_share <= 0.80:
+        return image, {"status": "not_detected", "paper_share": round(float(area_share), 3)}
+    mask = (labels == label).astype(np.uint8)
+    # print and barcodes leave holes in the paper; fill them
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    mask = np.zeros_like(mask)
+    cv2.drawContours(mask, contours, -1, 1, thickness=cv2.FILLED)
+    # A receipt lying across the photo (its long side left to right) is turned
+    # a quarter first, so the rest of the cut works on an upright strip. Whether
+    # the print then reads upright or upside down is settled later by reading it.
+    ys_m, xs_m = np.where(mask > 0)
+    if not _turned and xs_m.size and (xs_m.max() - xs_m.min()) > 1.3 * (ys_m.max() - ys_m.min()):
+        turned, record = _crop_photographed_paper(cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE), _turned=True)
+        if record.get("status") == "rectified":
+            record["quarter_turn_degrees"] = 90
+            return turned, record
+        return image, {"status": "not_detected", "reason": "landscape paper could not be cut after turning"}
+    # turn a tilted receipt upright first, so each row crosses it once
+    (cx, cy), (rw, rh), rect_angle = cv2.minAreaRect(max(contours, key=cv2.contourArea))
+    tilt = rect_angle if rw < rh else rect_angle - 90.0
+    while tilt > 45: tilt -= 90
+    while tilt < -45: tilt += 90
+    upright = np.eye(3, dtype=np.float64)
+    if abs(tilt) > 2.0:
+        side = int(np.ceil(np.hypot(h, w)))
+        rotation = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), tilt, 1.0)
+        rotation[:, 2] += [(side - w) / 2.0, (side - h) / 2.0]
+        mask = cv2.warpAffine(mask, rotation, (side, side), flags=cv2.INTER_NEAREST)
+        upright = np.vstack([rotation, [0, 0, 1]])
+        h_r, w_r = side, side
+    else:
+        h_r, w_r = h, w
+    rows = np.where(mask.any(axis=1))[0]
+    lefts = np.array([np.argmax(mask[y]) for y in rows], np.float32)
+    rights = np.array([w_r - 1 - np.argmax(mask[y, ::-1]) for y in rows], np.float32)
+    widths = rights - lefts
+    middle = slice(int(len(rows) * 0.3), max(int(len(rows) * 0.7), int(len(rows) * 0.3) + 1))
+    typical = float(np.median(widths[middle]))
+    if typical < 0.10 * w:
+        return image, {"status": "not_detected"}
+    # keep the contiguous band of rows whose width matches the paper's own
+    good = (widths >= 0.6 * typical) & (widths <= 1.35 * typical)
+    centre = int(np.argmin(np.abs(np.arange(len(rows)) - len(rows) // 2)))
+    top_i = bottom_i = centre
+    misses = 0
+    while top_i > 0 and misses < 6:
+        top_i -= 1
+        misses = 0 if good[top_i] else misses + 1
+    top_i += misses
+    misses = 0
+    while bottom_i < len(rows) - 1 and misses < 6:
+        bottom_i += 1
+        misses = 0 if good[bottom_i] else misses + 1
+    bottom_i -= misses
+    band = slice(top_i, bottom_i + 1)
+    ys, left_x, right_x = rows[band].astype(np.float32), lefts[band], rights[band]
+    if len(ys) < 0.25 * h:
+        return image, {"status": "not_detected"}
+
+    def edge_line(xs: np.ndarray) -> tuple[float, float]:
+        keep = np.ones(len(ys), bool)
+        for _ in range(3):  # drop torn corners and shadows, refit
+            slope, offset = np.polyfit(ys[keep], xs[keep], 1)
+            residual = np.abs(xs - (slope * ys + offset))
+            keep = residual <= max(2.0, 0.03 * typical)
+            if keep.sum() < 10:
+                break
+        return float(slope), float(offset)
+
+    left_line, right_line = edge_line(left_x), edge_line(right_x)
+    if max(abs(left_line[0]), abs(right_line[0])) > 0.6:  # more than ~30 degrees
+        return image, {"status": "not_detected"}
+    top_y, bottom_y = float(ys[0]), float(ys[-1])
+    margin = 0.012 * typical
+    corners = np.array([
+        [left_line[0] * top_y + left_line[1] - margin, top_y],
+        [right_line[0] * top_y + right_line[1] + margin, top_y],
+        [right_line[0] * bottom_y + right_line[1] + margin, bottom_y],
+        [left_line[0] * bottom_y + left_line[1] - margin, bottom_y],
+    ], np.float32)
+    if abs(tilt) > 2.0:  # back to the photo's own coordinates
+        back = np.linalg.inv(upright)
+        corners = (np.hstack([corners, np.ones((4, 1), np.float32)]) @ back.T)[:, :2].astype(np.float32)
+    quad_area = cv2.contourArea(corners)
+    if quad_area > 0.90 * h * w:
+        return image, {"status": "already_cropped"}
+    # Only a clearly darker surrounding (desk, keyboard, hand) proves this is
+    # a photo of a receipt. Stains or shadows on a scanned receipt are not.
+    inside = np.zeros((h, w), np.uint8)
+    cv2.fillConvexPoly(inside, corners.round().astype(np.int32), 1)
+    if not (inside == 0).any():
+        return image, {"status": "already_cropped"}
+    inside_v, outside_v = float(np.median(value[inside == 1])), float(np.median(value[inside == 0]))
+    inside_s, outside_s = float(np.median(saturation[inside == 1])), float(np.median(saturation[inside == 0]))
+    # darker surroundings, or clearly coloured ones (wood, a blue mat)
+    contrast = (inside_v - outside_v) + 0.6 * max(0.0, outside_s - inside_s)
+    # or a surrounding that is clearly less white (cream or beige cloth, wood)
+    inside_w, outside_w = float(np.median(whiteness[inside == 1])), float(np.median(whiteness[inside == 0]))
+    contrast = max(contrast, inside_w - outside_w)
+    if contrast < 55:
+        return image, {"status": "not_detected", "reason": "background not distinct", "contrast": round(contrast, 1)}
+    corners = corners / scale
+    corners[:, 0] = np.clip(corners[:, 0], 0, full_w - 1)
+    corners[:, 1] = np.clip(corners[:, 1], 0, full_h - 1)
+    out_w = int(round(max(np.linalg.norm(corners[1] - corners[0]), np.linalg.norm(corners[2] - corners[3]))))
+    out_h = int(round(max(np.linalg.norm(corners[3] - corners[0]), np.linalg.norm(corners[2] - corners[1]))))
+    if out_w < 96 or out_h < 96:
+        return image, {"status": "rejected_small_region"}
+    destination = np.array([[0, 0], [out_w - 1, 0], [out_w - 1, out_h - 1], [0, out_h - 1]], np.float32)
+    transform = cv2.getPerspectiveTransform(corners, destination)
+    cropped = cv2.warpPerspective(image, transform, (out_w, out_h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+    return cropped, {"status": "rectified", "method": "photographed_paper", "corners": corners.round(1).tolist(),
+                     "output_shape": [out_h, out_w], "paper_share": round(float(area_share), 3),
+                     "tilt_degrees": round(float(tilt), 1), "touches_frame": bool(abs(tilt) <= 2.0 and (top_y <= 1 or bottom_y >= h - 2))}
+
+
 def _projection_score(gray: np.ndarray) -> float:
     binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 15)
     margin_y, margin_x = max(1, gray.shape[0] // 40), max(1, gray.shape[1] // 40)
@@ -161,7 +369,7 @@ def _orient_and_deskew(image: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
     lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=60, minLineLength=max(40, oriented_gray.shape[1] // 8), maxLineGap=20)
     angles: list[float] = []
     if lines is not None:
-        for x1, y1, x2, y2 in lines[:, 0]:
+        for x1, y1, x2, y2 in np.asarray(lines).reshape(-1, 4):
             angle = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
             while angle <= -90: angle += 180
             while angle > 90: angle -= 180
@@ -315,7 +523,33 @@ def preprocess(image: np.ndarray, config: dict[str, Any], *, preserve_color: boo
     settings = config.get("preprocessing", {})
     working = image.copy()
     boundary = {"status": "disabled", "corners": None}
-    if settings.get("boundary_detection", True): working, boundary = _rectify_receipt(working)
+    if settings.get("boundary_detection", True):
+        # a phone photo of a receipt on a desk: cut out the paper first
+        source = working
+        working, boundary = _crop_photographed_paper(source)
+        if boundary.get("status") == "rectified" and not boundary.get("quarter_turn_degrees"):
+            # a photo cut must never slice through the print (a white tile or
+            # desk can look like paper); fall back to cutting by the print itself
+            block = _print_block(source)
+            if not _keeps_print(boundary["corners"], block):
+                working, replaced = _crop_by_print(source, block)
+                replaced["rejected_paper_cut"] = boundary
+                boundary = replaced
+        elif boundary.get("status") != "rectified" and source.ndim == 3:
+            # a colour photo (hand, desk, tiles) whose paper could not be told
+            # from the background: cut by the print when it fills only part of it
+            saturation = cv2.cvtColor(cv2.resize(source, (256, 256)), cv2.COLOR_BGR2HSV)[:, :, 1]
+            block = _print_block(source) if float((saturation > 40).mean()) > 0.03 else None
+            if block is not None:
+                (_, _), (bw, bh), _ = cv2.minAreaRect(block["points"])
+                if bw * bh < 0.7 * source.shape[0] * source.shape[1]:
+                    working, replaced = _crop_by_print(source, block)
+                    replaced["paper_check"] = boundary
+                    boundary = replaced
+        if boundary.get("status") != "rectified":
+            photo_check = boundary
+            working, boundary = _rectify_receipt(working)
+            boundary["photo_check"] = photo_check
     orientation = {"status": "disabled", "coarse_rotation_degrees": 0, "deskew_degrees": 0.0}
     if settings.get("orientation_correction", True): working, orientation = _orient_and_deskew(working)
     if boundary.get("status") != "rectified" and settings.get("boundary_detection", True):
@@ -339,3 +573,51 @@ def preprocess(image: np.ndarray, config: dict[str, Any], *, preserve_color: boo
     result = working if preserve_color else gray
     if scale < 1.0: result = cv2.resize(result, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
     return result, {"original_shape": original_shape, "processed_shape": list(result.shape), "scale": scale, "boundary_detection": boundary, "orientation_correction": orientation, "grayscale": "registered color retained" if preserve_color else "BT.601 OpenCV conversion", "normalization": "uint8 [0,255]", "generative_processing": False}
+
+
+def suggest_outline(image: np.ndarray) -> dict[str, Any]:
+    """Suggest the receipt's four corners for the person to check on the phone.
+
+    Uses the same cuts as `preprocess` (photographed paper, then the print
+    block, then closed page edges) but only reports where they would cut, in
+    this image's own pixel frame, normalised to 0..1. Nothing is warped here:
+    the person confirms or moves the corners and the rotation first."""
+    if image is None or image.size == 0:
+        return {"found": False}
+    h, w = image.shape[:2]
+    corners, method = None, None
+    _, paper = _crop_photographed_paper(image)
+    if paper.get("status") == "rectified" and paper.get("corners"):
+        found = np.asarray(paper["corners"], np.float32)
+        if paper.get("quarter_turn_degrees"):
+            # those corners belong to the photo turned 90 degrees clockwise; map them back
+            found = np.stack([found[:, 1], (h - 1) - found[:, 0]], axis=1)
+            corners, method = found, "paper"
+        else:
+            block = _print_block(image)
+            if _keeps_print(found.tolist(), block):
+                corners, method = found, "paper"
+            elif block is not None:
+                _, by_print = _crop_by_print(image, block)
+                corners, method = np.asarray(by_print["corners"], np.float32), "print"
+    if corners is None and image.ndim == 3:
+        saturation = cv2.cvtColor(cv2.resize(image, (256, 256)), cv2.COLOR_BGR2HSV)[:, :, 1]
+        block = _print_block(image) if float((saturation > 40).mean()) > 0.03 else None
+        if block is not None:
+            (_, _), (bw, bh), _ = cv2.minAreaRect(block["points"])
+            if bw * bh < 0.7 * h * w:
+                _, by_print = _crop_by_print(image, block)
+                corners, method = np.asarray(by_print["corners"], np.float32), "print"
+    if corners is None:
+        _, edges = _rectify_receipt(image)
+        if edges.get("status") == "rectified" and edges.get("corners"):
+            corners, method = np.asarray(edges["corners"], np.float32).reshape(4, 2), "edges"
+    if corners is None:
+        return {"found": False}
+    ordered = _order_points(corners)
+    width = max(np.linalg.norm(ordered[1] - ordered[0]), np.linalg.norm(ordered[2] - ordered[3]))
+    height = max(np.linalg.norm(ordered[3] - ordered[0]), np.linalg.norm(ordered[2] - ordered[1]))
+    normalised = np.clip(ordered / np.array([max(1, w - 1), max(1, h - 1)], np.float32), 0.0, 1.0)
+    # receipts are tall strips: one lying sideways most likely needs a quarter turn
+    return {"found": True, "method": method, "corners": [[round(float(x), 4), round(float(y), 4)] for x, y in normalised],
+            "suggested_rotation": 90 if width > 1.15 * height else 0}

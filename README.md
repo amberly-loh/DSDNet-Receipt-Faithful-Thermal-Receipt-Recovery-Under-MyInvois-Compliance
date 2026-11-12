@@ -1,17 +1,59 @@
-# DSDNet Receipt Recovery
+# DSDNet-Receipt (ClearReceipt)
 
-Research prototype for local receipt restoration and review. The repository folders and optional source archive contain application source, configuration, tests, selected experiment scripts and the upstream DSDNet architecture and licence.
+**DSDNet-Receipt: Evidence-Aware Thermal Receipt Recovery in the Malaysian MyInvois Context**
+Final Year Project, Amberly Loh. Version 1.0.0.
 
-## Setup
+DSDNet-Receipt recovers faded thermal receipts and reads the details that matter for accounting and
+MyInvois: merchant, date, receipt number, total and line items. It adapts the DSDNet restoration
+network (Kuo et al., 2025) to receipts. The recovered view only uses evidence that is still in the
+photo; no text is redrawn. Every extracted value can be checked against the original before it is
+saved. The desktop app is shown to users as **ClearReceipt**.
 
-Use Python 3.10 and install dependencies using requirements-ocr.txt for the locked OCR version. The optional OpenCV override in requirements-opencv-override.txt was recorded in development but may conflict with PaddleOCR; check the environment before applying it. Start with `python scripts/serve_production.py` after supplying model checkpoints and configuring paths. Run `python -m pytest tests/test_core.py tests/test_web_app.py` for selected tests.
+The app runs entirely on your own computer. Receipts, images and records stay in a local SQLite
+database and are never uploaded anywhere. This repository is code only. Datasets, receipt images and
+trained model weights are not included.
 
-## Missing files and data
+## What the app does
 
-Model checkpoints and datasets are not in this archive. The configuration references local weights and images; obtain or retrain compatible files and update the paths. The archive alone cannot reproduce the reported trained-model results. Do not publish receipts containing personal or payment information without permission, or third-party datasets without checking their licences.
+- Scan from a file, several files at once, or a phone on the same Wi-Fi. On the phone you can turn and
+  crop the photo before sending.
+- Restore the receipt and read it, then show the original and the recovered view side by side.
+- Fill in merchant, date, receipt number, total, line items and accounting fields. Every value shows
+  where it was read from, and you confirm it before saving.
+- Ask you to scan again if a photo looks turned the wrong way or cut off.
+- Keep a searchable history, finance summaries, and CSV and Excel exports.
+- Prepare a MyInvois e-Invoice draft (unsigned UBL 2.1 JSON). The app does not submit anything to
+  LHDN.
 
-This prototype does not submit to MyInvois. Research results and deployment readiness require further validation.
+## Running it
 
-## Handwriting dataset
+Requirements: Python 3.10+, PaddleOCR 2.7.0.3 and PyTorch. A GPU is optional.
 
-The exploratory handwriting pilot used ORAND-CAR-2014, distributed by its creator at https://www.orand.cl/icfhr2014-hdsr/ under CC BY-NC-ND 4.0. Download the original archive from the official source and retain its attribution and licence. It is for non-commercial use. The local original archive SHA-256 is 7c4b3d9e820bbcdfd291f5679b74013bd055b4f771dc64ebd8b8ce599ff4a61a. This exploratory dataset does not establish accuracy on receipt handwriting.
+```bash
+python -m venv .venv
+.venv\Scripts\activate            # Windows
+pip install -r requirements.txt
+set PYTHONPATH=src
+python scripts\serve_production.py   # or double-click scripts\run_server_persistent.cmd
+```
+
+Then open http://127.0.0.1:5055. The paths to the model checkpoints are set in `configs/default.json`.
+The checkpoints are not in this repository. Train them with the scripts in `scripts/`, or place your
+own at the configured paths.
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `src/dsdnet_receipt/` | Restoration, OCR, field extraction, evidence support, MyInvois draft, web app |
+| `web/` | App pages (desktop and phone) |
+| `tests/` | Automated tests (`pytest tests`) |
+| `scripts/` | App launch scripts and the final evaluation scripts |
+| `configs/` | Configuration |
+
+## Evaluation
+
+The final evaluation compares the proposed system with five baselines on controlled degradations of
+SROIE Malaysian receipts: A direct OCR, B Otsu, B Sauvola, C perceptual filter and D DSDNet alone.
+For field acceptance it also compares two policies, E (OCR and rule score) and F (OCR confidence
+only). The full method and results are in the thesis.

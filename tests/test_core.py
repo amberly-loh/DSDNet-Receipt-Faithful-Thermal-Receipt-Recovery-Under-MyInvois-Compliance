@@ -6,7 +6,7 @@ import cv2
 from dsdnet_receipt.baselines import otsu, perceptual_filter, sauvola
 from dsdnet_receipt.degradation import degrade, variant_seed
 from dsdnet_receipt.metrics import cer, psnr, ssim, wer
-from dsdnet_receipt.fields import extract_fields, route_fields
+from dsdnet_receipt.fields import extract_fields, infer_receipt_tags, route_fields
 from dsdnet_receipt.preprocessing import preprocess
 from dsdnet_receipt.ocr import OCRResult, PaddleOCRAdapter, deduplicate_lines
 from dsdnet_receipt.language_assistance import suggest_receipt_text, suggestions_for_lines
@@ -214,6 +214,75 @@ def test_registration_and_payment_method_are_not_receipt_numbers() -> None:
     assert extract_fields('CO.REG NO 750441-W\nInvoice No POS/197695', [])['receipt_invoice_number']['value'] == 'POS/197695'
 
 
+def test_explicit_receipt_number_beats_nearby_registration_number() -> None:
+    lines = [
+        {"text": "No: 61569", "confidence": .99, "box": [[955, 76], [1203, 80], [1202, 122], [955, 118]]},
+        {"text": "(206259-X)", "confidence": .99, "box": [[560, 240], [720, 240], [720, 270], [560, 270]]},
+    ]
+    fields = extract_fields("\n".join(line["text"] for line in lines), lines)
+    assert fields["receipt_invoice_number"]["value"] == "61569"
+
+
+def test_compact_timestamp_and_roc_number_do_not_hide_invoice_evidence() -> None:
+    text = """OJCMARKETING SDN BHD
+ROC NO:538358-H
+TAX INVOICE
+Invoice NoPEGIV-1030765
+Date
+15/01/201911:0516AM
+TOTAL: 193.00"""
+    fields = extract_fields(text, [])
+    assert fields["transaction_date"]["value"] == "2019-01-15"
+    assert fields["receipt_invoice_number"]["value"] == "PEGIV-1030765"
+
+
+def test_number_label_without_space_is_supported() -> None:
+    assert extract_fields("Cash Sale\nNo001624", [])["receipt_invoice_number"]["value"] == "001624"
+
+
+def test_dot_date_and_labelled_slash_as_one_repair() -> None:
+    assert extract_fields("Date: 30.11.2024", [])["transaction_date"]["value"] == "2024-11-30"
+    assert extract_fields("Date: 13/7l24", [])["transaction_date"]["value"] == "2024-07-13"
+    assert extract_fields("Date: 13/7124", [])["transaction_date"]["value"] == "2024-07-13"
+    assert extract_fields("Date: 19/24", [])["transaction_date"]["value"] is None
+
+
+def test_date_label_and_handwritten_value_can_be_separate_ocr_lines() -> None:
+    lines = [
+        {"text": "Date:", "confidence": .99, "box": [[869,461],[934,466],[931,496],[867,491]]},
+        {"text": "13/7124", "confidence": .72, "box": [[950,445],[1120,445],[1120,500],[950,500]]},
+    ]
+    fields = extract_fields("\n".join(line["text"] for line in lines), lines)
+    assert fields["transaction_date"]["value"] == "2024-07-13"
+
+
+def test_tags_are_inferred_from_observed_merchant_and_form_text() -> None:
+    tags = infer_receipt_tags(
+        "CASH SALE\nPARTICULARS\nQuantity\nUnit Price\nIssued by",
+        "CHOP HOCK CHUAN HIN",
+    )
+    assert tags == ["hardware", "cash-sale", "handwritten-form"]
+
+
+def test_handwritten_total_below_label_is_spatially_extracted() -> None:
+    lines = [
+        {"text": "TOTAL RM", "confidence": .98, "box": [[893,1372],[1028,1372],[1028,1395],[893,1395]]},
+        {"text": "116", "confidence": .67, "box": [[1109,1327],[1281,1327],[1281,1392],[1109,1392]]},
+    ]
+    fields = extract_fields("\n".join(line["text"] for line in lines), lines)
+    assert fields["total_amount"]["value"] == "116.00"
+
+
+def test_complete_multiview_amount_beats_truncated_reading_from_same_box() -> None:
+    lines = [
+        {"text": "TOTAL RM", "confidence": .98, "box": [[893,1372],[1028,1372],[1028,1395],[893,1395]]},
+        {"text": "11", "confidence": .56, "box": [[1109,1327],[1281,1327],[1281,1392],[1109,1392]]},
+        {"text": "116", "confidence": .56, "box": [[1109,1327],[1281,1327],[1281,1392],[1109,1392]]},
+    ]
+    fields = extract_fields("\n".join(line["text"] for line in lines), lines)
+    assert fields["total_amount"]["value"] == "116.00"
+
+
 def test_tax_percentage_is_not_a_total() -> None:
     text = 'TOTAL INCL. GST@6%\nTOTAL RM 37.10\nCASH RM 40.00'
     assert extract_fields(text, [])['total_amount']['value'] == '37.10'
@@ -353,6 +422,22 @@ def test_faithful_view_does_not_repair_missing_source_pixels() -> None:
               "box": [[45, 24], [130, 24], [130, 54], [45, 54]]}]
     output = make_faithful_content_view(source, source, lines)
     assert output[38, 85] >= 230
+
+
+def test_gap_repair_uses_endpoints_and_independent_candidate_support() -> None:
+    from dsdnet_receipt.restoration import repair_evidence_constrained_gaps
+
+    source = np.full((80, 220), 242, np.uint8)
+    source[38, 55:85] = 80
+    source[38, 86:118] = 80
+    candidate = source.copy()
+    candidate[38, 85] = 85
+    base = np.full_like(source, 255)
+    lines = [{"text": "", "confidence": .96,
+              "box": [[45, 24], [130, 24], [130, 54], [45, 54]]}]
+    output = repair_evidence_constrained_gaps(base, source, candidate, lines)
+    assert output[38, 85] < 200
+    assert np.count_nonzero(output[5:15, 20:160] < 250) == 0
 
 
 def test_faithfulness_gate_rejects_unsupported_ink_and_returns_source() -> None:
@@ -760,8 +845,59 @@ def test_thermal_overlay_preserves_detected_box_centre() -> None:
     assert abs(float(ys.mean()) - 40.0) < 8.0
 
 
+def test_faithful_text_strengthening_uses_evidence_not_ocr_characters() -> None:
+    from dsdnet_receipt.restoration import regularize_continuous_supported_text
+
+    source = np.full((80, 180), 245, np.uint8)
+    source[34:49, 40:43] = 237
+    source[34:49, 55:58] = 237
+    source[40:43, 43:49] = 237
+    source[40:43, 49:51] = 242  # a real but very faint two-pixel ink trace
+    source[40:43, 51:55] = 237
+    candidate = source.copy()
+    candidate[34:49, 40:43] = 222
+    candidate[34:49, 55:58] = 222
+    candidate[40:43, 40:58] = 222
+    display = np.full_like(source, 250)
+    geometry = [[24, 30], [100, 30], [100, 48], [24, 48]]
+    first = regularize_continuous_supported_text(
+        display, source, candidate,
+        [{"text": "CMR6A PLUG", "confidence": .96, "box": geometry}],
+        target_darkness=180.0,
+    )
+    second = regularize_continuous_supported_text(
+        display, source, candidate,
+        [{"text": "DIFFERENT OCR", "confidence": .96, "box": geometry}],
+        target_darkness=180.0,
+    )
+    assert np.array_equal(first, second)
+    measured = np.zeros_like(source, dtype=bool)
+    measured[34:49, 40:43] = True
+    measured[34:49, 55:58] = True
+    measured[40:43, 43:55] = True
+    assert float(first[measured].mean()) < 180.0
+    assert float(first[40:43, 49:51].mean()) < 205.0
+    assert np.all(first[5:15, 5:20] == 250)
+
+
+def test_faithful_text_strengthening_does_not_draw_on_blank_source() -> None:
+    from dsdnet_receipt.restoration import regularize_continuous_supported_text
+
+    blank = np.full((60, 160), 248, np.uint8)
+    output = regularize_continuous_supported_text(
+        blank,
+        blank,
+        blank,
+        [{"text": "OCR HALLUCINATION", "confidence": 1.0,
+          "box": [[10, 15], [150, 15], [150, 40], [10, 40]]}],
+        target_darkness=190.0,
+    )
+    assert np.array_equal(output, blank)
+
+
 def test_evidence_support_rewards_agreement_and_stability() -> None:
-    import torch
+    import pytest
+    torch = pytest.importorskip("torch")  # the model runtime; not needed for the other checks
     from dsdnet_receipt.evidence_support import SupportScales, support_components
 
     observed = torch.full((1, 1, 64, 64), 0.9)
@@ -832,3 +968,16 @@ def test_faithful_selector_falls_back_when_most_text_is_deleted() -> None:
     selected = select_faithful_display_candidate(source, candidate, [])
     # Source-normalized fallback must recover evidence from lower text rows.
     assert np.count_nonzero(selected[200:330] < 238) > 30
+
+
+def test_merchant_skips_address_and_registration_and_joins_split_company_name() -> None:
+    def line(text, y, conf=0.97):
+        return {"text": text, "confidence": conf, "box": [[10, y], [300, y], [300, y + 20], [10, y + 20]]}
+    split = [line("POPULAR BOOK", 10), line("CO. (M) SDN BHD", 40), line("(CO. NO. 113825-W)", 70), line("NO 8 JALAN 7/118B", 100)]
+    assert extract_fields("\n".join(l["text"] for l in split), split)["merchant"]["value"] == "POPULAR BOOK CO. (M) SDN BHD"
+    numbered = [line("99 SPEED MART S/B (519537-X)", 10), line("LOT P.T. 2811", 40), line("TAMAN BERKELEY", 70)]
+    assert extract_fields("\n".join(l["text"] for l in numbered), numbered)["merchant"]["value"] == "99 SPEED MART S/B"
+    # repeated readings from several cleaned views, with the legal form glued on
+    repeated = [line("LOT13.JALAN IPOH", 40), line("LOT13.JALAN IPOH", 41, 0.95), line("SINLIANHAPSDNBHD", 10, 0.9),
+                line("SIN LIANHAP SDN BHD", 11, 0.8), line("COMPANY NO: 000200101-A", 70)]
+    assert extract_fields("\n".join(l["text"] for l in repeated), repeated)["merchant"]["value"] in {"SINLIANHAPSDNBHD", "SIN LIANHAP SDN BHD"}

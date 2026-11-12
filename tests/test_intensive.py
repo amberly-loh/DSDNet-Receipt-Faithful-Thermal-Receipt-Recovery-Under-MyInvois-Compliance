@@ -45,7 +45,7 @@ def add_receipt(app, tmp_path: Path, user: dict, receipt_id: str = "OWNER-001", 
 def test_all_protected_get_routes_reject_anonymous_user(tmp_path: Path) -> None:
     app = create_app(CONFIG, testing=True, database_path=tmp_path / "db.sqlite3")
     client = app.test_client()
-    for path in ("/api/dashboard", "/api/receipts", "/api/export.csv", "/api/export.xlsx", "/api/admin/overview", "/api/admin/receipts", "/api/admin/events"):
+    for path in ("/api/dashboard", "/api/receipts", "/api/export.csv", "/api/export.xlsx"):
         assert client.get(path).status_code == 401, path
 
 
@@ -59,14 +59,17 @@ def test_receipt_ownership_isolation_covers_detail_images_and_exports(tmp_path: 
         assert outsider.get(path).status_code == 404, path
 
 
-def test_non_admin_cannot_read_or_change_admin_resources(tmp_path: Path) -> None:
+def test_there_is_no_admin_side(tmp_path: Path) -> None:
     app = create_app(CONFIG, testing=True, database_path=tmp_path / "db.sqlite3")
     first, user_client = app.test_client(), app.test_client()
     register(first, "admin@example.my", "Install Owner")
     token, user = register(user_client, "user@example.my", "Normal User")
     assert user["role"] == "user"
-    assert user_client.get("/api/admin/overview").status_code == 403
-    assert user_client.patch(f"/api/admin/users/{user['public_id']}", json={"role":"admin"}, headers={"X-CSRF-Token":token}).status_code == 403
+    for client in (first, user_client):
+        assert client.get("/api/admin/overview").status_code == 404
+        assert client.get("/api/admin/receipts").status_code == 404
+        assert client.patch(f"/api/admin/users/{user['public_id']}", json={"role":"admin"}, headers={"X-CSRF-Token":token}).status_code in {403, 404}
+    assert b'adminPage' not in first.get("/").data
 
 
 def test_invalid_upload_empty_bulk_and_bulk_limit_are_safe(tmp_path: Path) -> None:
@@ -77,9 +80,9 @@ def test_invalid_upload_empty_bulk_and_bulk_limit_are_safe(tmp_path: Path) -> No
     response = client.post("/api/analyze", data=bad, headers={"X-CSRF-Token":token}, content_type="multipart/form-data")
     assert response.status_code == 400 and ("unreadable" in response.get_json()["error"] or "upload a JPEG" in response.get_json()["error"])
     assert client.post("/api/bulk-analyze", data={}, headers={"X-CSRF-Token":token}).status_code == 400
-    too_many = {"receipts": [(io.BytesIO(b"x"), f"r{i}.png") for i in range(26)]}
+    too_many = {"receipts": [(io.BytesIO(b"x"), f"r{i}.png") for i in range(101)]}
     response = client.post("/api/bulk-analyze", data=too_many, headers={"X-CSRF-Token":token}, content_type="multipart/form-data")
-    assert response.status_code == 400 and "25" in response.get_json()["error"]
+    assert response.status_code == 400 and "100" in response.get_json()["error"]
 
 
 def test_excel_and_csv_exports_neutralise_formula_injection(tmp_path: Path) -> None:
@@ -165,12 +168,41 @@ def test_audit_pdf_is_fixed_readable_report(tmp_path: Path) -> None:
         assert expected in text
 
 
-def test_google_login_without_configuration_fails_safely(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False); monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
+def test_google_sign_in_is_not_offered(tmp_path: Path) -> None:
     app = create_app(CONFIG, testing=True, database_path=tmp_path / "db.sqlite3")
-    response = app.test_client().get("/auth/google")
-    assert response.status_code == 302 and "google_not_configured" in response.location
+    client = app.test_client()
+    assert client.get("/auth/google").status_code == 404
+    assert b"Continue with Google" not in client.get("/").data
 
+
+def test_this_computer_opens_without_sign_in_until_sign_in_is_required(tmp_path: Path) -> None:
+    app = create_app(CONFIG, testing=True, database_path=tmp_path / "db.sqlite3")
+    client = app.test_client()
+    state = client.get("/api/auth").get_json()
+    assert state["user"] is None and state["workspace_available"] and not state["sign_in_required"]
+    assert client.get("/api/dashboard").status_code == 401  # nothing opens by itself on the server
+    opened = client.post("/api/workspace", headers={"X-CSRF-Token": state["csrf_token"]})
+    assert opened.status_code == 200 and opened.get_json()["user"]["is_workspace"]
+    token = opened.get_json()["csrf_token"]
+    assert client.get("/api/dashboard").status_code == 200
+    # the same workspace (and its receipts) opens again later
+    again = app.test_client(); t2 = again.get("/api/auth").get_json()["csrf_token"]
+    assert again.post("/api/workspace", headers={"X-CSRF-Token": t2}).get_json()["user"]["id"] == opened.get_json()["user"]["id"]
+    # requiring sign-in first gives the workspace an email and password
+    weak = client.patch("/api/access", json={"require_sign_in": True}, headers={"X-CSRF-Token": token})
+    assert weak.status_code == 400 and "email" in weak.get_json()["fields"]
+    done = client.patch("/api/access", headers={"X-CSRF-Token": token}, json={
+        "require_sign_in": True, "name": "Siti Aminah", "email": "siti@example.my",
+        "password": "Receipt-Ledger-2026", "password_confirmation": "Receipt-Ledger-2026"})
+    assert done.status_code == 200 and done.get_json()["sign_in_required"]
+    fresh = app.test_client(); state = fresh.get("/api/auth").get_json()
+    assert not state["workspace_available"]
+    assert fresh.post("/api/workspace", headers={"X-CSRF-Token": state["csrf_token"]}).status_code == 403
+    login = fresh.post("/api/login", json={"email": "siti@example.my", "password": "Receipt-Ledger-2026"}, headers={"X-CSRF-Token": state["csrf_token"]})
+    assert login.status_code == 200 and login.get_json()["user"]["id"] == opened.get_json()["user"]["id"]
+    # turning it off again opens that account without a password
+    token = login.get_json()["csrf_token"]
+    assert fresh.patch("/api/access", json={"require_sign_in": False}, headers={"X-CSRF-Token": token}).get_json()["workspace_available"]
 
 def test_arithmetic_consistency_gate_reports_mismatch() -> None:
     lines = [
@@ -188,3 +220,40 @@ def test_arithmetic_consistency_gate_reports_mismatch() -> None:
     result = arithmetic_consistency(lines, "30.00")
     assert result["status"] == "inconsistent"
     assert result["failed_checks"] >= 1
+
+
+def test_phone_pairing_sends_photos_only_with_a_live_code(tmp_path: Path, monkeypatch) -> None:
+    import io
+    import dsdnet_receipt.web_app as web_app
+    monkeypatch.setattr(web_app, "lan_addresses", lambda: ["192.168.1.20"])
+    app = create_app(CONFIG, testing=True, database_path=tmp_path / "db.sqlite3")
+    desk = app.test_client()
+    token = desk.get("/api/auth").get_json()["csrf_token"]
+    token = desk.post("/api/workspace", headers={"X-CSRF-Token": token}).get_json()["csrf_token"]
+    pairing = desk.post("/api/phone/pair", headers={"X-Phone-Token": "", "X-CSRF-Token": token}).get_json()
+    assert pairing["url"].startswith("http://192.168.1.20:") and "/phone#" in pairing["url"]
+    assert pairing["qr_svg"].startswith("<svg") and pairing["expires_in"] > 0
+    code = pairing["url"].split("#", 1)[1]
+    phone = app.test_client(); phone.environ_base["REMOTE_ADDR"] = "192.168.1.31"
+    assert phone.get("/phone").status_code == 200
+    # the phone has no session: nothing but the paired endpoints is open to it
+    assert phone.get("/api/dashboard").status_code == 401
+    assert phone.post("/api/workspace", headers={"X-CSRF-Token": phone.get("/api/auth").get_json()["csrf_token"]}).status_code == 403
+    assert phone.get("/api/phone/check", headers={"X-Phone-Token": "wrong"}).status_code == 401
+    assert phone.get("/api/phone/check", headers={"X-Phone-Token": code}).status_code == 200
+    bad = {"receipt": (io.BytesIO(b"not an image"), "receipt.jpg")}
+    response = phone.post("/api/phone/upload", data=bad, headers={"X-Phone-Token": code}, content_type="multipart/form-data")
+    assert response.status_code == 400  # reached processing without a browser session or CSRF token
+    assert desk.get("/api/phone/pair").get_json()["pairing"]["failed"] == 1
+    desk.delete("/api/phone/pair", headers={"X-CSRF-Token": token})
+    assert phone.get("/api/phone/check", headers={"X-Phone-Token": code}).status_code == 401
+
+
+def test_welcome_is_shown_once(tmp_path: Path) -> None:
+    app = create_app(CONFIG, testing=True, database_path=tmp_path / "db.sqlite3")
+    client = app.test_client()
+    token = client.get("/api/auth").get_json()["csrf_token"]
+    opened = client.post("/api/workspace", headers={"X-CSRF-Token": token}).get_json()
+    assert opened["user"]["welcome_seen"] is False
+    client.post("/api/welcome", headers={"X-CSRF-Token": opened["csrf_token"]})
+    assert client.get("/api/auth").get_json()["user"]["welcome_seen"] is True
