@@ -39,6 +39,11 @@ set PYTHONPATH=src
 python scripts\serve_production.py   # or double-click scripts\run_server_persistent.cmd
 ```
 
+The DSDNet source code is not included either. Download it from the authors' repository (Kuo et al.,
+2025) into `vendor/DSDNet`, in the folder that contains this repository folder. The path is
+`dsdnet.source_path` in `configs/default.json`, relative to the `configs` folder; change it there if you
+keep it elsewhere.
+
 Then open http://127.0.0.1:5055. The paths to the model checkpoints are set in `configs/default.json`.
 The checkpoints are not in this repository. Train them with the scripts in `scripts/`, or place your
 own at the configured paths.
