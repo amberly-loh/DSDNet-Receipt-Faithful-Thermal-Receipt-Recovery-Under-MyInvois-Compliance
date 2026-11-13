@@ -34,7 +34,7 @@ def main(preset: str = "balanced", primary_only: bool = False) -> None:
     primary_only limits the run to the 55 primary sources (positions 41-95 of the seeded order)."""
     global OUT
     if preset != "balanced":
-        OUT = OUT.parent / f"nfr1_retime_{preset}"
+        OUT = OUT.parent / (f"nfr1_retime_{preset}" if OUT.name == "nfr1_retime" else f"{OUT.name}_{preset}")
     from dsdnet_receipt.config import load_config
     from dsdnet_receipt.settings import PRESETS
     from dsdnet_receipt.web_app import create_app
@@ -67,6 +67,8 @@ def main(preset: str = "balanced", primary_only: bool = False) -> None:
     for _ in range(2):  # warm the restoration model and the text reader; not timed
         warm = analyse(fe.read_gray(test[0]["degraded_path"]), "warmup.png").get_json(silent=True) or {}
         if warm.get("receipt"):
+            from dsdnet_receipt.web_app import wait_for_deferred_display
+            wait_for_deferred_display()
             client.delete(f"/api/receipts/{warm['receipt']['public_id']}", headers={"X-CSRF-Token": token})
 
     path = OUT / "records.jsonl"
@@ -93,6 +95,8 @@ def main(preset: str = "balanced", primary_only: bool = False) -> None:
                                for n in fe.FIELDS}}
             sink.write(json.dumps(row) + "\n"); sink.flush()
             if receipt.get("public_id"):
+                from dsdnet_receipt.web_app import wait_for_deferred_display
+                wait_for_deferred_display()  # Fast preset: let the cleaned image finish before the next receipt (not timed)
                 client.delete(f"/api/receipts/{receipt['public_id']}", headers={"X-CSRF-Token": token})
             print(f"[{index}/{len(test)}] {key} {seconds:.1f}s", flush=True)
 

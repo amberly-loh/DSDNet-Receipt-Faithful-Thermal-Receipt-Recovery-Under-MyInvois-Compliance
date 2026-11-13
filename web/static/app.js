@@ -482,6 +482,21 @@ $('analyseButton').onclick = async () => {
   finally { clearInterval(timer); }
 };
 
+// Fast preset: the fields arrive first and the cleaned image a few seconds later.
+let cleanedImageTimer = null;
+function waitForCleanedImage(id, tries = 0) {
+  clearTimeout(cleanedImageTimer);
+  if (tries > 40) return;
+  cleanedImageTimer = setTimeout(async () => {
+    if (!currentReceipt || currentReceipt.public_id !== id) return;
+    try {
+      const fresh = await api(`/api/receipts/${encodeURIComponent(id)}`);
+      if (fresh.audit?.deferred_display?.status === 'pending') return waitForCleanedImage(id, tries + 1);
+      if (currentReceipt?.public_id === id) { currentReceipt.audit = fresh.audit; $('restoredImage').src = `${currentReceipt.faithful_url}?v=${Date.now()}`; }
+    } catch (_) { /* keep the interim image */ }
+  }, 1500);
+}
+
 async function openReceipt(id) {
   try {
     showReceipt(await api(`/api/receipts/${encodeURIComponent(id)}`));
@@ -503,6 +518,7 @@ function showReceipt(record, {keepView = false} = {}) {
     $('detailMeta').textContent = `${formatDate(currentReceipt.created_at)} · ${currentReceipt.public_id}`;
     $('detailStatus').textContent = currentReceipt.review_readiness?.label || statusLabel(currentReceipt.status); $('detailStatus').className = `status-pill ${currentReceipt.review_readiness?.state || currentReceipt.status}`;
     $('originalImage').src = currentReceipt.original_url; $('restoredImage').src = currentReceipt.faithful_url;
+    if (currentReceipt.audit?.deferred_display?.status === 'pending') waitForCleanedImage(id);
     setValue('merchantField', currentReceipt.merchant); setValue('dateField', currentReceipt.transaction_date);
     setValue('numberField', currentReceipt.receipt_number); setValue('totalField', currentReceipt.total_amount);
     setValue('reviewStatus', currentReceipt.status); setValue('tagsField', (currentReceipt.tags || []).join(', ')); setValue('notesField', currentReceipt.notes);

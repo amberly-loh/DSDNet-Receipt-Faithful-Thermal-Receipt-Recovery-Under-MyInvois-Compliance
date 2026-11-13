@@ -10,6 +10,12 @@ SETTINGS: list[dict[str, Any]] = [
      "default": "auto", "choices": {"auto": "Automatic (faded or blurred receipts only)", "always": "Always", "never": "Never (fastest)"}, "slow": True},
     {"key": "second_reading", "group": "Processing", "label": "Re-read the cleaned image when the date, total or number is missing",
      "description": "Only runs when one of these fields was not found.", "default": True, "slow": True},
+    {"key": "reading_agreement", "group": "Processing", "label": "Compare several readings of the merchant, date and total",
+     "description": "Reads the receipt a few more ways and keeps the value most readings agree on. More accurate, but adds several seconds. Off in the Fast preset.",
+     "default": True, "slow": True},
+    {"key": "show_fields_first", "group": "Processing", "label": "Show the fields first, finish the cleaned image afterwards",
+     "description": "Merchant, date and total appear as soon as they are read; the cleaned image follows a few seconds later. The fields are the same either way.",
+     "default": True, "slow": False},
     {"key": "fast_restoration", "group": "Processing", "label": "Faster restoration (half precision on the GPU)",
      "description": "Runs the restoration network in half precision. Optional; it gave no measurable speed gain in testing.", "default": False, "slow": False},
     {"key": "fast_resolution", "group": "Processing", "label": "Faster processing at lower resolution",
@@ -30,9 +36,9 @@ SETTINGS: list[dict[str, Any]] = [
      "description": "Turn off for a smaller, faster download with the spreadsheet only.", "default": True},
 ]
 PRESETS = {
-    "fast": {"extra_ocr_view": "never", "second_reading": False, "severe_cleanup": False, "fast_restoration": False, "fast_resolution": True},
-    "balanced": {"extra_ocr_view": "auto", "second_reading": True, "severe_cleanup": True, "fast_restoration": False, "fast_resolution": False},
-    "thorough": {"extra_ocr_view": "always", "second_reading": True, "severe_cleanup": True, "damage_separation": True, "stroke_joining": True, "fast_restoration": False, "fast_resolution": False},
+    "fast": {"show_fields_first": True, "reading_agreement": False, "extra_ocr_view": "never", "second_reading": False, "severe_cleanup": False, "fast_restoration": False, "fast_resolution": True},
+    "balanced": {"show_fields_first": True, "reading_agreement": True, "extra_ocr_view": "auto", "second_reading": True, "severe_cleanup": True, "fast_restoration": False, "fast_resolution": False},
+    "thorough": {"show_fields_first": True, "reading_agreement": True, "extra_ocr_view": "always", "second_reading": True, "severe_cleanup": True, "damage_separation": True, "stroke_joining": True, "fast_restoration": False, "fast_resolution": False},
 }
 _BY_KEY = {item["key"]: item for item in SETTINGS}
 

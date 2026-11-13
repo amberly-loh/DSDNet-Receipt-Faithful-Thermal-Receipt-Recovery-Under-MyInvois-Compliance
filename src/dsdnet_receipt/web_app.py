@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import csv
+import copy as copy_module
 import hashlib
 import io
 import json
@@ -44,7 +45,8 @@ from .preprocessing import _order_points, preprocess, suggest_outline
 from .restoration import RestorationEngine
 from .semantic import LINE_ITEM_KEYS, extract_accounting_fields, extract_line_items
 from .capture_check import check_capture
-from .field_review import review_key_fields
+from .field_review import extract_fields_reviewed, review_key_fields
+from .reading_agreement import VOTED_FIELDS, agree, read_alternatives
 from .receipt_context import reading_copy_lines
 from .phone import PhonePairings, lan_addresses, qr_svg
 from .storage import WORKSPACE_EMAIL, ReceiptStore, utc_now
@@ -274,10 +276,13 @@ def _data_url(image: np.ndarray) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(encoded).decode("ascii")
 
 
+SECOND_READING_KEYS = ("transaction_date", "total_amount", "receipt_invoice_number")
+
+
 def second_reading(ocr_engine, extracted, faithful_content, source_shape):
     """Read the cleaned faithful view only when the date, total or receipt
     number could not be read from the first views, and fill only those."""
-    keys = ("transaction_date", "total_amount", "receipt_invoice_number")
+    keys = SECOND_READING_KEYS
     missing = [key for key in keys if not (extracted.get(key) or {}).get("value")]
     record = {"run": bool(missing), "missing_before": missing, "filled": []}
     if not missing:
@@ -693,6 +698,31 @@ def upright_by_reading(color, ocr):
     turn = flipped > 1.15 * upright + 5
     record = {"upright_score": round(upright, 1), "upside_down_score": round(flipped, 1), "turned_180": bool(turn)}
     return (cv2.rotate(color, cv2.ROTATE_180) if turn else color), record
+
+
+# Fields-first processing (Fast preset): the cleaned display image is finished in a
+# background thread after the fields are returned. These helpers let a caller wait
+# until no such job is pending (used by the timing script between receipts).
+_deferred_display_cv = threading.Condition()
+_deferred_display_pending = 0
+
+
+def _deferred_display_started() -> None:
+    global _deferred_display_pending
+    with _deferred_display_cv:
+        _deferred_display_pending += 1
+
+
+def _deferred_display_finished() -> None:
+    global _deferred_display_pending
+    with _deferred_display_cv:
+        _deferred_display_pending -= 1
+        _deferred_display_cv.notify_all()
+
+
+def wait_for_deferred_display(timeout: float = 300.0) -> bool:
+    with _deferred_display_cv:
+        return _deferred_display_cv.wait_for(lambda: _deferred_display_pending == 0, timeout=timeout)
 
 
 def create_app(
@@ -1962,30 +1992,57 @@ def create_app(
                     "the app did not create a restoration from background noise."
                 )
             mask_config = config.get("artifact_mask", {})
-            faithful_content = make_faithful_content_view(
-                processed, selected_recovery, ocr.lines,
-                mask_config.get("checkpoint") if mask_config.get("enabled") else None,
-                float(mask_config.get("threshold", 0.95)),
-                degradation_profile,
+            faithful_arguments = dict(
                 source_color=registered_color if registered_color.ndim == 3 else None,
                 native_refinement=config.get('native_refinement'),
-                refinement_audit=faithful_refinement,
                 finishing_options=user_settings,
             )
-            lap = _lap("faithful_view_and_cleanup", lap)
+            extracted = extract_fields(ocr.text, ocr.lines)
+            # Fields first: the cleaned display image is built after the response; until then
+            # the source-preserving recovery is shown. The image is still built first when the
+            # second reading needs it (date, total or number missing), so the fields are the same.
+            needs_second_reading = bool(user_settings["second_reading"]) and any(
+                not (extracted.get(key) or {}).get("value") for key in SECOND_READING_KEYS)
+            defer_display = bool(user_settings.get("show_fields_first")) and not needs_second_reading
+            if defer_display:
+                faithful_content = selected_recovery
+            else:
+                faithful_content = make_faithful_content_view(
+                    processed, selected_recovery, ocr.lines,
+                    mask_config.get("checkpoint") if mask_config.get("enabled") else None,
+                    float(mask_config.get("threshold", 0.95)),
+                    degradation_profile, refinement_audit=faithful_refinement, **faithful_arguments,
+                )
+                lap = _lap("faithful_view_and_cleanup", lap)
             document_view = faithful_content
             display_mode = "faithful_recovery"
-            extracted = extract_fields(ocr.text, ocr.lines)
             if user_settings["second_reading"]:
                 second_reading_record = second_reading(ocr_engine, extracted, faithful_content, processed.shape)
                 second_reading_record["date_strip"] = date_year_reading(ocr_engine, extracted, processed)
                 lap = _lap("second_reading", lap)
             else:
                 second_reading_record = {"run": False, "disabled": True}
+            agreement_on = bool(user_settings.get("reading_agreement", True)) and os.environ.get("RECEIPT_READING_AGREEMENT", "1") != "0"
+            alternative_readings = read_alternatives(ocr_engine, processed, restoration.model_output, extract_fields_reviewed) if agreement_on else []
+            if agreement_on:
+                lap = _lap("reading_agreement", lap)
         lap = time.perf_counter()
         # App-only second look at date, number and total (the evaluated
         # extractor above is unchanged); every change is kept in the audit.
         field_review_record = review_key_fields(ocr.lines, extracted)
+        # Reading agreement: keep the value of each key field that most independent
+        # readings agree on (the fused reading wins ties); every reading is audited.
+        single_reading = {name: (extracted.get(name) or {}).get("value") for name in VOTED_FIELDS}
+        if agreement_on:
+            voted, agreement_record = agree(extracted, alternative_readings)
+            for name, chosen in voted.items():
+                if chosen["value"] != single_reading.get(name):
+                    field = extracted.setdefault(name, {})
+                    field.update(value=chosen["value"], confidence=chosen["confidence"], box=chosen["box"],
+                                 reviewed_by_app="value most independent readings agree on")
+        else:
+            agreement_record = {"method": "reading_agreement_v1", "disabled": True}
+        agreement_record["single_reading"] = single_reading
         fields = route_fields(extracted, support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
         content_sha256 = hashlib.sha256(raw_bytes).hexdigest()
@@ -2022,7 +2079,8 @@ def create_app(
         write_image(input_path, image); write_image(rectified_path, processed); write_image(restored_path, display_restoration)
         write_image(audit_root / "registered_color.png", registered_color)
         write_image(audit_root / "ocr_input.png", selected_recovery)
-        write_image(audit_root / "faithful_content.png", faithful_content)
+        if not defer_display:
+            write_image(audit_root / "faithful_content.png", faithful_content)
         if faithful_refinement.get('applied'):
             reference = cv2.resize(registered_color, (faithful_content.shape[1], faithful_content.shape[0]), interpolation=cv2.INTER_CUBIC)
             write_image(audit_root / 'faithful_reference.png', reference)
@@ -2038,8 +2096,9 @@ def create_app(
             "model_role": "independent source-trace support gate",
             "role": "Faithful proposed-method output",
         }
-        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path), "faithful_content": _file_sha256(audit_root / "faithful_content.png")}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "degradation_profile": degradation_profile, "region_adaptive_fusion": fusion_record, "faithfulness_gate": {"accepted": faithfulness.accepted, "reason": faithfulness.reason, "metrics": faithfulness.metrics, "fallback": None if faithfulness.accepted else "rectified_original"}, "display_image": display_mode, "faithful_display_image": "faithful_content.png", "faithful_display_policy": "degradation-adaptive, OCR-localised source-and-DSDNet-supported stroke regularisation; recognised strings are not rendered; exact rectified original used when the faithfulness gate rejects recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": [name for name, _ in ocr_views], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "localisation_only_for_faithful_stroke_regularisation; recognised_strings_not_rendered", "second_reading": second_reading_record, "stage_seconds": stage_seconds, "processing_settings": {k: user_settings[k] for k in ("extra_ocr_view", "second_reading", "severe_cleanup", "damage_separation", "stroke_joining", "fast_restoration", "fast_resolution")}, "semantic_extraction": {"method": "layout_aware_receipt_semantics_v2", "line_items": semantic_items, "accounting_fields": accounting_fields}, "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
+        audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path), "faithful_content": None if defer_display else _file_sha256(audit_root / "faithful_content.png")}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "degradation_profile": degradation_profile, "region_adaptive_fusion": fusion_record, "faithfulness_gate": {"accepted": faithfulness.accepted, "reason": faithfulness.reason, "metrics": faithfulness.metrics, "fallback": None if faithfulness.accepted else "rectified_original"}, "display_image": display_mode, "faithful_display_image": "faithful_content.png", "faithful_display_policy": "degradation-adaptive, OCR-localised source-and-DSDNet-supported stroke regularisation; recognised strings are not rendered; exact rectified original used when the faithfulness gate rejects recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": [name for name, _ in ocr_views], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "localisation_only_for_faithful_stroke_regularisation; recognised_strings_not_rendered", "second_reading": second_reading_record, "stage_seconds": stage_seconds, "processing_settings": {k: user_settings[k] for k in ("show_fields_first", "reading_agreement", "extra_ocr_view", "second_reading", "severe_cleanup", "damage_separation", "stroke_joining", "fast_restoration", "fast_resolution")}, "semantic_extraction": {"method": "layout_aware_receipt_semantics_v2", "line_items": semantic_items, "accounting_fields": accounting_fields}, "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
         audit["field_review"] = field_review_record
+        audit["reading_agreement"] = agreement_record
         # Ask for another try when the turn or the cut looks wrong (never changes a value).
         audit["capture_check"] = check_capture(ocr.lines, processed.shape, field_map, preprocessing_record.get("upright_check"))
         from .restoration import complete_document_preservation_mode
@@ -2060,6 +2119,8 @@ def create_app(
         audit['inferred_tags'] = inferred_tags
         if faithful_refinement.get('applied'):
             audit['stored_file_sha256']['faithful_reference'] = _file_sha256(audit_root / 'faithful_reference.png')
+        if defer_display:
+            audit["deferred_display"] = {"status": "pending", "interim_image": "ocr_input.png"}
         write_json(audit_root / "audit.json", audit)
         now = utc_now(); retention_days = int(config.get("app", {}).get("retention_days", 2555))
         retention_until = (datetime.now(timezone.utc) + timedelta(days=retention_days)).date().isoformat()
@@ -2074,6 +2135,43 @@ def create_app(
             "retention_until": retention_until, "content_sha256": audit["content_sha256"],
         })
         store.log_event(user["id"], "receipt.process", "receipt", run_id, details={"source_name": upload.filename, "restoration_status": restoration.status})
+        if defer_display:
+            background_audit = copy_module.deepcopy(audit)
+            receipt_public_id, owner_id = record["public_id"], user["id"]
+            ocr_lines_snapshot = list(ocr.lines)
+
+            def finish_display() -> None:
+                try:
+                    refinement: dict[str, Any] = {}
+                    started_display = time.perf_counter()
+                    with inference_lock:
+                        content = make_faithful_content_view(
+                            processed, selected_recovery, ocr_lines_snapshot,
+                            mask_config.get("checkpoint") if mask_config.get("enabled") else None,
+                            float(mask_config.get("threshold", 0.95)),
+                            degradation_profile, refinement_audit=refinement, **faithful_arguments,
+                        )
+                    if not audit_root.is_dir() or not store.get_receipt(owner_id, receipt_public_id):
+                        return  # the receipt was deleted meanwhile
+                    write_image(audit_root / "faithful_content.png", content)
+                    write_image(restored_path, content)
+                    hashes = background_audit.setdefault("stored_file_sha256", {})
+                    hashes["faithful_content"] = _file_sha256(audit_root / "faithful_content.png")
+                    hashes["recovered"] = _file_sha256(restored_path)
+                    background_audit["native_refinement"] = refinement
+                    background_audit["deferred_display"] = {"status": "done", "seconds": round(time.perf_counter() - started_display, 2)}
+                    write_json(audit_root / "audit.json", background_audit)
+                    store.update_receipt_audit(owner_id, receipt_public_id, background_audit)
+                except Exception as error:  # the fields are already saved; keep the interim image
+                    app.logger.warning("Cleaned image was not finished for %s: %s", receipt_public_id, error)
+                finally:
+                    _deferred_display_finished()
+
+            _deferred_display_started()
+            if app.config.get("TESTING") and app.config.get("DEFERRED_DISPLAY_INLINE"):
+                finish_display()
+            else:
+                threading.Thread(target=finish_display, name=f"display-{receipt_public_id}", daemon=True).start()
         return {"run_id": run_id, "receipt": record, "original": _data_url(image), "restored": _data_url(display_restoration), "diagnostic": _data_url(restoration.diagnostic_map) if restoration.diagnostic_map is not None else None, "ocr_text": ocr.text, "fields": [field.as_dict() for field in fields], "restoration_status": restoration.status, "support_status": "unavailable_for_natural_source", "runtime_seconds": runtime, "audit": audit}
 
     app.extensions['receipt_process_inline'] = _process_receipt

@@ -1,7 +1,7 @@
 # DSDNet-Receipt (ClearReceipt)
 
 **DSDNet-Receipt: Evidence-Aware Thermal Receipt Recovery in the Malaysian MyInvois Context**
-Final Year Project, Amberly Loh. Version 1.0.0.
+Final Year Project, Amberly Loh. Version 1.1.0.
 
 DSDNet-Receipt recovers faded thermal receipts and reads the details that matter for accounting and
 MyInvois: merchant, date, receipt number, total and line items. It adapts the DSDNet restoration
@@ -18,6 +18,8 @@ trained model weights are not included.
 - Scan from a file, several files at once, or a phone on the same Wi-Fi. On the phone you can turn and
   crop the photo before sending.
 - Restore the receipt and read it, then show the original and the recovered view side by side.
+- Read the merchant, date and total several ways and keep the value most readings agree on.
+- Show the fields as soon as they are read; the cleaned image follows a few seconds later.
 - Fill in merchant, date, receipt number, total, line items and accounting fields. Every value shows
   where it was read from, and you confirm it before saving.
 - Ask you to scan again if a photo looks turned the wrong way or cut off.
@@ -57,3 +59,27 @@ The final evaluation compares the proposed system with five baselines on control
 SROIE Malaysian receipts: A direct OCR, B Otsu, B Sauvola, C perceptual filter and D DSDNet alone.
 For field acceptance it also compares two policies, E (OCR and rule score) and F (OCR confidence
 only). The full method and results are in the thesis.
+
+### Final results
+
+Primary set (55 test receipts, 165 controlled images), source-level means:
+
+| Method | Field accuracy | Date and total | Page CER (lower better) | Word F1 |
+|---|---|---|---|---|
+| A Direct OCR | 0.366 | 0.461 | 0.353 | 0.415 |
+| B Otsu | 0.127 | 0.136 | 0.565 | 0.238 |
+| B Sauvola | 0.081 | 0.103 | 0.677 | 0.163 |
+| C Perceptual filter | 0.366 | 0.467 | 0.352 | 0.410 |
+| D DSDNet alone | 0.396 | 0.500 | 0.342 | 0.409 |
+| **Proposed** | **0.473** | **0.548** | **0.328** | **0.467** |
+
+The proposed system was significantly better than every baseline (one-sided Wilcoxon, Holm-corrected)
+on the primary, replication (53 receipts) and extended (108 receipts) sets. On 35 real receipts that
+were never used during development its field accuracy was 0.752, against 0.676 for the best baseline.
+
+With acceptance thresholds fitted on validation data, the support-gated policy accepted about 60% of
+fields with the lowest unsupported acceptance rate of the three policies (0.468, against 0.472 for E
+and 0.506 for F).
+
+Processing time on the test laptop: the Fast preset averages about 11 seconds per receipt until the
+fields are shown (target 15 seconds).
