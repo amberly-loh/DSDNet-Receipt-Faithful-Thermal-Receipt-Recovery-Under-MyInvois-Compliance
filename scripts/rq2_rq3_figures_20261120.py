@@ -57,7 +57,7 @@ def main() -> None:
 
     # ---- figure 1: reliability
     pre = report["variants"]["pre"]["calibration"]
-    fig, ax = plt.subplots(figsize=(3.4, 3.0))
+    fig, ax = plt.subplots(figsize=(5.4, 3.1))
     reliability(ax, pre["reliability_composite"], "Composite score", C_PRO, "o")
     reliability(ax, pre["reliability_ocr"], "OCR confidence", C_E, "s")
     ax.set_xlim(0, 1)
@@ -65,7 +65,7 @@ def main() -> None:
     ax.set_xlabel("Mean predicted probability")
     ax.set_ylabel("Observed accuracy")
     ax.grid(True, color=GRID, linewidth=0.5)
-    ax.legend(frameon=False, loc="upper left", fontsize=7)
+    ax.legend(frameon=False, loc="upper left", fontsize=7.5)
     ax.set_title(f"ECE composite {pre['composite_ece']:.3f}  |  OCR {pre['ocr_ece']:.3f}",
                  fontsize=8, color=INK)
     fig.tight_layout()
@@ -75,7 +75,7 @@ def main() -> None:
     # ---- figure 2: matched coverage
     points = report["variants"]["pre"]["matched_coverage"]
     xs = [p["coverage"] * 100 for p in points]
-    fig, ax = plt.subplots(figsize=(3.4, 3.0))
+    fig, ax = plt.subplots(figsize=(5.4, 3.1))
     for key, label, colour, marker in (("P", "Proposed", C_PRO, "o"),
                                        ("E", "Baseline E", C_E, "s"),
                                        ("F", "Baseline F", C_F, "^")):
@@ -85,7 +85,7 @@ def main() -> None:
     ax.set_ylabel("Unsupported acceptance rate (%)")
     ax.set_xlim(20, 80)
     ax.grid(True, color=GRID, linewidth=0.5)
-    ax.legend(frameon=False, loc="lower right", fontsize=7)
+    ax.legend(frameon=False, loc="lower right", fontsize=7.5)
     fig.tight_layout()
     fig.savefig(out / "fig2_matched_coverage.png", bbox_inches="tight")
     plt.close(fig)
