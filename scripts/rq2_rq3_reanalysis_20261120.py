@@ -222,7 +222,7 @@ def select_on_validation(val: dict) -> dict:
     return selection
 
 
-def matched_coverage(test: dict, q_sel: int, seed: int = 56, draws: int = 2000) -> list[dict]:
+def matched_coverage(test: dict, q_sel: int, seed: int = 56, draws: int = 10000) -> list[dict]:
     correct = test["correct"]
     supported = test["supported"]
     gate = (~np.isnan(test["q"][q_sel])) & test["box_valid"] & (test["rule"] > 0)
@@ -394,12 +394,19 @@ def main() -> None:
 
     out = Path(args.out) if args.out else root / "experiment_outputs/rq2_rq3_reanalysis_20261120/report.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(report, indent=1), encoding="utf-8")
+    # newline="\n" keeps the digest platform-stable: artifacts/** is pinned
+    # -text, so a CRLF write on Windows would change every entry in
+    # artifacts/SHA256SUMS relative to a Linux run.
+    with out.open("w", newline="\n", encoding="utf-8") as handle:
+        handle.write(json.dumps(report, indent=1))
 
     # flat CSV of the headline numbers for the manuscript
     csv_path = out.with_name("summary.csv")
     with csv_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle)
+        # csv.writer defaults to CRLF. artifacts/** is pinned -text in
+        # .gitattributes, so a CRLF write changes every digest in
+        # artifacts/SHA256SUMS and makes verification fail on Linux.
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(["variant", "quantity", "value"])
         for label, block in report["variants"].items():
             cal = block["calibration"]
