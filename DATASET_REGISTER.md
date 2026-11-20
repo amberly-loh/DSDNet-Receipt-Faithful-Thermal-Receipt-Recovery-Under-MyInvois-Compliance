@@ -7,7 +7,7 @@
 - Size: 987 scanned receipt images with OCR words/bounding boxes and company, date, address, and total entities.
 - Project role: controlled clean-source synthetic degradation, OCR evaluation, restoration metrics, and eligible field evaluation.
 - Project split: deterministic 70:15:15 at source level with seed 56 (691 train, 148 validation, 148 test). All synthetic variants inherit their source partition.
-- Controlled corpus actually generated and used (locked manifest `artifacts/protocol_lock/generation_manifest_611_sources.jsonl`, SHA-256 `83ca768c7dd5e77c0f72828f9ebe51ff94163fae7044fd1b5a87bd28d71ebd8f`): 611 sources, 430 train, 86 validation and 95 test, each with light, moderate and severe variants. The final evaluation used 40 of the 86 validation sources for calibration and threshold selection, the 95 locked test sources (primary analysis on positions 41-95, 55 sources) and 53 further test sources generated for replication (`artifacts/replication_20261108`).
+- Controlled corpus actually generated and used (locked manifest `experiments/protocol_lock/generation_manifest_611_sources.jsonl`, SHA-256 `17f7d54311c9cee3690c30ca7e797331c1872d9b9ebdca781f122e1c9dcf03e5`): 611 sources, 430 train, 86 validation and 95 test, each with light, moderate and severe variants. The final evaluation used 40 of the 86 validation sources for calibration and threshold selection, the 95 locked test sources (primary analysis on positions 41-95, 55 sources) and 53 further test sources generated for replication (`experiments/replication_20261108`).
 - Limitation: receipt/invoice number is not an entity annotation and requires manual annotation before confirmatory analysis.
 
 ## Self-collected Malaysian receipts
