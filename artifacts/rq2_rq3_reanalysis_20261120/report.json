@@ -1,0 +1,940 @@
+{
+ "generated": "2026-11-20T08:03:35.177641+00:00",
+ "protocol": "single archived configuration; validation selection; matched coverage",
+ "inputs": {
+  "validation": "final_run_20261108 (D_rq3, partition=validation, 40 sources)",
+  "test": "final_run_20261108 (D_rq3, partition=test, 95 sources)",
+  "agreed_labels": "agreement_20261113 (joined on variant_key)"
+ },
+ "counts": {
+  "validation_images": 120,
+  "validation_fields": 240,
+  "validation_sources": 40,
+  "test_images": 285,
+  "test_fields": 570,
+  "test_sources": 95,
+  "agreed_labels": 1128
+ },
+ "variants": {
+  "pre": {
+   "selected_q": 10,
+   "validation_selection": {
+    "P": {
+     "status": "coverage constraint not met; highest-coverage candidate reported",
+     "chosen": {
+      "q": 10,
+      "t_accept": 0.8,
+      "t_review": 0.6,
+      "fields": 240,
+      "accepted": 0,
+      "coverage": 0.0,
+      "accepted_accuracy": null,
+      "uar": null,
+      "unsupported_acceptances": 0
+     },
+     "candidates": [
+      {
+       "q": 10,
+       "t_accept": 0.8,
+       "t_review": 0.6,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 10,
+       "t_accept": 0.85,
+       "t_review": 0.7,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 10,
+       "t_accept": 0.9,
+       "t_review": 0.75,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 15,
+       "t_accept": 0.8,
+       "t_review": 0.6,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 15,
+       "t_accept": 0.85,
+       "t_review": 0.7,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 15,
+       "t_accept": 0.9,
+       "t_review": 0.75,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 20,
+       "t_accept": 0.8,
+       "t_review": 0.6,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 20,
+       "t_accept": 0.85,
+       "t_review": 0.7,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 20,
+       "t_accept": 0.9,
+       "t_review": 0.75,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      }
+     ]
+    },
+    "E": {
+     "status": "coverage constraint not met; highest-coverage candidate reported",
+     "chosen": {
+      "q": null,
+      "t_accept": 0.8,
+      "t_review": 0.6,
+      "fields": 240,
+      "accepted": 0,
+      "coverage": 0.0,
+      "accepted_accuracy": null,
+      "uar": null,
+      "unsupported_acceptances": 0
+     },
+     "candidates": [
+      {
+       "q": null,
+       "t_accept": 0.8,
+       "t_review": 0.6,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": null,
+       "t_accept": 0.85,
+       "t_review": 0.7,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": null,
+       "t_accept": 0.9,
+       "t_review": 0.75,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      }
+     ]
+    },
+    "F": {
+     "status": "coverage constraint not met; highest-coverage candidate reported",
+     "chosen": {
+      "q": null,
+      "t_accept": 0.8,
+      "t_review": 0.6,
+      "fields": 240,
+      "accepted": 0,
+      "coverage": 0.0,
+      "accepted_accuracy": null,
+      "uar": null,
+      "unsupported_acceptances": 0
+     },
+     "candidates": [
+      {
+       "q": null,
+       "t_accept": 0.8,
+       "t_review": 0.6,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": null,
+       "t_accept": 0.85,
+       "t_review": 0.7,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": null,
+       "t_accept": 0.9,
+       "t_review": 0.75,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      }
+     ]
+    }
+   },
+   "test_operating_points": {
+    "P": {
+     "fields": 570,
+     "accepted": 0,
+     "coverage": 0.0,
+     "accepted_accuracy": null,
+     "uar": null,
+     "unsupported_acceptances": 0,
+     "q": 10,
+     "t_accept": 0.8,
+     "t_review": 0.6
+    },
+    "E": {
+     "fields": 570,
+     "accepted": 0,
+     "coverage": 0.0,
+     "accepted_accuracy": null,
+     "uar": null,
+     "unsupported_acceptances": 0,
+     "q": null,
+     "t_accept": 0.8,
+     "t_review": 0.6
+    },
+    "F": {
+     "fields": 570,
+     "accepted": 0,
+     "coverage": 0.0,
+     "accepted_accuracy": null,
+     "uar": null,
+     "unsupported_acceptances": 0,
+     "q": null,
+     "t_accept": 0.8,
+     "t_review": 0.6
+    }
+   },
+   "matched_coverage": [
+    {
+     "coverage": 0.24912280701754386,
+     "uar_P": 0.30985915492957744,
+     "uar_E": 0.45774647887323944,
+     "uar_F": 0.5492957746478874,
+     "uar_reduction_vs_E_ci95": [
+      0.07746478873239437,
+      0.2605633802816902
+     ]
+    },
+    {
+     "coverage": 0.4,
+     "uar_P": 0.4342105263157895,
+     "uar_E": 0.49122807017543857,
+     "uar_F": 0.5657894736842105,
+     "uar_reduction_vs_E_ci95": [
+      0.00877192982456143,
+      0.10526315789473689
+     ]
+    },
+    {
+     "coverage": 0.5,
+     "uar_P": 0.49122807017543857,
+     "uar_E": 0.48771929824561405,
+     "uar_F": 0.5614035087719298,
+     "uar_reduction_vs_E_ci95": [
+      -0.0035087719298245723,
+      0.0421052631578947
+     ]
+    },
+    {
+     "coverage": 0.6,
+     "uar_P": 0.5380116959064327,
+     "uar_E": 0.5467836257309941,
+     "uar_F": 0.5555555555555556,
+     "uar_reduction_vs_E_ci95": [
+      0.0,
+      0.01754385964912286
+     ]
+    },
+    {
+     "coverage": 0.7508771929824561,
+     "uar_P": 0.6308411214953271,
+     "uar_E": 0.6308411214953271,
+     "uar_F": 0.6355140186915887,
+     "uar_reduction_vs_E_ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   ],
+   "calibration": {
+    "label": "pre",
+    "fields": 570,
+    "sources": 95,
+    "composite_auc": 0.8838248492586178,
+    "ocr_auc": 0.7989230049678292,
+    "composite_brier": 0.1282127347488531,
+    "ocr_brier": 0.1663129226728006,
+    "composite_ece": 0.05426554611135772,
+    "ocr_ece": 0.06933581490401579,
+    "reliability_composite": [
+     {
+      "bin": "0.0-0.1",
+      "n": 261,
+      "mean_score": 0.0,
+      "observed": 0.0421455938697318
+     },
+     {
+      "bin": "0.3-0.4",
+      "n": 29,
+      "mean_score": 0.3846153846153847,
+      "observed": 0.5862068965517241
+     },
+     {
+      "bin": "0.6-0.7",
+      "n": 62,
+      "mean_score": 0.6111111111111115,
+      "observed": 0.7741935483870968
+     },
+     {
+      "bin": "0.7-0.8",
+      "n": 199,
+      "mean_score": 0.7465897397952039,
+      "observed": 0.7537688442211056
+     },
+     {
+      "bin": "0.8-0.9",
+      "n": 19,
+      "mean_score": 0.8181818181818182,
+      "observed": 0.6842105263157895
+     }
+    ],
+    "reliability_ocr": [
+     {
+      "bin": "0.0-0.1",
+      "n": 215,
+      "mean_score": 0.0,
+      "observed": 0.05116279069767442
+     },
+     {
+      "bin": "0.2-0.3",
+      "n": 24,
+      "mean_score": 0.24929294019173173,
+      "observed": 0.5
+     },
+     {
+      "bin": "0.5-0.6",
+      "n": 307,
+      "mean_score": 0.5807521468759255,
+      "observed": 0.6449511400651465
+     },
+     {
+      "bin": "0.6-0.7",
+      "n": 24,
+      "mean_score": 0.633526910383346,
+      "observed": 0.75
+     }
+    ]
+   },
+   "composite_bound": {
+    "10": {
+     "max_support": 0.5047058823529411,
+     "max_composite": 0.7771176470588235
+    },
+    "15": {
+     "max_support": 0.5176470588235295,
+     "max_composite": 0.7829411764705883
+    },
+    "20": {
+     "max_support": 0.5254901960784314,
+     "max_composite": 0.786470588235294
+    }
+   },
+   "planned_threshold_coverage": [
+    {
+     "confidence": "calibrated",
+     "t_accept": 0.8,
+     "t_review": 0.6,
+     "accepted_P": 0,
+     "accepted_E": 0,
+     "accepted_F": 0,
+     "fields": 570
+    },
+    {
+     "confidence": "calibrated",
+     "t_accept": 0.85,
+     "t_review": 0.7,
+     "accepted_P": 0,
+     "accepted_E": 0,
+     "accepted_F": 0,
+     "fields": 570
+    },
+    {
+     "confidence": "calibrated",
+     "t_accept": 0.9,
+     "t_review": 0.75,
+     "accepted_P": 0,
+     "accepted_E": 0,
+     "accepted_F": 0,
+     "fields": 570
+    },
+    {
+     "confidence": "raw",
+     "t_accept": 0.8,
+     "t_review": 0.6,
+     "accepted_P": 0,
+     "accepted_E": 327,
+     "accepted_F": 372,
+     "fields": 570
+    },
+    {
+     "confidence": "raw",
+     "t_accept": 0.85,
+     "t_review": 0.7,
+     "accepted_P": 0,
+     "accepted_E": 325,
+     "accepted_F": 356,
+     "fields": 570
+    },
+    {
+     "confidence": "raw",
+     "t_accept": 0.9,
+     "t_review": 0.75,
+     "accepted_P": 0,
+     "accepted_E": 308,
+     "accepted_F": 321,
+     "fields": 570
+    }
+   ]
+  },
+  "post": {
+   "selected_q": 10,
+   "validation_selection": {
+    "P": {
+     "status": "coverage constraint not met; highest-coverage candidate reported",
+     "chosen": {
+      "q": 10,
+      "t_accept": 0.8,
+      "t_review": 0.6,
+      "fields": 240,
+      "accepted": 0,
+      "coverage": 0.0,
+      "accepted_accuracy": null,
+      "uar": null,
+      "unsupported_acceptances": 0
+     },
+     "candidates": [
+      {
+       "q": 10,
+       "t_accept": 0.8,
+       "t_review": 0.6,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 10,
+       "t_accept": 0.85,
+       "t_review": 0.7,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 10,
+       "t_accept": 0.9,
+       "t_review": 0.75,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 15,
+       "t_accept": 0.8,
+       "t_review": 0.6,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 15,
+       "t_accept": 0.85,
+       "t_review": 0.7,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 15,
+       "t_accept": 0.9,
+       "t_review": 0.75,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 20,
+       "t_accept": 0.8,
+       "t_review": 0.6,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 20,
+       "t_accept": 0.85,
+       "t_review": 0.7,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": 20,
+       "t_accept": 0.9,
+       "t_review": 0.75,
+       "fields": 240,
+       "accepted": 0,
+       "coverage": 0.0,
+       "accepted_accuracy": null,
+       "uar": null,
+       "unsupported_acceptances": 0
+      }
+     ]
+    },
+    "E": {
+     "status": "coverage constraint not met; highest-coverage candidate reported",
+     "chosen": {
+      "q": null,
+      "t_accept": 0.8,
+      "t_review": 0.6,
+      "fields": 240,
+      "accepted": 101,
+      "coverage": 0.42083333333333334,
+      "accepted_accuracy": 0.7920792079207921,
+      "uar": 0.38613861386138615,
+      "unsupported_acceptances": 39
+     },
+     "candidates": [
+      {
+       "q": null,
+       "t_accept": 0.8,
+       "t_review": 0.6,
+       "fields": 240,
+       "accepted": 101,
+       "coverage": 0.42083333333333334,
+       "accepted_accuracy": 0.7920792079207921,
+       "uar": 0.38613861386138615,
+       "unsupported_acceptances": 39
+      },
+      {
+       "q": null,
+       "t_accept": 0.85,
+       "t_review": 0.7,
+       "fields": 240,
+       "accepted": 7,
+       "coverage": 0.029166666666666667,
+       "accepted_accuracy": 0.8571428571428571,
+       "uar": 0.2857142857142857,
+       "unsupported_acceptances": 2
+      },
+      {
+       "q": null,
+       "t_accept": 0.9,
+       "t_review": 0.75,
+       "fields": 240,
+       "accepted": 2,
+       "coverage": 0.008333333333333333,
+       "accepted_accuracy": 1.0,
+       "uar": 0.0,
+       "unsupported_acceptances": 0
+      }
+     ]
+    },
+    "F": {
+     "status": "coverage constraint not met; highest-coverage candidate reported",
+     "chosen": {
+      "q": null,
+      "t_accept": 0.8,
+      "t_review": 0.6,
+      "fields": 240,
+      "accepted": 7,
+      "coverage": 0.029166666666666667,
+      "accepted_accuracy": 0.8571428571428571,
+      "uar": 0.2857142857142857,
+      "unsupported_acceptances": 2
+     },
+     "candidates": [
+      {
+       "q": null,
+       "t_accept": 0.8,
+       "t_review": 0.6,
+       "fields": 240,
+       "accepted": 7,
+       "coverage": 0.029166666666666667,
+       "accepted_accuracy": 0.8571428571428571,
+       "uar": 0.2857142857142857,
+       "unsupported_acceptances": 2
+      },
+      {
+       "q": null,
+       "t_accept": 0.85,
+       "t_review": 0.7,
+       "fields": 240,
+       "accepted": 2,
+       "coverage": 0.008333333333333333,
+       "accepted_accuracy": 1.0,
+       "uar": 0.0,
+       "unsupported_acceptances": 0
+      },
+      {
+       "q": null,
+       "t_accept": 0.9,
+       "t_review": 0.75,
+       "fields": 240,
+       "accepted": 2,
+       "coverage": 0.008333333333333333,
+       "accepted_accuracy": 1.0,
+       "uar": 0.0,
+       "unsupported_acceptances": 0
+      }
+     ]
+    }
+   },
+   "test_operating_points": {
+    "P": {
+     "fields": 570,
+     "accepted": 0,
+     "coverage": 0.0,
+     "accepted_accuracy": null,
+     "uar": null,
+     "unsupported_acceptances": 0,
+     "q": 10,
+     "t_accept": 0.8,
+     "t_review": 0.6
+    },
+    "E": {
+     "fields": 570,
+     "accepted": 283,
+     "coverage": 0.4964912280701754,
+     "accepted_accuracy": 0.7667844522968198,
+     "uar": 0.4734982332155477,
+     "unsupported_acceptances": 134,
+     "q": null,
+     "t_accept": 0.8,
+     "t_review": 0.6
+    },
+    "F": {
+     "fields": 570,
+     "accepted": 10,
+     "coverage": 0.017543859649122806,
+     "accepted_accuracy": 0.8,
+     "uar": 0.4,
+     "unsupported_acceptances": 4,
+     "q": null,
+     "t_accept": 0.8,
+     "t_review": 0.6
+    }
+   },
+   "matched_coverage": [
+    {
+     "coverage": 0.24912280701754386,
+     "uar_P": 0.2746478873239437,
+     "uar_E": 0.45774647887323944,
+     "uar_F": 0.4859154929577465,
+     "uar_reduction_vs_E_ci95": [
+      0.07746478873239432,
+      0.2535211267605634
+     ]
+    },
+    {
+     "coverage": 0.4,
+     "uar_P": 0.3991228070175439,
+     "uar_E": 0.45614035087719296,
+     "uar_F": 0.4824561403508772,
+     "uar_reduction_vs_E_ci95": [
+      0.01315789473684209,
+      0.10975877192982403
+     ]
+    },
+    {
+     "coverage": 0.5,
+     "uar_P": 0.45614035087719296,
+     "uar_E": 0.47368421052631576,
+     "uar_F": 0.47719298245614034,
+     "uar_reduction_vs_E_ci95": [
+      -0.0035087719298245723,
+      0.04561403508771933
+     ]
+    },
+    {
+     "coverage": 0.6,
+     "uar_P": 0.5029239766081871,
+     "uar_E": 0.52046783625731,
+     "uar_F": 0.49707602339181284,
+     "uar_reduction_vs_E_ci95": [
+      0.0,
+      0.04385964912280693
+     ]
+    },
+    {
+     "coverage": 0.7508771929824561,
+     "uar_P": 0.5771028037383178,
+     "uar_E": 0.5771028037383178,
+     "uar_F": 0.5771028037383178,
+     "uar_reduction_vs_E_ci95": [
+      -0.002336448598130758,
+      0.0
+     ]
+    }
+   ],
+   "calibration": {
+    "label": "post",
+    "fields": 570,
+    "sources": 95,
+    "composite_auc": 0.7809553349875931,
+    "ocr_auc": 0.7651923076923077,
+    "composite_brier": 0.1896052298668427,
+    "ocr_brier": 0.19557340356125355,
+    "composite_ece": 0.07935673412987386,
+    "ocr_ece": 0.05896822275778885,
+    "reliability_composite": [
+     {
+      "bin": "0.2-0.3",
+      "n": 171,
+      "mean_score": 0.2758620689655173,
+      "observed": 0.18128654970760233
+     },
+     {
+      "bin": "0.5-0.6",
+      "n": 40,
+      "mean_score": 0.5238095238095238,
+      "observed": 0.55
+     },
+     {
+      "bin": "0.6-0.7",
+      "n": 86,
+      "mean_score": 0.6216216216216216,
+      "observed": 0.5232558139534884
+     },
+     {
+      "bin": "0.7-0.8",
+      "n": 35,
+      "mean_score": 0.7142857142857144,
+      "observed": 0.7714285714285715
+     },
+     {
+      "bin": "0.8-0.9",
+      "n": 236,
+      "mean_score": 0.8498044328552803,
+      "observed": 0.7796610169491526
+     },
+     {
+      "bin": "0.9-1.0",
+      "n": 2,
+      "mean_score": 1.0,
+      "observed": 0.5
+     }
+    ],
+    "reliability_ocr": [
+     {
+      "bin": "0.3-0.4",
+      "n": 201,
+      "mean_score": 0.35538099176431776,
+      "observed": 0.22388059701492538
+     },
+     {
+      "bin": "0.4-0.5",
+      "n": 8,
+      "mean_score": 0.46736465248085957,
+      "observed": 0.375
+     },
+     {
+      "bin": "0.5-0.6",
+      "n": 8,
+      "mean_score": 0.5042781367868359,
+      "observed": 0.5
+     },
+     {
+      "bin": "0.6-0.7",
+      "n": 26,
+      "mean_score": 0.6190476190476191,
+      "observed": 0.6153846153846154
+     },
+     {
+      "bin": "0.7-0.8",
+      "n": 317,
+      "mean_score": 0.754927215198524,
+      "observed": 0.7381703470031545
+     },
+     {
+      "bin": "0.8-0.9",
+      "n": 5,
+      "mean_score": 0.8,
+      "observed": 0.8
+     },
+     {
+      "bin": "0.9-1.0",
+      "n": 5,
+      "mean_score": 1.0,
+      "observed": 0.8
+     }
+    ]
+   },
+   "composite_bound": {
+    "10": {
+     "max_support": 0.5047058823529411,
+     "max_composite": 0.7771176470588235
+    },
+    "15": {
+     "max_support": 0.5176470588235295,
+     "max_composite": 0.7829411764705883
+    },
+    "20": {
+     "max_support": 0.5254901960784314,
+     "max_composite": 0.786470588235294
+    }
+   },
+   "planned_threshold_coverage": [
+    {
+     "confidence": "calibrated",
+     "t_accept": 0.8,
+     "t_review": 0.6,
+     "accepted_P": 0,
+     "accepted_E": 283,
+     "accepted_F": 10,
+     "fields": 570
+    },
+    {
+     "confidence": "calibrated",
+     "t_accept": 0.85,
+     "t_review": 0.7,
+     "accepted_P": 0,
+     "accepted_E": 11,
+     "accepted_F": 5,
+     "fields": 570
+    },
+    {
+     "confidence": "calibrated",
+     "t_accept": 0.9,
+     "t_review": 0.75,
+     "accepted_P": 0,
+     "accepted_E": 5,
+     "accepted_F": 5,
+     "fields": 570
+    },
+    {
+     "confidence": "raw",
+     "t_accept": 0.8,
+     "t_review": 0.6,
+     "accepted_P": 0,
+     "accepted_E": 327,
+     "accepted_F": 372,
+     "fields": 570
+    },
+    {
+     "confidence": "raw",
+     "t_accept": 0.85,
+     "t_review": 0.7,
+     "accepted_P": 0,
+     "accepted_E": 325,
+     "accepted_F": 356,
+     "fields": 570
+    },
+    {
+     "confidence": "raw",
+     "t_accept": 0.9,
+     "t_review": 0.75,
+     "accepted_P": 0,
+     "accepted_E": 308,
+     "accepted_F": 321,
+     "fields": 570
+    }
+   ]
+  }
+ },
+ "label_crosstab": {
+  "n": 570,
+  "both_wrong": 233,
+  "wrong_to_right": 98,
+  "right_to_wrong": 27,
+  "both_right": 212,
+  "disagreement_rate": 0.21929824561403508
+ }
+}
