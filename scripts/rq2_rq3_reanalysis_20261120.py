@@ -70,13 +70,29 @@ def rank_auc(scores: np.ndarray, labels: np.ndarray) -> float:
     return float((ranks[labels].sum() - pos * (pos + 1) / 2.0) / (pos * neg))
 
 
-def isotonic_fit(scores: np.ndarray, outcomes: np.ndarray):
-    """Pool-adjacent-violators, non-decreasing, clipped to [0, 1]."""
-    order = np.argsort(scores, kind="mergesort")
-    x, y = scores[order].astype(float), outcomes[order].astype(float)
+def isotonic_fit(scores: np.ndarray, outcomes: np.ndarray, pool_ties: bool = True):
+    """Pool-adjacent-violators, non-decreasing, clipped to [0, 1].
+
+    Identical predictor scores are pooled before fitting, by default. Fitting
+    them as separate blocks in stable order would make the map depend on the
+    order in which tied records happen to sit in the archive, and would return
+    an arbitrary one of several fitted values for a tied input. Pooling gives
+    each distinct score its weighted mean outcome, which is the standard
+    definition and is invariant to record order.
+    """
+    x_all = np.asarray(scores, float)
+    y_all = np.asarray(outcomes, float)
+    if pool_ties:
+        uniq, inverse = np.unique(x_all, return_inverse=True)
+        weights = np.bincount(inverse).astype(float)
+        sums = np.bincount(inverse, weights=y_all)
+        x, y, w = uniq, sums / weights, weights
+    else:
+        order = np.argsort(x_all, kind="mergesort")
+        x, y, w = x_all[order], y_all[order], np.ones(len(x_all))
     blocks: list[list[float]] = []
-    for xi, yi in zip(x, y):
-        blocks.append([yi, 1.0, xi, xi])
+    for xi, yi, wi in zip(x, y, w):
+        blocks.append([yi * wi, wi, xi, xi])
         while len(blocks) > 1 and blocks[-2][0] / blocks[-2][1] > blocks[-1][0] / blocks[-1][1]:
             s, c, _lo, hi = blocks.pop()
             blocks[-1][0] += s
@@ -222,7 +238,7 @@ def select_on_validation(val: dict) -> dict:
     return selection
 
 
-def matched_coverage(test: dict, q_sel: int, seed: int = 56, draws: int = 10000) -> list[dict]:
+def matched_coverage(test: dict, q_sel: int, seed: int = 56, draws: int = 10_000) -> list[dict]:
     correct = test["correct"]
     supported = test["supported"]
     gate = (~np.isnan(test["q"][q_sel])) & test["box_valid"] & (test["rule"] > 0)
@@ -394,19 +410,12 @@ def main() -> None:
 
     out = Path(args.out) if args.out else root / "experiment_outputs/rq2_rq3_reanalysis_20261120/report.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    # newline="\n" keeps the digest platform-stable: artifacts/** is pinned
-    # -text, so a CRLF write on Windows would change every entry in
-    # artifacts/SHA256SUMS relative to a Linux run.
-    with out.open("w", newline="\n", encoding="utf-8") as handle:
-        handle.write(json.dumps(report, indent=1))
+    out.write_text(json.dumps(report, indent=1), encoding="utf-8")
 
     # flat CSV of the headline numbers for the manuscript
     csv_path = out.with_name("summary.csv")
     with csv_path.open("w", newline="", encoding="utf-8") as handle:
-        # csv.writer defaults to CRLF. artifacts/** is pinned -text in
-        # .gitattributes, so a CRLF write changes every digest in
-        # artifacts/SHA256SUMS and makes verification fail on Linux.
-        writer = csv.writer(handle, lineterminator="\n")
+        writer = csv.writer(handle)
         writer.writerow(["variant", "quantity", "value"])
         for label, block in report["variants"].items():
             cal = block["calibration"]
