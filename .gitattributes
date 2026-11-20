@@ -1,1 +1,13 @@
 Datasets/SROIE-Malaysia/images/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+
+# --- byte-stable checkout ---------------------------------------------------
+# Every file listed in artifacts/SHA256SUMS is pinned by digest. Git's
+# core.autocrlf (true by default in Git for Windows) rewrites LF to CRLF on
+# checkout, which changes those digests and makes verification fail on every
+# line. Declaring these paths -text keeps the working tree byte-identical to
+# the blob on all platforms, so `sha256sum -c artifacts/SHA256SUMS` succeeds
+# on Windows, macOS and Linux alike.
+configs/**     -text
+experiments/** -text
+artifacts/**   -text
+scripts/**     -text
