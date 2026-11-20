@@ -1,0 +1,20 @@
+{
+  "source": "Screenshot 2026-07-13 080718.png",
+  "saved_in_isolated_database": true,
+  "runtime_seconds": 20.91463769999973,
+  "native_refinement": {
+    "applied": true,
+    "synthetic_glyph_rendering": false,
+    "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_low_resolution_dev_v2\\checkpoint_0000500.pt",
+    "checkpoint_sha256": "32f00f66dc59acf4feb3500aa78bac3de4ffaade8f55f90ea8ffe53a29d6503b",
+    "device": "cuda",
+    "model_output_scale": 2,
+    "background_policy": "pixels >=235 unchanged from interpolated source-based view",
+    "change_bounds": {
+      "maximum_darkening": 45,
+      "maximum_lightening": 15
+    },
+    "scope": "source-bounded development checkpoint; not pristine reconstruction"
+  },
+  "ocr_characters": 970
+}

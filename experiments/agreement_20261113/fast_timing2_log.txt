@@ -1,0 +1,15 @@
+=== start Fri 13/11/2026 19:53:45.14 === 
+stopping 7604
+stopping 2052
+stopping 9060
+stopping 15384
+warning: in the working copy of 'web/static/app.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/templates/index.html', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_fields_first.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 bd5924d] Fast preset shows the fields first and finishes the cleaned image afterwards
+ 4 files changed, 102 insertions(+), 2 deletions(-)
+ create mode 100644 FAST_TIMING2_20261113.cmd
+ create mode 100644 tests/test_fields_first.py
+pytest exit 0 
+fast exit 0 20:36:17.84 
+=== end Fri 13/11/2026 20:36:29.15 === 

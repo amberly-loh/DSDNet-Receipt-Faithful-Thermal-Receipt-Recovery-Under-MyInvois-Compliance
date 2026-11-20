@@ -1,0 +1,15 @@
+{
+  "partition": "validation",
+  "receipts": 148,
+  "method": "reference OCR text and boxes; excludes image recognition",
+  "results": {
+    "date": {
+      "correct": 124,
+      "total": 125
+    },
+    "total": {
+      "correct": 94,
+      "total": 148
+    }
+  }
+}

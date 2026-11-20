@@ -43,9 +43,27 @@ from .language_assistance import suggestions_for_lines
 from .ocr import PaddleOCRAdapter, deduplicate_lines
 from .preprocessing import _order_points, preprocess, suggest_outline
 from .restoration import RestorationEngine
-from .semantic import LINE_ITEM_KEYS, extract_accounting_fields, extract_line_items
+from .semantic import LINE_ITEM_KEYS, extract_accounting_fields
+from .semantic import extract_line_items as _extract_line_items_raw
+from .line_item_logic import refine_line_items
+
+
+def extract_line_items(lines, total=None, text=None, merchant=None):
+    """The table read from the OCR layout, then checked with the receipt's own
+    arithmetic (quantity x price = amount; items add up to the total)."""
+    items = _extract_line_items_raw(lines)
+    try:
+        from .receipt_context import recognise_receipt
+        fuel = recognise_receipt(text or "\n".join(str(l.get("text", "")) for l in lines), None, merchant).get("fuel_product")
+    except Exception:
+        fuel = None
+    try:
+        return refine_line_items(items, lines, total, fuel)
+    except Exception:
+        return items
 from .capture_check import check_capture
 from .field_review import extract_fields_reviewed, review_key_fields
+from .field_logic import add_options
 from .reading_agreement import VOTED_FIELDS, agree, read_alternatives
 from .receipt_context import reading_copy_lines
 from .phone import PhonePairings, lan_addresses, qr_svg
@@ -1199,7 +1217,7 @@ def create_app(
             receipt["audit"]["arithmetic_consistency"] = arithmetic_consistency(receipt["audit"]["ocr_lines"], receipt.get("total_amount"))
         if receipt and receipt.get("audit", {}).get("ocr_lines") and not user_saved:
             if not receipt.get("line_items"):
-                receipt["line_items"] = extract_line_items(receipt["audit"]["ocr_lines"])
+                receipt["line_items"] = extract_line_items(receipt["audit"]["ocr_lines"], receipt.get("total_amount"), receipt.get("ocr_text"), receipt.get("merchant"))
             if not receipt.get("accounting_fields"):
                 receipt["accounting_fields"] = extract_accounting_fields(
                     receipt.get("ocr_text", ""), receipt["audit"]["ocr_lines"],
@@ -1350,6 +1368,7 @@ def create_app(
         text = "\n".join(str(line.get("text", "")) for line in lines)
         extracted = extract_fields(text, lines)
         review_key_fields(lines, extracted)
+        add_options(lines, extracted)
         values = {
             "merchant": extracted["merchant"]["value"],
             "transaction_date": extracted["transaction_date"]["value"],
@@ -1357,13 +1376,18 @@ def create_app(
             "total_amount": extracted["total_amount"]["value"],
             "status": "needs_review",
         }
-        semantic_items = extract_line_items(lines)
+        semantic_items = extract_line_items(lines, values.get("total_amount"), text, values.get("merchant"))
         values["line_items"] = semantic_items
         values["accounting_fields"] = extract_accounting_fields(text, lines, {
             "merchant": values["merchant"], "transaction_date": values["transaction_date"],
             "receipt_invoice_number": values["receipt_number"], "total_amount": values["total_amount"],
         })
         updated = store.update_receipt(user["id"], receipt_id, values)
+        # the per-field details shown under each field (estimate, options, hint)
+        audit = existing.get("audit") or {}
+        audit["fields"] = [field.as_dict() for field in route_fields(
+            extracted, support_available=False, model_available=bool(audit.get("checkpoint")))]
+        store.update_receipt_audit(user["id"], receipt_id, audit)
         # Rebuild the Faithful proposed-method output so older receipts can
         # benefit from the current recovery without being uploaded again.
         from .restoration import assess_receipt_degradation, make_adaptive_document_view, make_faithful_content_view, make_readability_view, region_adaptive_source_fusion, select_faithful_recovery
@@ -2043,6 +2067,9 @@ def create_app(
         else:
             agreement_record = {"method": "reading_agreement_v1", "disabled": True}
         agreement_record["single_reading"] = single_reading
+        # an empty date, total or merchant gets the best estimate (marked as one),
+        # and every key field lists the other likely values to pick from
+        field_estimates = add_options(ocr.lines, extracted)
         fields = route_fields(extracted, support_available=False, model_available=restoration.model_available)
         field_map = {field.name: field.value for field in fields}
         content_sha256 = hashlib.sha256(raw_bytes).hexdigest()
@@ -2053,17 +2080,21 @@ def create_app(
             receipt_number=field_map.get("receipt_invoice_number"),
             total_amount=field_map.get("total_amount"),
         )
-        if not field_map.get("transaction_date") and verified_memory.get("transaction_date"):
+        date_estimated = bool((extracted.get("transaction_date") or {}).get("estimated"))
+        if (not field_map.get("transaction_date") or date_estimated) and verified_memory.get("transaction_date"):
             field_map["transaction_date"] = verified_memory["transaction_date"]
             for field in fields:
                 if field.name == "transaction_date":
+                    if field.value and field.value != verified_memory["transaction_date"]:
+                        field.options = [{"value": field.value, "reason": "estimate from this receipt"}] + list(field.options or [])
+                    field.estimated = None
                     field.value = verified_memory["transaction_date"]
                     field.mandatory_rule_passed = True
                     field.rule_status = "passed_from_verified_memory"
                     field.reason = "Recovered from the user's prior reviewed receipt with an exact evidence match."
                     break
         inferred_tags = infer_receipt_tags(ocr.text, field_map.get("merchant"))
-        semantic_items = extract_line_items(ocr.lines)
+        semantic_items = extract_line_items(ocr.lines, field_map.get("total_amount"), ocr.text, field_map.get("merchant"))
         accounting_fields = extract_accounting_fields(ocr.text, ocr.lines, field_map)
         lap = _lap("fields_and_rules", lap)
         run_id = f"USER-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
@@ -2098,6 +2129,7 @@ def create_app(
         }
         audit = {"run_id": run_id, "source": upload.filename, "content_sha256": hashlib.sha256(raw_bytes).hexdigest(), "raw_source_file": "source_upload.bin", "rectified_input_file": "rectified_input.png", "stored_file_sha256": {"source_upload": _file_sha256(source_upload_path), "original": _file_sha256(input_path), "recovered": _file_sha256(restored_path), "faithful_content": None if defer_display else _file_sha256(audit_root / "faithful_content.png")}, "runtime_seconds": runtime, "restoration_status": restoration.status, "restoration_error": restoration.error, "checkpoint": restoration.checkpoint, "restoration_stages": restoration.stage_count, "degradation_profile": degradation_profile, "region_adaptive_fusion": fusion_record, "faithfulness_gate": {"accepted": faithfulness.accepted, "reason": faithfulness.reason, "metrics": faithfulness.metrics, "fallback": None if faithfulness.accepted else "rectified_original"}, "display_image": display_mode, "faithful_display_image": "faithful_content.png", "faithful_display_policy": "degradation-adaptive, OCR-localised source-and-DSDNet-supported stroke regularisation; recognised strings are not rendered; exact rectified original used when the faithfulness gate rejects recovery", "model_output_image": "model_output_x8.png" if restoration.model_output is not None else None, "source_preserving_recovery_image": "ocr_input.png", "ocr_input_images": [name for name, _ in ocr_views], "display_component_policy": policy, "restoration_diagnostics": restoration.diagnostics, "diagnostic_map": str(diagnostic_path) if restoration.diagnostic_map is not None else None, "ocr_status": ocr.status, "ocr_version": ocr.engine_version, "ocr_lines": ocr.lines, "ocr_suggestions": suggestions_for_lines(ocr.lines), "language_assistance_role": "localisation_only_for_faithful_stroke_regularisation; recognised_strings_not_rendered", "second_reading": second_reading_record, "stage_seconds": stage_seconds, "processing_settings": {k: user_settings[k] for k in ("show_fields_first", "reading_agreement", "extra_ocr_view", "second_reading", "severe_cleanup", "damage_separation", "stroke_joining", "fast_restoration", "fast_resolution")}, "semantic_extraction": {"method": "layout_aware_receipt_semantics_v2", "line_items": semantic_items, "accounting_fields": accounting_fields}, "arithmetic_consistency": arithmetic_consistency(ocr.lines, field_map.get("total_amount")), "support_status": "unavailable_for_natural_source", "fields": [field.as_dict() for field in fields], "preprocessing": preprocessing_record, "formal_evidence": False}
         audit["field_review"] = field_review_record
+        audit["field_estimates"] = field_estimates
         audit["reading_agreement"] = agreement_record
         # Ask for another try when the turn or the cut looks wrong (never changes a value).
         audit["capture_check"] = check_capture(ocr.lines, processed.shape, field_map, preprocessing_record.get("upright_check"))

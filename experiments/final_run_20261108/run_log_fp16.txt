@@ -1,0 +1,44 @@
+=== start Sun 08/11/2026 12:39:56.50 === 
+warning: in the working copy of 'scripts/fast_preset_20261108.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/speed_check_20261108.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/settings.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/web_app.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/decide_fp16_20261108.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 0e95c4d] Fast preset: optional half-precision restoration; validation decision rule; timing run
+ 7 files changed, 70 insertions(+), 21 deletions(-)
+ create mode 100644 scripts/decide_fp16_20261108.py
+ create mode 100644 scripts/run_fp16_20261108.cmd
+pytest exit 0 
+fast_fp32 SROIE-MY-TRAIN-0128/V01 11.7s
+fast_fp32 SROIE-MY-TRAIN-0128/V02 14.2s
+fast_fp32 SROIE-MY-TRAIN-0128/V03 21.1s
+fast_fp32 SROIE-MY-TRAIN-0057/V01 16.9s
+fast_fp32 SROIE-MY-TRAIN-0057/V02 15.2s
+fast_fp32 SROIE-MY-TRAIN-0057/V03 15.4s
+fast_fp32 SROIE-MY-TEST-0064/V01 12.0s
+fast_fp32 SROIE-MY-TEST-0064/V02 14.4s
+fast_fp32 SROIE-MY-TEST-0064/V03 15.4s
+fast_fp32 SROIE-MY-TRAIN-0001/V01 6.5s
+fast_fp32 SROIE-MY-TRAIN-0001/V02 6.9s
+fast_fp32 SROIE-MY-TRAIN-0001/V03 6.1s
+fast_fp32 SROIE-MY-TEST-0316/V01 7.6s
+fast_fp32 SROIE-MY-TEST-0316/V02 8.8s
+fast_fp32 SROIE-MY-TEST-0316/V03 9.1s
+fast_fp16 SROIE-MY-TRAIN-0128/V01 11.6s
+fast_fp16 SROIE-MY-TRAIN-0128/V02 14.7s
+fast_fp16 SROIE-MY-TRAIN-0128/V03 14.9s
+fast_fp16 SROIE-MY-TRAIN-0057/V01 13.4s
+fast_fp16 SROIE-MY-TRAIN-0057/V02 14.3s
+fast_fp16 SROIE-MY-TRAIN-0057/V03 13.7s
+fast_fp16 SROIE-MY-TEST-0064/V01 11.2s
+fast_fp16 SROIE-MY-TEST-0064/V02 13.5s
+fast_fp16 SROIE-MY-TEST-0064/V03 14.9s
+fast_fp16 SROIE-MY-TRAIN-0001/V01 6.2s
+fast_fp16 SROIE-MY-TRAIN-0001/V02 6.8s
+fast_fp16 SROIE-MY-TRAIN-0001/V03 6.1s
+fast_fp16 SROIE-MY-TEST-0316/V01 7.4s
+fast_fp16 SROIE-MY-TEST-0316/V02 8.1s
+fast_fp16 SROIE-MY-TEST-0316/V03 7.6s
+{'fast_fp32': {'fa': 0.17777777777777776, 'cer': 0.44367750654022753, 'word_f1': 0.3592381924524325, 'seconds': 12.086283213327018, 'failed': 0}, 'fast_fp16': {'fa': 0.2, 'cer': 0.4453261675625354, 'word_f1': 0.3532099606598342, 'seconds': 10.970974926669928, 'failed': 0}, 'adopt': True, 'rule': 'field accuracy not lower; CER not higher by more than 0.005; no extra failures'}
+fast16 exit -1 13:10:29.90 
+=== end Sun 08/11/2026 13:10:35.76 === 

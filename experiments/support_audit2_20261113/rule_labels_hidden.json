@@ -1,0 +1,802 @@
+[
+ {
+  "item": 1,
+  "variant_key": "SROIE-MY-TEST-0262/V02",
+  "severity": "moderate",
+  "x": 422,
+  "y": 1248,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 2,
+  "variant_key": "SROIE-MY-TRAIN-0221/V02",
+  "severity": "moderate",
+  "x": 484,
+  "y": 378,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 3,
+  "variant_key": "SROIE-MY-TEST-0023/V03",
+  "severity": "severe",
+  "x": 601,
+  "y": 454,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 4,
+  "variant_key": "SROIE-MY-TRAIN-0150/V03",
+  "severity": "severe",
+  "x": 146,
+  "y": 412,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 5,
+  "variant_key": "SROIE-MY-TEST-0070/V03",
+  "severity": "severe",
+  "x": 495,
+  "y": 1373,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 6,
+  "variant_key": "SROIE-MY-TEST-0186/V03",
+  "severity": "severe",
+  "x": 538,
+  "y": 508,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 7,
+  "variant_key": "SROIE-MY-TEST-0141/V02",
+  "severity": "moderate",
+  "x": 525,
+  "y": 1046,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 8,
+  "variant_key": "SROIE-MY-TEST-0023/V03",
+  "severity": "severe",
+  "x": 461,
+  "y": 846,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 9,
+  "variant_key": "SROIE-MY-TEST-0065/V02",
+  "severity": "moderate",
+  "x": 267,
+  "y": 457,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 10,
+  "variant_key": "SROIE-MY-TEST-0237/V01",
+  "severity": "light",
+  "x": 726,
+  "y": 643,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 11,
+  "variant_key": "SROIE-MY-TEST-0070/V03",
+  "severity": "severe",
+  "x": 233,
+  "y": 507,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 12,
+  "variant_key": "SROIE-MY-TEST-0065/V02",
+  "severity": "moderate",
+  "x": 162,
+  "y": 1548,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 13,
+  "variant_key": "SROIE-MY-TEST-0145/V02",
+  "severity": "moderate",
+  "x": 224,
+  "y": 932,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 14,
+  "variant_key": "SROIE-MY-TEST-0186/V03",
+  "severity": "severe",
+  "x": 560,
+  "y": 943,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 15,
+  "variant_key": "SROIE-MY-TRAIN-0221/V02",
+  "severity": "moderate",
+  "x": 208,
+  "y": 322,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 16,
+  "variant_key": "SROIE-MY-TEST-0141/V02",
+  "severity": "moderate",
+  "x": 223,
+  "y": 1051,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 17,
+  "variant_key": "SROIE-MY-TEST-0141/V02",
+  "severity": "moderate",
+  "x": 407,
+  "y": 185,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 18,
+  "variant_key": "SROIE-MY-TEST-0262/V02",
+  "severity": "moderate",
+  "x": 485,
+  "y": 942,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 19,
+  "variant_key": "SROIE-MY-TEST-0137/V02",
+  "severity": "moderate",
+  "x": 63,
+  "y": 1163,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 20,
+  "variant_key": "SROIE-MY-TEST-0186/V03",
+  "severity": "severe",
+  "x": 677,
+  "y": 486,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 21,
+  "variant_key": "SROIE-MY-TRAIN-0150/V03",
+  "severity": "severe",
+  "x": 384,
+  "y": 219,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 22,
+  "variant_key": "SROIE-MY-TEST-0023/V03",
+  "severity": "severe",
+  "x": 480,
+  "y": 593,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 23,
+  "variant_key": "SROIE-MY-TEST-0141/V02",
+  "severity": "moderate",
+  "x": 407,
+  "y": 485,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 24,
+  "variant_key": "SROIE-MY-TRAIN-0020/V01",
+  "severity": "light",
+  "x": 341,
+  "y": 462,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 25,
+  "variant_key": "SROIE-MY-TRAIN-0020/V01",
+  "severity": "light",
+  "x": 288,
+  "y": 152,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 26,
+  "variant_key": "SROIE-MY-TRAIN-0148/V02",
+  "severity": "moderate",
+  "x": 164,
+  "y": 498,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 27,
+  "variant_key": "SROIE-MY-TEST-0051/V03",
+  "severity": "severe",
+  "x": 283,
+  "y": 1157,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 28,
+  "variant_key": "SROIE-MY-TRAIN-0020/V01",
+  "severity": "light",
+  "x": 254,
+  "y": 133,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 29,
+  "variant_key": "SROIE-MY-TRAIN-0094/V03",
+  "severity": "severe",
+  "x": 245,
+  "y": 194,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 30,
+  "variant_key": "SROIE-MY-TRAIN-0020/V01",
+  "severity": "light",
+  "x": 327,
+  "y": 291,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 31,
+  "variant_key": "SROIE-MY-TEST-0237/V01",
+  "severity": "light",
+  "x": 688,
+  "y": 1562,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 32,
+  "variant_key": "SROIE-MY-TEST-0223/V01",
+  "severity": "light",
+  "x": 429,
+  "y": 1044,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 33,
+  "variant_key": "SROIE-MY-TRAIN-0150/V03",
+  "severity": "severe",
+  "x": 465,
+  "y": 533,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 34,
+  "variant_key": "SROIE-MY-TRAIN-0221/V02",
+  "severity": "moderate",
+  "x": 471,
+  "y": 1297,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 35,
+  "variant_key": "SROIE-MY-TEST-0137/V02",
+  "severity": "moderate",
+  "x": 422,
+  "y": 1132,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 36,
+  "variant_key": "SROIE-MY-TRAIN-0150/V03",
+  "severity": "severe",
+  "x": 292,
+  "y": 184,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 37,
+  "variant_key": "SROIE-MY-TRAIN-0094/V03",
+  "severity": "severe",
+  "x": 323,
+  "y": 1124,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 38,
+  "variant_key": "SROIE-MY-TEST-0145/V02",
+  "severity": "moderate",
+  "x": 267,
+  "y": 1409,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 39,
+  "variant_key": "SROIE-MY-TRAIN-0148/V02",
+  "severity": "moderate",
+  "x": 43,
+  "y": 391,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 40,
+  "variant_key": "SROIE-MY-TEST-0065/V02",
+  "severity": "moderate",
+  "x": 102,
+  "y": 861,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 41,
+  "variant_key": "SROIE-MY-TEST-0051/V03",
+  "severity": "severe",
+  "x": 310,
+  "y": 261,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 42,
+  "variant_key": "SROIE-MY-TEST-0023/V03",
+  "severity": "severe",
+  "x": 540,
+  "y": 641,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 43,
+  "variant_key": "SROIE-MY-TEST-0137/V02",
+  "severity": "moderate",
+  "x": 554,
+  "y": 1183,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 44,
+  "variant_key": "SROIE-MY-TEST-0145/V02",
+  "severity": "moderate",
+  "x": 172,
+  "y": 164,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 45,
+  "variant_key": "SROIE-MY-TRAIN-0150/V03",
+  "severity": "severe",
+  "x": 228,
+  "y": 1016,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 46,
+  "variant_key": "SROIE-MY-TEST-0237/V01",
+  "severity": "light",
+  "x": 707,
+  "y": 1539,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 47,
+  "variant_key": "SROIE-MY-TRAIN-0020/V01",
+  "severity": "light",
+  "x": 149,
+  "y": 228,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 48,
+  "variant_key": "SROIE-MY-TEST-0065/V02",
+  "severity": "moderate",
+  "x": 305,
+  "y": 620,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 49,
+  "variant_key": "SROIE-MY-TEST-0051/V03",
+  "severity": "severe",
+  "x": 494,
+  "y": 945,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 50,
+  "variant_key": "SROIE-MY-TRAIN-0233/V02",
+  "severity": "moderate",
+  "x": 295,
+  "y": 205,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 51,
+  "variant_key": "SROIE-MY-TRAIN-0221/V02",
+  "severity": "moderate",
+  "x": 365,
+  "y": 454,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 52,
+  "variant_key": "SROIE-MY-TEST-0223/V01",
+  "severity": "light",
+  "x": 482,
+  "y": 860,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 53,
+  "variant_key": "SROIE-MY-TRAIN-0233/V02",
+  "severity": "moderate",
+  "x": 441,
+  "y": 708,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 54,
+  "variant_key": "SROIE-MY-TEST-0237/V01",
+  "severity": "light",
+  "x": 684,
+  "y": 1567,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 55,
+  "variant_key": "SROIE-MY-TEST-0070/V03",
+  "severity": "severe",
+  "x": 416,
+  "y": 943,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 56,
+  "variant_key": "SROIE-MY-TEST-0223/V01",
+  "severity": "light",
+  "x": 269,
+  "y": 631,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 57,
+  "variant_key": "SROIE-MY-TRAIN-0148/V02",
+  "severity": "moderate",
+  "x": 106,
+  "y": 1118,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 58,
+  "variant_key": "SROIE-MY-TRAIN-0148/V02",
+  "severity": "moderate",
+  "x": 389,
+  "y": 1164,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 59,
+  "variant_key": "SROIE-MY-TEST-0070/V03",
+  "severity": "severe",
+  "x": 405,
+  "y": 1364,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 60,
+  "variant_key": "SROIE-MY-TEST-0262/V02",
+  "severity": "moderate",
+  "x": 325,
+  "y": 901,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 61,
+  "variant_key": "SROIE-MY-TEST-0262/V02",
+  "severity": "moderate",
+  "x": 161,
+  "y": 942,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 62,
+  "variant_key": "SROIE-MY-TEST-0070/V03",
+  "severity": "severe",
+  "x": 134,
+  "y": 860,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 63,
+  "variant_key": "SROIE-MY-TEST-0262/V02",
+  "severity": "moderate",
+  "x": 485,
+  "y": 250,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 64,
+  "variant_key": "SROIE-MY-TEST-0186/V03",
+  "severity": "severe",
+  "x": 623,
+  "y": 992,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 65,
+  "variant_key": "SROIE-MY-TRAIN-0233/V02",
+  "severity": "moderate",
+  "x": 405,
+  "y": 1301,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 66,
+  "variant_key": "SROIE-MY-TEST-0262/V02",
+  "severity": "moderate",
+  "x": 291,
+  "y": 1332,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 67,
+  "variant_key": "SROIE-MY-TRAIN-0148/V02",
+  "severity": "moderate",
+  "x": 43,
+  "y": 974,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 68,
+  "variant_key": "SROIE-MY-TRAIN-0221/V02",
+  "severity": "moderate",
+  "x": 112,
+  "y": 1392,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 69,
+  "variant_key": "SROIE-MY-TEST-0237/V01",
+  "severity": "light",
+  "x": 705,
+  "y": 1514,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 70,
+  "variant_key": "SROIE-MY-TRAIN-0094/V03",
+  "severity": "severe",
+  "x": 238,
+  "y": 1242,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 71,
+  "variant_key": "SROIE-MY-TRAIN-0150/V03",
+  "severity": "severe",
+  "x": 205,
+  "y": 241,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 72,
+  "variant_key": "SROIE-MY-TEST-0065/V02",
+  "severity": "moderate",
+  "x": 369,
+  "y": 493,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 73,
+  "variant_key": "SROIE-MY-TEST-0145/V02",
+  "severity": "moderate",
+  "x": 563,
+  "y": 975,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 74,
+  "variant_key": "SROIE-MY-TRAIN-0233/V02",
+  "severity": "moderate",
+  "x": 275,
+  "y": 912,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 75,
+  "variant_key": "SROIE-MY-TRAIN-0094/V03",
+  "severity": "severe",
+  "x": 213,
+  "y": 268,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 76,
+  "variant_key": "SROIE-MY-TRAIN-0094/V03",
+  "severity": "severe",
+  "x": 154,
+  "y": 1314,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 77,
+  "variant_key": "SROIE-MY-TEST-0223/V01",
+  "severity": "light",
+  "x": 461,
+  "y": 578,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 78,
+  "variant_key": "SROIE-MY-TEST-0051/V03",
+  "severity": "severe",
+  "x": 155,
+  "y": 507,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 79,
+  "variant_key": "SROIE-MY-TEST-0023/V03",
+  "severity": "severe",
+  "x": 487,
+  "y": 460,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 80,
+  "variant_key": "SROIE-MY-TRAIN-0233/V02",
+  "severity": "moderate",
+  "x": 448,
+  "y": 1334,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 81,
+  "variant_key": "SROIE-MY-TRAIN-0020/V01",
+  "severity": "light",
+  "x": 58,
+  "y": 538,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 82,
+  "variant_key": "SROIE-MY-TEST-0137/V02",
+  "severity": "moderate",
+  "x": 355,
+  "y": 63,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 83,
+  "variant_key": "SROIE-MY-TEST-0237/V01",
+  "severity": "light",
+  "x": 720,
+  "y": 1518,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 84,
+  "variant_key": "SROIE-MY-TEST-0023/V03",
+  "severity": "severe",
+  "x": 546,
+  "y": 623,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 85,
+  "variant_key": "SROIE-MY-TEST-0051/V03",
+  "severity": "severe",
+  "x": 164,
+  "y": 704,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 86,
+  "variant_key": "SROIE-MY-TEST-0065/V02",
+  "severity": "moderate",
+  "x": 162,
+  "y": 203,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 87,
+  "variant_key": "SROIE-MY-TEST-0137/V02",
+  "severity": "moderate",
+  "x": 613,
+  "y": 220,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 88,
+  "variant_key": "SROIE-MY-TEST-0070/V03",
+  "severity": "severe",
+  "x": 420,
+  "y": 1535,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 89,
+  "variant_key": "SROIE-MY-TEST-0141/V02",
+  "severity": "moderate",
+  "x": 572,
+  "y": 369,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 90,
+  "variant_key": "SROIE-MY-TEST-0186/V03",
+  "severity": "severe",
+  "x": 494,
+  "y": 894,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 91,
+  "variant_key": "SROIE-MY-TEST-0186/V03",
+  "severity": "severe",
+  "x": 670,
+  "y": 708,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 92,
+  "variant_key": "SROIE-MY-TEST-0137/V02",
+  "severity": "moderate",
+  "x": 532,
+  "y": 916,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 93,
+  "variant_key": "SROIE-MY-TEST-0145/V02",
+  "severity": "moderate",
+  "x": 278,
+  "y": 1438,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 94,
+  "variant_key": "SROIE-MY-TRAIN-0148/V02",
+  "severity": "moderate",
+  "x": 244,
+  "y": 217,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 95,
+  "variant_key": "SROIE-MY-TRAIN-0221/V02",
+  "severity": "moderate",
+  "x": 351,
+  "y": 832,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 96,
+  "variant_key": "SROIE-MY-TEST-0145/V02",
+  "severity": "moderate",
+  "x": 130,
+  "y": 1407,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 97,
+  "variant_key": "SROIE-MY-TEST-0051/V03",
+  "severity": "severe",
+  "x": 504,
+  "y": 1096,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 98,
+  "variant_key": "SROIE-MY-TRAIN-0094/V03",
+  "severity": "severe",
+  "x": 360,
+  "y": 1285,
+  "rule_label_gsup": 0
+ },
+ {
+  "item": 99,
+  "variant_key": "SROIE-MY-TEST-0141/V02",
+  "severity": "moderate",
+  "x": 237,
+  "y": 1153,
+  "rule_label_gsup": 1
+ },
+ {
+  "item": 100,
+  "variant_key": "SROIE-MY-TRAIN-0233/V02",
+  "severity": "moderate",
+  "x": 301,
+  "y": 935,
+  "rule_label_gsup": 1
+ }
+]

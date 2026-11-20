@@ -1,0 +1,13 @@
+=== start Mon 09/11/2026  6:51:49.77 === 
+warning: in the working copy of 'src/dsdnet_receipt/ocr.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/receipt_context.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/revision_test_20261109.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_rq1_revision.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 1343612] RQ1 revision (chosen on validation only): keep the spaced reading of identical letters; reading copy keeps lines the reader accepted (>= 0.50)
+ 5 files changed, 212 insertions(+), 3 deletions(-)
+ create mode 100644 scripts/revision_test_20261109.py
+ create mode 100644 scripts/run_revision_test_20261109.cmd
+ create mode 100644 tests/test_rq1_revision.py
+pytest exit 0 
+revision exit 0  9:12:36.85 
+=== end Mon 09/11/2026  9:12:45.06 === 

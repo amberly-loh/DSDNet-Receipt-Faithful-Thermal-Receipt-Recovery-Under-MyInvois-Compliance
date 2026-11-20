@@ -1,0 +1,444 @@
+{
+ "evaluation_receipts_all_upright_and_framed": {
+  "receipts": 452,
+  "counts": {
+   "ok": 446,
+   "crop": 6
+  },
+  "prompt_rate": 0.01327433628318584,
+  "flagged": [
+   {
+    "run": "USER-20261112-020556-d30339",
+    "issue": "crop",
+    "signals": {
+     "lines": 101,
+     "characters": 801,
+     "mean_confidence": 0.808,
+     "vertical_lines": 0,
+     "short_lines": 16,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261112-020654-51b669",
+    "issue": "crop",
+    "signals": {
+     "lines": 102,
+     "characters": 848,
+     "mean_confidence": 0.799,
+     "vertical_lines": 0,
+     "short_lines": 11,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261112-020758-307fb9",
+    "issue": "crop",
+    "signals": {
+     "lines": 79,
+     "characters": 624,
+     "mean_confidence": 0.738,
+     "vertical_lines": 0,
+     "short_lines": 17,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261112-020957-7ab221",
+    "issue": "crop",
+    "signals": {
+     "lines": 128,
+     "characters": 907,
+     "mean_confidence": 0.759,
+     "vertical_lines": 0,
+     "short_lines": 24,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261112-023356-9ba85c",
+    "issue": "crop",
+    "signals": {
+     "lines": 49,
+     "characters": 597,
+     "mean_confidence": 0.736,
+     "vertical_lines": 0,
+     "short_lines": 4,
+     "has_total_amount": false,
+     "has_transaction_date": true,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261112-070821-7b3680",
+    "issue": "crop",
+    "signals": {
+     "lines": 40,
+     "characters": 283,
+     "mean_confidence": 0.69,
+     "vertical_lines": 0,
+     "short_lines": 15,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   }
+  ]
+ },
+ "app_receipts": {
+  "receipts": 345,
+  "counts": {
+   "unreadable": 18,
+   "ok": 321,
+   "rotation": 2,
+   "crop": 4
+  },
+  "prompt_rate": 0.06956521739130435,
+  "flagged": [
+   {
+    "run": "USER-20261016-152053",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261016-152147",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261019-104946",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": true,
+     "has_transaction_date": true,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261019-120800-b1346f",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": true,
+     "has_transaction_date": true,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261019-120823-5a7e2c",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": true,
+     "has_transaction_date": true,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261019-120841-4e8473",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": true,
+     "has_transaction_date": true,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261019-131153-8b5cbe",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": true,
+     "has_transaction_date": true,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261019-131259-be1b3c",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": true,
+     "has_transaction_date": true,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261019-131348-876e73",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": true,
+     "has_transaction_date": true,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261019-145844-5c33e9",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261019-190816-6dfb3e",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": true,
+     "has_transaction_date": false,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261019-191035-0bb097",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261028-210540-b3c3cc",
+    "issue": "rotation",
+    "signals": {
+     "lines": 4,
+     "characters": 31,
+     "mean_confidence": 0.799,
+     "vertical_lines": 4,
+     "short_lines": 1,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261028-210541-a1281c",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 0,
+     "characters": 0,
+     "mean_confidence": 0.0,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": false
+    }
+   },
+   {
+    "run": "USER-20261029-230715-1adf3d",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 3,
+     "characters": 21,
+     "mean_confidence": 0.789,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261030-164429-eeb821",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 3,
+     "characters": 21,
+     "mean_confidence": 0.788,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261101-195222-55acfe",
+    "issue": "crop",
+    "signals": {
+     "lines": 80,
+     "characters": 578,
+     "mean_confidence": 0.753,
+     "vertical_lines": 0,
+     "short_lines": 24,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261104-113923-4ac712",
+    "issue": "crop",
+    "signals": {
+     "lines": 48,
+     "characters": 291,
+     "mean_confidence": 0.753,
+     "vertical_lines": 0,
+     "short_lines": 12,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261104-202618-8485d9",
+    "issue": "crop",
+    "signals": {
+     "lines": 46,
+     "characters": 665,
+     "mean_confidence": 0.872,
+     "vertical_lines": 0,
+     "short_lines": 2,
+     "has_total_amount": false,
+     "has_transaction_date": true,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261105-130758-c23956",
+    "issue": "crop",
+    "signals": {
+     "lines": 49,
+     "characters": 493,
+     "mean_confidence": 0.826,
+     "vertical_lines": 0,
+     "short_lines": 4,
+     "has_total_amount": false,
+     "has_transaction_date": true,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261106-124927-52f250",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 3,
+     "characters": 21,
+     "mean_confidence": 0.788,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261106-183110-e21373",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 3,
+     "characters": 21,
+     "mean_confidence": 0.788,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261106-194542-127650",
+    "issue": "unreadable",
+    "signals": {
+     "lines": 3,
+     "characters": 21,
+     "mean_confidence": 0.788,
+     "vertical_lines": 0,
+     "short_lines": 0,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   },
+   {
+    "run": "USER-20261107-165024-5e63b4",
+    "issue": "rotation",
+    "signals": {
+     "lines": 9,
+     "characters": 137,
+     "mean_confidence": 0.651,
+     "vertical_lines": 9,
+     "short_lines": 1,
+     "has_total_amount": false,
+     "has_transaction_date": false,
+     "has_merchant": true
+    }
+   }
+  ]
+ }
+}

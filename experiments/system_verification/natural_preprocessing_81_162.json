@@ -1,0 +1,13 @@
+{
+  "total": 81,
+  "decoded": 81,
+  "failed": [],
+  "boundary": {
+    "content_fallback": 79,
+    "rectified": 1,
+    "not_detected": 1
+  },
+  "coarse_rotated": 2,
+  "deskewed": 28,
+  "seconds": 145.11360836029053
+}

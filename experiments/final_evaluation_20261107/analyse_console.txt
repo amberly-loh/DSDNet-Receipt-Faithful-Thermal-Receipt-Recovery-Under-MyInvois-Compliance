@@ -1,0 +1,172 @@
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:735: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  unsupported = accept & (~table.correct.to_numpy() | ~(table.supported.fillna(False).astype(bool).to_numpy()))
+C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\scripts\final_evaluation_20261107.py:773: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  supported = ftest.supported.fillna(False).astype(bool).to_numpy()
+{
+ "test_variants": 120,
+ "test_sources": 40,
+ "rq1_summary": [
+  {
+   "method": "A_direct",
+   "label": "A Direct extraction",
+   "cer": 0.37533391947321537,
+   "cer_ci": [
+    0.3328126909855316,
+    0.41852385771872863
+   ],
+   "wer": 0.6748384733207038,
+   "wer_ci": [
+    0.6395927455788916,
+    0.7091005535565732
+   ],
+   "field_accuracy": 0.3638888888888888,
+   "field_accuracy_ci": [
+    0.29722222222222217,
+    0.4333333333333333
+   ],
+   "high_risk_accuracy": 0.4041666666666666,
+   "high_risk_accuracy_ci": [
+    0.3208333333333333,
+    0.4916666666666666
+   ],
+   "merchant_correct": 0.2833333333333333,
+   "merchant_correct_ci": [
+    0.19166666666666665,
+    0.3833333333333333
+   ],
+   "transaction_date_correct": 0.39999999999999997,
+   "transaction_date_correct_ci": [
+    0.2833333333333333,
+    0.5166666666666666
+   ],
+   "total_amount_correct": 0.4083333333333333,
+   "total_amount_correct_ci": [
+    0.3083333333333333,
+    0.5166666666666666
+   ],
+   "total_seconds": 8.084788928336152,
+   "total_seconds_ci": [
+    7.115235533311206,
+    9.20689487369059
+   ]
+  },
+  {
+   "method": "B_otsu",
+   "label": "B Otsu",
+   "cer": 0.5725559591156874,
+   "cer_ci": [
+    0.5200756512254239,
+    0.6248875394929243
+   ],
+   "wer": 0.8254240584112248,
+   "wer_ci": [
+    0.7944566897144236,
+    0.8547462983682558
+   ],
+   "field_accuracy": 0.14166666666666666,
+   "field_accuracy_ci": [
+    0.09722222222222224,
+    0.18888888888888888
+   ],
+   "high_risk_accuracy": 0.175,
+   "high_risk_accuracy_ci": [
+    0.11666666666666665,
+    0.24166666666666664
+   ],
+   "merchant_correct": 0.075,
+   "merchant_correct_ci": [
+    0.03333333333333333,
+    0.125
+   ],
+   "transaction_date_correct": 0.15833333333333333,
+   "transaction_date_correct_ci": [
+    0.08333333333333333,
+    0.24166666666666664
+   ],
+   "total_amount_correct": 0.19166666666666665,
+   "total_amount_correct_ci": [
+    0.11666666666666665,
+    0.275
+   ],
+   "total_seconds": 6.703778399160849,
+   "total_seconds_ci": [
+    5.7057601681203955,
+    7.820502954410292
+   ]
+  },
+  {
+   "method": "B_sauvola",
+   "label": "B Sauvola",
+   "cer": 0.6712295540368757,
+   "cer_ci": [
+    0.6135332613817447,
+    0.7282617908751717
+   ],
+   "wer": 0.871708192574653,
+   "wer_ci": [
+    0.8384107998575346,
+    0.9028261529232516
+   ],
+   "field_accuracy": 0.09166666666666666,
+   "field_accuracy_ci": [
+    0.05555555555555556,
+    0.13055555555555554
+   ],
+   "high_risk_accuracy": 0.12916666666666665,
+   "high_risk_accuracy_ci": [
+    0.075,
+    0.1875
+   ],
+   "merchant_correct": 0.016666666666666666,
+   "merchant_correct_ci": [
+    0.0,
+    0.041666666666666664
+   ],
+   "transaction_date_correct": 0.125,
+   "transaction_date_correct_ci": [
+    0.06666666666666667,
+    0.19166666666666665
+   ],
+   "total_amount_correct": 0.13333333333333333,
+   "total_amount_correct_ci": [
+    0.06666666666666667,
+    0.21666666666666665
+   ],
+   "total_seconds": 6.964663438335992,
+   "total_seconds_ci": [
+    5.947429997341509,
+

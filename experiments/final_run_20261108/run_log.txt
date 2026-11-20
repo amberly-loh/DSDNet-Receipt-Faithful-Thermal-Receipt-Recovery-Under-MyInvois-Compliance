@@ -1,0 +1,34 @@
+=== final run start Sun 08/11/2026  7:45:48.02 === 
+Already on 'app-update-20261107'
+M	artifacts/readiness/dsdnet_adapter_smoke_test.json
+M	artifacts/readiness/dsdnet_training_preflight.json
+M	artifacts/system_verification/system_verification.json
+M	configs/default.json
+M	scripts/restart_app.ps1
+M	scripts/run_server_persistent.cmd
+M	src/dsdnet_receipt/__init__.py
+M	src/dsdnet_receipt/ocr.py
+M	src/dsdnet_receipt/receipt_context.py
+M	src/dsdnet_receipt/restoration.py
+M	src/dsdnet_receipt/web_app.py
+warning: in the working copy of 'configs/default.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/__init__.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/ocr.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/receipt_context.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/web_app.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/check_gpu_ocr.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/export_support_audit_20261108.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/final_run_20261108.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/profile_restoration_20261108.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/speed_check_20261108.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 e169dae] Speed: GPU text reader in a helper process, cached reading-copy tidy-up, restoration tile batch 16, stage timing; support audit export; final locked evaluation
+ 14 files changed, 611 insertions(+), 10 deletions(-)
+ create mode 100644 scripts/check_gpu_ocr.py
+ create mode 100644 scripts/export_support_audit_20261108.py
+ create mode 100644 scripts/final_run_20261108.py
+ create mode 100644 scripts/profile_restoration_20261108.py
+ create mode 100644 scripts/run_final_20261108.cmd
+ create mode 100644 scripts/speed_check_20261108.py
+pytest exit 0 
+final run exit 0 11:07:15.62 
+=== final run end Sun 08/11/2026 11:07:24.84 === 

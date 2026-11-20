@@ -1,0 +1,155 @@
+{
+  "scope": "exploratory OCR-confidence only; previously inspected validation sources; not calibrated source support or independent test",
+  "split": "SHA-256(source_id) first 32 bits modulo 2",
+  "excluded_exact_duplicate_source_ids": [
+    "SROIE-MY-TEST-0010",
+    "SROIE-MY-TEST-0013",
+    "SROIE-MY-TEST-0153",
+    "SROIE-MY-TEST-0156",
+    "SROIE-MY-TRAIN-0017",
+    "SROIE-MY-TRAIN-0019",
+    "SROIE-MY-TRAIN-0235",
+    "SROIE-MY-TRAIN-0239"
+  ],
+  "thresholds": [
+    0.0,
+    0.5,
+    0.7,
+    0.8,
+    0.9,
+    0.95
+  ],
+  "results": {
+    "date": {
+      "calibration_curve": [
+        {
+          "threshold": 0.0,
+          "labelled": 55,
+          "accepted": 46,
+          "errors": 1,
+          "coverage": 0.8363636363636363,
+          "risk": 0.021739130434782608
+        },
+        {
+          "threshold": 0.5,
+          "labelled": 55,
+          "accepted": 46,
+          "errors": 1,
+          "coverage": 0.8363636363636363,
+          "risk": 0.021739130434782608
+        },
+        {
+          "threshold": 0.7,
+          "labelled": 55,
+          "accepted": 46,
+          "errors": 1,
+          "coverage": 0.8363636363636363,
+          "risk": 0.021739130434782608
+        },
+        {
+          "threshold": 0.8,
+          "labelled": 55,
+          "accepted": 46,
+          "errors": 1,
+          "coverage": 0.8363636363636363,
+          "risk": 0.021739130434782608
+        },
+        {
+          "threshold": 0.9,
+          "labelled": 55,
+          "accepted": 45,
+          "errors": 1,
+          "coverage": 0.8181818181818182,
+          "risk": 0.022222222222222223
+        },
+        {
+          "threshold": 0.95,
+          "labelled": 55,
+          "accepted": 27,
+          "errors": 1,
+          "coverage": 0.4909090909090909,
+          "risk": 0.037037037037037035
+        }
+      ],
+      "selected_threshold": 0.8,
+      "selection_rule": "maximum accepted count among pre-specified thresholds with at least 10 accepted calibration fields and observed error <=10%; tie to higher threshold",
+      "evaluation": {
+        "labelled": 69,
+        "accepted": 59,
+        "errors": 2,
+        "coverage": 0.855072463768116,
+        "risk": 0.03389830508474576
+      },
+      "evaluation_baseline": {
+        "labelled": 69,
+        "accepted": 59,
+        "errors": 2,
+        "coverage": 0.855072463768116,
+        "risk": 0.03389830508474576
+      }
+    },
+    "total": {
+      "calibration_curve": [
+        {
+          "threshold": 0.0,
+          "labelled": 64,
+          "accepted": 58,
+          "errors": 21,
+          "coverage": 0.90625,
+          "risk": 0.3620689655172414
+        },
+        {
+          "threshold": 0.5,
+          "labelled": 64,
+          "accepted": 58,
+          "errors": 21,
+          "coverage": 0.90625,
+          "risk": 0.3620689655172414
+        },
+        {
+          "threshold": 0.7,
+          "labelled": 64,
+          "accepted": 58,
+          "errors": 21,
+          "coverage": 0.90625,
+          "risk": 0.3620689655172414
+        },
+        {
+          "threshold": 0.8,
+          "labelled": 64,
+          "accepted": 58,
+          "errors": 21,
+          "coverage": 0.90625,
+          "risk": 0.3620689655172414
+        },
+        {
+          "threshold": 0.9,
+          "labelled": 64,
+          "accepted": 56,
+          "errors": 20,
+          "coverage": 0.875,
+          "risk": 0.35714285714285715
+        },
+        {
+          "threshold": 0.95,
+          "labelled": 64,
+          "accepted": 52,
+          "errors": 19,
+          "coverage": 0.8125,
+          "risk": 0.36538461538461536
+        }
+      ],
+      "selected_threshold": null,
+      "selection_rule": "maximum accepted count among pre-specified thresholds with at least 10 accepted calibration fields and observed error <=10%; tie to higher threshold",
+      "evaluation": null,
+      "evaluation_baseline": {
+        "labelled": 83,
+        "accepted": 73,
+        "errors": 28,
+        "coverage": 0.8795180722891566,
+        "risk": 0.3835616438356164
+      }
+    }
+  },
+  "warning": "Selection and evaluation are small and based on previously inspected data; no statistical risk guarantee, no applicability to handwritten invoices or source-trace decisions."
+}

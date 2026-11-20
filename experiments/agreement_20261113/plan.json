@@ -1,0 +1,9 @@
+{
+ "written": "2026-11-13 05:01:57",
+ "doc": "Reading agreement: one-time run of the improved proposed system (13 November 2026).\n\nImprovement (src/dsdnet_receipt/reading_agreement.py): merchant, date and total are each kept at the value\nthat most independent readings of the rectified receipt agree on (the application's fused reading, the\nrectified image read directly, its Otsu and perceptual versions, and the DSDNet restoration read alone; the\nfused reading wins ties). It was designed from the first fresh real-receipt test (fresh_test_20261113,\ntreated from now on as development data) and is checked here before any test image is processed.\n\nPlan, fixed before the run:\n1. Validation gate: the full system on the 120 validation images (40 validation sources). Every record holds\n   the single-reading values (the system before this change) and the agreed values. The change is adopted\n   only if, on validation, agreed field accuracy is higher than single-reading field accuracy and agreed\n   high-risk accuracy is not lower. The decision is written to gate.json before any test image is read.\n2. Test: the full system on the 285 locked test images (95 sources) and the 159 replication images (53\n   sources), one image at a time with nothing else running (these times are the NFR1 measurement of the\n   default preset). The baselines A-D are unchanged and their parser-revision records are reused.\n3. The P_full values are the agreed values if the gate adopted the change, otherwise the single-reading values.\nResults are reported whatever they show. A second run is refused.\n",
+ "images": {
+  "validation": 120,
+  "locked_test": 285,
+  "replication": 159
+ }
+}

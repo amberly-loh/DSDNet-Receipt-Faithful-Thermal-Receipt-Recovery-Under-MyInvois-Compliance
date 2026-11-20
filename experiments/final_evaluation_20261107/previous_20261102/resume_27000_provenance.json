@@ -1,0 +1,25 @@
+{
+  "started_utc": "2026-11-02T05:41:10.6442374Z",
+  "process_id": 22060,
+  "resume_checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_exact_excluded_resume_15000_20261102\\checkpoint_latest.pt",
+  "resume_checkpoint_sha256": "644DD7147E01DD64F4C0B7BE22DBDAA552E9274E3DE79B93EBE113A54ECD0075",
+  "config": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\exact_duplicate_excluded_20261102\\training_config.json",
+  "config_sha256": "B4F08F270368194994518239C8947F891DCA852A1C392E829319DE0280530CCB",
+  "arguments": [
+    "scripts\\train_dsdnet_receipt.py",
+    "--config",
+    "\"C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\exact_duplicate_excluded_20261102\\training_config.json\"",
+    "--resume",
+    "\"C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_exact_excluded_resume_15000_20261102\\checkpoint_latest.pt\"",
+    "--output-name",
+    "training_exact_excluded_resume_15000_20261102",
+    "--checkpoint-interval",
+    "1000",
+    "--rolling-checkpoint",
+    "--max-nonfinite-skips",
+    "25"
+  ],
+  "script_sha256": "A194E5C3858B8AA0EEB161BC84A6FBDDC1A36BA189264A9D5FCF864133F88CD1",
+  "nonfinite_skip_budget": 25,
+  "reason": "Resume after isolated non-finite loss at iteration 27594; quarantine events are appended to nonfinite_samples.jsonl."
+}

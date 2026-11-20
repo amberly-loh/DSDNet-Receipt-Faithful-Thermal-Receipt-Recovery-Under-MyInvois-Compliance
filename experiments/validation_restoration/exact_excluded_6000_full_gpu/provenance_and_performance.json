@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "scope": "exploratory validation; fixed 6000-step candidate; exact cross-partition SHA-256 duplicate groups excluded",
+  "source_groups": 85,
+  "variants": 255,
+  "crop_size": [
+    128,
+    128
+  ],
+  "environment": {
+    "python": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "pytorch": "2.1.2+cu118",
+    "cuda_available_at_recording": true,
+    "gpu_name": "NVIDIA GeForce RTX 3050 Laptop GPU"
+  },
+  "files": {
+    "checkpoint": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_exact_duplicate_excluded_20261102_snapshot\\checkpoint_snapshot.pt",
+      "sha256": "ce43390fce403f2eca6c111b23c610a002043f7d4bd4d24c5fedb5392b068f2a"
+    },
+    "generation_manifest": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\exact_duplicate_excluded_20261102\\generation_manifest.jsonl",
+      "sha256": "18ffa22e16cd11d9bb6f4d518424f15018cb8e9e2b07334244509a9759ffdb57"
+    },
+    "training_config": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\exact_duplicate_excluded_20261102\\training_config.json",
+      "sha256": "b4f08f270368194994518239c8947f891dca852a1c392e829319de0280530ccb"
+    },
+    "evaluation_script": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\scripts\\evaluate_restoration_validation.py",
+      "sha256": "d78b3e79feeadfcce2b94d56055fd288e1c3b2d8f2b886eb76ab64835cea8f58"
+    },
+    "baseline_code": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\src\\dsdnet_receipt\\baselines.py",
+      "sha256": "6b20ff9d6b62efe804282db57942000bd699f75b78ae38423ed5263b4f4b10e9"
+    },
+    "records": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_full_gpu\\records.csv",
+      "sha256": "cf51427292c6542a710a4bb7acfa6ef231374f00cfb4f4300909585ab5301224"
+    },
+    "summary": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_full_gpu\\summary.json",
+      "sha256": "45cffe6f40b3a76c01e00726ca82a12a3bfdf563ecb1ad302f424e7ecdcad2ad"
+    },
+    "paired_significance": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_full_gpu\\paired_significance.json",
+      "sha256": "f85fbb70d63f5570ff4993f3c66e5e7f2b0c8497bcf9cbf090d4ffe738f6429e"
+    }
+  },
+  "per_crop_timing": {
+    "A_direct": {
+      "n": 255,
+      "median_s": 0.0012003000010736287,
+      "p95_s": 0.0018768400128465145,
+      "mean_s": 0.0013103615691173163
+    },
+    "B_otsu": {
+      "n": 255,
+      "median_s": 0.0010109000140801072,
+      "p95_s": 0.0016630000143777576,
+      "mean_s": 0.0011245313735094432
+    },
+    "B_sauvola": {
+      "n": 255,
+      "median_s": 0.001129999989643693,
+      "p95_s": 0.0018720300227869295,
+      "mean_s": 0.001284892548460002
+    },
+    "C_perceptual": {
+      "n": 255,
+      "median_s": 0.0018622000352479517,
+      "p95_s": 0.002734300005249679,
+      "mean_s": 0.00208509960919436
+    },
+    "Proposed_DSDNet_Receipt": {
+      "n": 255,
+      "median_s": 0.05502650002017617,
+      "p95_s": 0.06724928999901748,
+      "mean_s": 0.06255514823247259
+    }
+  },
+  "timing_limit": "Exploratory wall times from one run on 128x128 crops; method timing boundaries differ, include warmup and are not full receipt latency or a fair speed benchmark.",
+  "limitations": [
+    "Validation and test partitions previously inspected.",
+    "Exact-byte duplicates removed; potential near duplicates have not been resolved.",
+    "Synthetic centre crops and 6000-step checkpoint, not complete training or a real-world usability assessment.",
+    "Some baseline PSNR aggregates are infinity due to identical inputs and are omitted from comparisons."
+  ]
+}

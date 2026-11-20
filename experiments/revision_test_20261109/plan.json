@@ -1,0 +1,7 @@
+{
+ "written": "2026-11-09 06:52:53",
+ "doc": "RQ1 revision: one-time test run (9 November 2026).\n\nDisclosed post-evaluation revision. After the locked and replication results were known, an error\nanalysis showed the full system losing to Baseline D on business names and on page CER for severely\ndegraded receipts. Two changes were then developed on the 40 validation sources only\n(artifacts/dev_validation_20261108) and frozen before this script was written:\n  1. when two views read the same letters at the same place, keep the reading with more word gaps,\n     then the more confident one (ocr.py, _reading_preference);\n  2. the reading copy keeps every line the reader accepted (cut-off 0.50, the reader's own floor,\n     instead of 0.55) (receipt_context.py).\nNo test receipt was read while the changes were developed. This script runs the revised full system\n(P_full, balanced preset) once on every test receipt: the locked set (95 sources; primary 41-95) and\nthe replication set (53 sources). Baselines A-D do not use either changed function and are reused from\nthe locked and replication runs. AC1 and NFR1 decision rules are unchanged; results are reported\nwhatever they show, beside the original locked results. The Fast preset is then timed again on the\nprimary sources for NFR1.\n",
+ "images": 444,
+ "locked_sources": 95,
+ "replication_sources": 53
+}

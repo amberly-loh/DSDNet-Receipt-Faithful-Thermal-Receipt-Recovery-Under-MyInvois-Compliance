@@ -1,0 +1,42 @@
+=== start Sun 08/11/2026 15:47:59.72 === 
+warning: in the working copy of 'scripts/decide_fp16_20261108.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/speed_check_20261108.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/settings.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/web_app.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 894c4fb] Fast preset: process at 1280 px (half precision off); validation rule; timing run
+ 5 files changed, 45 insertions(+), 9 deletions(-)
+ create mode 100644 scripts/run_lowres_20261108.cmd
+pytest exit 0 
+fast_base SROIE-MY-TRAIN-0128/V01 17.7s
+fast_base SROIE-MY-TRAIN-0128/V02 22.3s
+fast_base SROIE-MY-TRAIN-0128/V03 26.2s
+fast_base SROIE-MY-TRAIN-0057/V01 27.8s
+fast_base SROIE-MY-TRAIN-0057/V02 21.6s
+fast_base SROIE-MY-TRAIN-0057/V03 20.9s
+fast_base SROIE-MY-TEST-0064/V01 17.3s
+fast_base SROIE-MY-TEST-0064/V02 21.8s
+fast_base SROIE-MY-TEST-0064/V03 26.1s
+fast_base SROIE-MY-TRAIN-0001/V01 11.1s
+fast_base SROIE-MY-TRAIN-0001/V02 11.6s
+fast_base SROIE-MY-TRAIN-0001/V03 10.5s
+fast_base SROIE-MY-TEST-0316/V01 11.9s
+fast_base SROIE-MY-TEST-0316/V02 13.7s
+fast_base SROIE-MY-TEST-0316/V03 12.8s
+fast_lowres SROIE-MY-TRAIN-0128/V01 12.4s
+fast_lowres SROIE-MY-TRAIN-0128/V02 15.1s
+fast_lowres SROIE-MY-TRAIN-0128/V03 17.3s
+fast_lowres SROIE-MY-TRAIN-0057/V01 17.0s
+fast_lowres SROIE-MY-TRAIN-0057/V02 16.3s
+fast_lowres SROIE-MY-TRAIN-0057/V03 15.4s
+fast_lowres SROIE-MY-TEST-0064/V01 12.4s
+fast_lowres SROIE-MY-TEST-0064/V02 16.2s
+fast_lowres SROIE-MY-TEST-0064/V03 19.0s
+fast_lowres SROIE-MY-TRAIN-0001/V01 11.0s
+fast_lowres SROIE-MY-TRAIN-0001/V02 11.7s
+fast_lowres SROIE-MY-TRAIN-0001/V03 10.5s
+fast_lowres SROIE-MY-TEST-0316/V01 11.9s
+fast_lowres SROIE-MY-TEST-0316/V02 13.4s
+fast_lowres SROIE-MY-TEST-0316/V03 13.0s
+{'fast_base': {'fa': 0.17777777777777776, 'cer': 0.44367750654022753, 'word_f1': 0.3592381924524325, 'seconds': 18.21376639332933, 'failed': 0}, 'fast_lowres': {'fa': 0.17777777777777778, 'cer': 0.44627320055332576, 'word_f1': 0.35492850844788815, 'seconds': 14.178864086671577, 'failed': 0}, 'adopt': True, 'rule': 'field accuracy not lower; CER not higher by more than 0.005; no extra failures'}
+lowres exit 0 16:40:15.94 
+=== end Sun 08/11/2026 16:40:23.91 === 

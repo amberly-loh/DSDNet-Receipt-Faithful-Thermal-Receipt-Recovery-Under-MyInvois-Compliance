@@ -1,0 +1,18 @@
+{
+  "status": "PASS",
+  "independent_sources": 1000,
+  "variants": 3000,
+  "severity_counts": {
+    "light": 1000,
+    "moderate": 1000,
+    "severe": 1000
+  },
+  "partition_variant_counts": {
+    "test": 450,
+    "train": 2100,
+    "validation": 450
+  },
+  "hashes_checked": 3000,
+  "source_partition_leakage": [],
+  "errors": []
+}

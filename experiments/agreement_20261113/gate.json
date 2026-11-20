@@ -1,0 +1,10 @@
+{
+ "images": 120,
+ "single_field_accuracy": 0.4305555555555556,
+ "agreed_field_accuracy": 0.46944444444444444,
+ "single_high_risk_accuracy": 0.5083333333333333,
+ "agreed_high_risk_accuracy": 0.5416666666666666,
+ "adopted": true,
+ "rule": "adopt iff agreed field accuracy > single-reading field accuracy and agreed high-risk accuracy >= single-reading",
+ "written": "2026-11-13 06:02:03"
+}

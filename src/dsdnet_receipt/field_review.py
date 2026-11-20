@@ -319,7 +319,13 @@ def review_key_fields(lines: list[dict[str, Any]], extracted: dict[str, dict[str
     if number and (not current or current not in number):
         change("receipt_invoice_number", number, why, line)
 
-    return {"method": "app_field_review_v1", "changes": changes}
+    # logic checks: a lost decimal point, a total contradicted by cash and
+    # change, a date with a lost separator or one look-alike digit
+    from .field_logic import apply_logic
+    logic = apply_logic(lines, extracted, today)
+    for name, record in logic["changes"].items():
+        changes[name] = record
+    return {"method": "app_field_review_v1", "changes": changes, "logic": logic["method"]}
 
 
 def extract_fields_reviewed(text: str, lines: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:

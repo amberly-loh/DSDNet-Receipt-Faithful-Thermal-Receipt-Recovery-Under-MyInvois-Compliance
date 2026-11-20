@@ -1,0 +1,8 @@
+=== start Sun 08/11/2026 22:49:11.76 === 
+warning: in the working copy of 'scripts/dev_validation_20261108.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 d36633d] RQ1 revision: record validation readings view by view (no test receipts)
+ 2 files changed, 150 insertions(+)
+ create mode 100644 scripts/dev_validation_20261108.py
+ create mode 100644 scripts/run_dev_validation_20261108.cmd
+dev exit 0 23:34:24.09 
+=== end Sun 08/11/2026 23:34:32.39 === 

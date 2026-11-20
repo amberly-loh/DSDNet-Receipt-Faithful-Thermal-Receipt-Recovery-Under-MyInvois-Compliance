@@ -1,0 +1,93 @@
+{
+  "scope": "saved audit OCR lines; same normalized text is merged only when spatially co-located",
+  "runs_checked": 14,
+  "original_lines": 155,
+  "unique_physical_lines": 136,
+  "duplicates_removed": 19,
+  "records": [
+    {
+      "run_id": "USER-20261016-152053",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261016-152147",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261019-104946",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261019-120800-b1346f",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261019-120823-5a7e2c",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261019-120841-4e8473",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261019-131153-8b5cbe",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261019-131259-be1b3c",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261019-131348-876e73",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261019-145844-5c33e9",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261019-190816-6dfb3e",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261019-191035-0bb097",
+      "original_lines": 0,
+      "unique_physical_lines": 0,
+      "duplicates_removed": 0
+    },
+    {
+      "run_id": "USER-20261019-192401-6ef645",
+      "original_lines": 92,
+      "unique_physical_lines": 81,
+      "duplicates_removed": 11
+    },
+    {
+      "run_id": "USER-20261019-221447-6776b7",
+      "original_lines": 63,
+      "unique_physical_lines": 55,
+      "duplicates_removed": 8
+    }
+  ]
+}

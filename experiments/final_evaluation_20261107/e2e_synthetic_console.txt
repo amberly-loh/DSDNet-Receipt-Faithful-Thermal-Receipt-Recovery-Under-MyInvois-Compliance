@@ -1,0 +1,4 @@
+{"case": 0, "elapsed_wall_seconds": 18.13621810002951, "http_status": 200, "restoration_status": "ok", "ocr_nonempty": true, "detail_status": 200, "xlsx_status": 200}
+{"case": 1, "elapsed_wall_seconds": 3.0340701000532135, "http_status": 200, "restoration_status": "ok", "ocr_nonempty": true, "detail_status": 200, "xlsx_status": 200}
+{"case": 2, "elapsed_wall_seconds": 2.8525542999850586, "http_status": 200, "restoration_status": "ok", "ocr_nonempty": true, "detail_status": 200, "xlsx_status": 200}
+Report: C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\artifacts\e2e_synthetic_20261102\results.json

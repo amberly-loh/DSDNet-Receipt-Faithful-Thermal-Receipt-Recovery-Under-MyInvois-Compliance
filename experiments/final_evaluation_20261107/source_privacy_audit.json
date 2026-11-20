@@ -1,0 +1,30 @@
+{
+  "generated_utc": "2026-11-07T02:23:07.055680+00:00",
+  "scope": [
+    "src",
+    "configs",
+    "tests"
+  ],
+  "files_scanned": 69,
+  "secret_pattern_hits": [],
+  "dangerous_python_constructs": [],
+  "dependency_check": {
+    "exit_code": 0,
+    "stdout": "No broken requirements found.",
+    "stderr": ""
+  },
+  "provenance": {
+    "script": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\scripts\\audit_source_privacy.py",
+    "script_sha256": "eb379ce0f625c97fe25e53073baf499fdbf5a864fe82775ceefabe9b8a80298b"
+  },
+  "interpretation": {
+    "secret_scan_pass": true,
+    "dangerous_construct_scan_pass": true,
+    "dependency_check_pass": true
+  },
+  "limitations": [
+    "Pattern matching cannot prove that no secret or personal data exists.",
+    "The scan excludes datasets, generated artifacts, model weights, and user receipt storage.",
+    "No network attack, penetration test, deployment review, or privacy impact assessment was performed."
+  ]
+}

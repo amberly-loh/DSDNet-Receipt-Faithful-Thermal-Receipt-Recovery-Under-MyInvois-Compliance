@@ -1,0 +1,403 @@
+=== start Sat 07/11/2026 10:21:42.76 === 
+--- git backup --- 
+Switched to a new branch 'app-update-20261107'
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'configs/default.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/serve_production.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/fields.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/ocr.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/preprocessing.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/semantic.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/storage.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_intensive.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_web_app.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/static/app.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/static/styles.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/templates/index.html', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/final_evaluation_20261107.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/finalize_alignment_20261105.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/profile_ocr.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/profile_speed.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/restart_app.cmd', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/restart_app.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/myinvois.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/phone.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/receipt_cleanup.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/receipt_context.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/settings.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/severe_document.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_myinvois.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_photo_crop.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_receipt_context.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_severe_document.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/static/phone.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/templates/phone.html', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 a00c7e4] App update 7 Nov 2026: local workspace, phone scanning, photo crop, receipt recognition, final evaluation scripts
+ 37 files changed, 7526 insertions(+), 140 deletions(-)
+ create mode 100644 scripts/final_evaluation_20261107.py
+ create mode 100644 scripts/finalize_alignment_20261105.py
+ create mode 100644 scripts/profile_ocr.cmd
+ create mode 100644 scripts/profile_ocr.py
+ create mode 100644 scripts/profile_speed.cmd
+ create mode 100644 scripts/profile_speed.py
+ create mode 100644 scripts/restart_app.cmd
+ create mode 100644 scripts/restart_app.ps1
+ create mode 100644 scripts/run_final_evaluation_20261107.cmd
+ create mode 100644 src/dsdnet_receipt/myinvois.py
+ create mode 100644 src/dsdnet_receipt/phone.py
+ create mode 100644 src/dsdnet_receipt/receipt_cleanup.py
+ create mode 100644 src/dsdnet_receipt/receipt_context.py
+ create mode 100644 src/dsdnet_receipt/settings.py
+ create mode 100644 src/dsdnet_receipt/severe_document.py
+ create mode 100644 tests/test_myinvois.py
+ create mode 100644 tests/test_photo_crop.py
+ create mode 100644 tests/test_receipt_context.py
+ create mode 100644 tests/test_severe_document.py
+ create mode 100644 web/static/phone.js
+ create mode 100644 web/templates/phone.html
+--- keep previous evidence --- 
+artifacts\training_candidate_20261102\additional_evaluation_record_20261102.json
+artifacts\training_candidate_20261102\completion_evidence_20261102.json
+artifacts\training_candidate_20261102\concurrent_api_performance.json
+artifacts\training_candidate_20261102\dataset_partition_audit.json
+artifacts\training_candidate_20261102\experiment_index_20261102.json
+artifacts\training_candidate_20261102\experiment_record_20261102.json
+artifacts\training_candidate_20261102\field_image_ocr_validation_148.json
+artifacts\training_candidate_20261102\field_reference_validation.json
+artifacts\training_candidate_20261102\local_api_performance.json
+artifacts\training_candidate_20261102\near_duplicate_candidate_audit.json
+artifacts\training_candidate_20261102\ocr_confidence_coverage_exploratory.json
+artifacts\training_candidate_20261102\resume_27000_provenance.json
+artifacts\training_candidate_20261102\source_privacy_audit.json
+artifacts\training_candidate_20261102\usability_static_audit.json
+       14 file(s) copied.
+--- pytest --- 
+pytest exit 0 
+--- audits and benchmarks --- 
+        1 file(s) copied.
+        1 file(s) copied.
+        1 file(s) copied.
+        1 file(s) copied.
+        1 file(s) copied.
+audits done 10:25:13.45 
+--- experiments --- 
+=== start Sat 07/11/2026 10:40:27.64 === 
+--- git backup --- 
+fatal: a branch named 'app-update-20261107' already exists
+Already on 'app-update-20261107'
+M	artifacts/readiness/dsdnet_adapter_smoke_test.json
+M	artifacts/readiness/dsdnet_training_preflight.json
+M	artifacts/system_verification/system_verification.json
+M	scripts/final_evaluation_20261107.py
+M	web/templates/index.html
+warning: in the working copy of 'scripts/final_evaluation_20261107.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/templates/index.html', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 185a4bc] App update 7 Nov 2026: local workspace, phone scanning, photo crop, receipt recognition, final evaluation scripts
+ 3 files changed, 77 insertions(+), 6 deletions(-)
+ create mode 100644 scripts/run_final_evaluation_corrected_20261107.cmd
+--- keep previous evidence --- 
+artifacts\training_candidate_20261102\additional_evaluation_record_20261102.json
+artifacts\training_candidate_20261102\completion_evidence_20261102.json
+artifacts\training_candidate_20261102\concurrent_api_performance.json
+artifacts\training_candidate_20261102\dataset_partition_audit.json
+artifacts\training_candidate_20261102\experiment_index_20261102.json
+artifacts\training_candidate_20261102\experiment_record_20261102.json
+artifacts\training_candidate_20261102\field_image_ocr_validation_148.json
+artifacts\training_candidate_20261102\field_reference_validation.json
+artifacts\training_candidate_20261102\local_api_performance.json
+artifacts\training_candidate_20261102\near_duplicate_candidate_audit.json
+artifacts\training_candidate_20261102\ocr_confidence_coverage_exploratory.json
+artifacts\training_candidate_20261102\resume_27000_provenance.json
+artifacts\training_candidate_20261102\source_privacy_audit.json
+artifacts\training_candidate_20261102\usability_static_audit.json
+       14 file(s) copied.
+--- pytest --- 
+pytest exit 0 
+--- audits and benchmarks --- 
+=== corrected run start Sat 07/11/2026 10:43:39.18 === 
+        1 file(s) moved.
+--- git backup of corrections --- 
+Already on 'app-update-20261107'
+M	artifacts/readiness/dsdnet_adapter_smoke_test.json
+M	artifacts/readiness/dsdnet_training_preflight.json
+M	artifacts/system_verification/system_verification.json
+M	scripts/run_final_evaluation_corrected_20261107.cmd
+[app-update-20261107 05d7437] Final evaluation: seeded source sample, reading-copy transcription for the proposed system; date button label
+ 1 file changed, 1 insertion(+)
+--- usability static audit (after label fix) --- 
+        1 file(s) copied.
+--- experiments --- 
+=== run 3 start Sat 07/11/2026 10:51:59.24 === 
+        1 file(s) moved.
+--- git backup of corrections --- 
+Already on 'app-update-20261107'
+M	artifacts/readiness/dsdnet_adapter_smoke_test.json
+M	artifacts/readiness/dsdnet_training_preflight.json
+M	artifacts/system_verification/system_verification.json
+M	src/dsdnet_receipt/fields.py
+M	tests/test_core.py
+warning: in the working copy of 'src/dsdnet_receipt/fields.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 6a810f9] Merchant selection: skip address and registration lines, join two-line company names, rank by printed row
+ 3 files changed, 91 insertions(+), 7 deletions(-)
+ create mode 100644 scripts/run_final_evaluation_v3_20261107.cmd
+--- pytest after merchant fix --- 
+pytest exit 0 
+--- usability static audit --- 
+        1 file(s) copied.
+--- experiments --- 
+=== transcription pass queued Sat 07/11/2026 14:57:14.15 === 
+collect exit 0 15:43:39.43 
+analyse exit 0 15:43:56.46 
+=== end Sat 07/11/2026 15:43:56.47 === 
+=== transcription pass queued Sat 07/11/2026 15:59:13.53 === 
+=== transcription pass start Sat 07/11/2026 15:59:13.53 === 
+Already on 'app-update-20261107'
+M	artifacts/readiness/dsdnet_adapter_smoke_test.json
+M	artifacts/readiness/dsdnet_training_preflight.json
+M	artifacts/system_verification/system_verification.json
+M	scripts/final_evaluation_20261107.py
+M	src/dsdnet_receipt/receipt_context.py
+M	tests/test_receipt_context.py
+warning: in the working copy of 'scripts/final_evaluation_20261107.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/receipt_context.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_receipt_context.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/diagnose_reading_copy_20261107.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 c542a40] Reading copy: order pieces of one printed row left to right; transcription pass with word F1
+ 7 files changed, 225 insertions(+), 5 deletions(-)
+ create mode 100644 scripts/diagnose_reading_copy_20261107.py
+ create mode 100644 scripts/run_diagnose_one.cmd
+ create mode 100644 scripts/run_diagnose_reading_copy.cmd
+ create mode 100644 scripts/run_final_evaluation_texts_20261107.cmd
+pytest exit 0 
+=== wrap-up queued Sat 07/11/2026 17:09:59.18 === 
+texts exit 0 19:15:53.95 
+=== transcription pass end Sat 07/11/2026 19:15:53.96 === 
+=== wrap-up start Sat 07/11/2026 19:15:59.20 === 
+Already on 'app-update-20261107'
+M	artifacts/readiness/dsdnet_adapter_smoke_test.json
+M	artifacts/readiness/dsdnet_training_preflight.json
+M	artifacts/system_verification/system_verification.json
+M	src/dsdnet_receipt/preprocessing.py
+M	src/dsdnet_receipt/web_app.py
+M	tests/test_photo_crop.py
+warning: in the working copy of 'src/dsdnet_receipt/preprocessing.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/web_app.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_photo_crop.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 5cbc45d] Phone photos: separate paper from beige backgrounds by whiteness, turn sideways receipts upright, check upside down by reading
+ 4 files changed, 104 insertions(+), 6 deletions(-)
+ create mode 100644 scripts/run_final_wrapup_20261107.cmd
+pytest exit 0 
+=== wrap-up end Sat 07/11/2026 19:17:23.19 === 
+=== confirmatory start Sat 07/11/2026 20:40:05.17 === 
+Already on 'app-update-20261107'
+M	artifacts/readiness/dsdnet_adapter_smoke_test.json
+M	artifacts/readiness/dsdnet_training_preflight.json
+M	artifacts/system_verification/system_verification.json
+M	src/dsdnet_receipt/preprocessing.py
+M	src/dsdnet_receipt/web_app.py
+M	tests/test_photo_crop.py
+warning: in the working copy of 'src/dsdnet_receipt/preprocessing.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/web_app.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_photo_crop.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/confirmatory_evaluation_20261107.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 6926266] Photos: cut by the print when the paper cannot be told from a white background; app also reads the DSDNet restoration view; confirmatory evaluation
+ 5 files changed, 267 insertions(+), 2 deletions(-)
+ create mode 100644 scripts/confirmatory_evaluation_20261107.py
+ create mode 100644 scripts/run_confirmatory_20261107.cmd
+pytest exit 1 
+=== confirmatory start Sat 07/11/2026 20:41:39.00 === 
+Already on 'app-update-20261107'
+M	artifacts/readiness/dsdnet_adapter_smoke_test.json
+M	artifacts/readiness/dsdnet_training_preflight.json
+M	artifacts/system_verification/system_verification.json
+On branch app-update-20261107
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   artifacts/readiness/dsdnet_adapter_smoke_test.json
+	modified:   artifacts/readiness/dsdnet_training_preflight.json
+	modified:   artifacts/system_verification/system_verification.json
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	artifacts/all_creased_clean_spotcheck/
+	artifacts/artifact_mask_v4_natural_audit/
+	artifacts/balance_crease_check/
+	artifacts/balance_crease_check_v2/
+	artifacts/balance_crease_check_v3/
+	artifacts/balance_crease_check_v4/
+	artifacts/balance_crease_check_v5/
+	artifacts/batch_recovery_audit/
+	artifacts/batch_recovery_audit_final20/
+	artifacts/batch_recovery_audit_v2/
+	artifacts/batch_recovery_audit_v3_pilot/
+	artifacts/batch_recovery_audit_v4_pilot/
+	artifacts/batch_recovery_audit_v5_pilot/
+	artifacts/batch_recovery_audit_v6_pilot/
+	artifacts/batch_recovery_audit_v7_pilot/
+	artifacts/blob_mask_v1_natural_audit/
+	artifacts/blob_mask_v3_natural_audit/
+	artifacts/blob_wired_natural_audit/
+	artifacts/blob_wired_strict_natural_audit/
+	artifacts/candidate_natural_checks/
+	artifacts/claim_dependent_analysis/
+	artifacts/clean_sharp_balance_v1/
+	artifacts/clean_sharp_balance_v2/
+	artifacts/clean_sharp_balance_v3/
+	artifacts/clean_sharp_balance_v4/
+	artifacts/clean_sharp_balance_v5/
+	artifacts/complaint_regression/
+	artifacts/completion_verification_20261102/
+	artifacts/connected_uniform_tone_audit/
+	artifacts/consistency_audit_20261105/
+	artifacts/cowboy_conservative_v76/
+	artifacts/cowboy_darkening_check/
+	artifacts/cowboy_ocr_tone_v75/
+	artifacts/cowboy_spotcheck/
+	artifacts/cowboy_spotcheck_v2/
+	artifacts/cowboy_uniform_tone_blob_v74/
+	artifacts/cowboy_uniform_tone_v73/
+	artifacts/crease_isolation_dev/
+	artifacts/document_route_spotcheck/
+	artifacts/e2e_synthetic_20261102/
+	artifacts/exact_latest_after_cleanup/
+	artifacts/exact_latest_before_cleanup/
+	artifacts/exploratory_test_restoration/
+	artifacts/faded_creased_subset_v70/
+	artifacts/faithful_background_candidates/
+	artifacts/faithful_docx_review/
+	artifacts/feedback_receipt_evaluation/
+	artifacts/final_evaluation_20261107/
+	artifacts/fold_text_dev/
+	artifacts/generalization_audit_adaptive_v64/
+	artifacts/generalization_audit_adaptive_v65/
+	artifacts/generalization_audit_adaptive_v66/
+	artifacts/generalization_audit_candidate500/
+	artifacts/generalization_audit_clean_base/
+	artifacts/generalization_audit_new_rerun/
+	artifacts/generalization_audit_old_rerun/
+	artifacts/generalization_audit_v62/
+	artifacts/handwriting_datasets/
+	artifacts/handwriting_date_pilot/
+	artifacts/handwriting_trocr_pilot/
+	artifacts/latest_pair_adaptive_v67/
+	artifacts/latest_receipt_adaptive_spotcheck/
+	artifacts/latest_receipt_adaptive_v2/
+	artifacts/low_resolution_experiment/
+	artifacts/low_resolution_experiment_2x/
+	artifacts/market_comparison_local/
+	artifacts/ocr_localized_spotcheck/
+	artifacts/orand_amount_pilot/
+	artifacts/preprocess_feedback/
+	artifacts/profile_ocr.json
+	artifacts/profile_speed.json
+	artifacts/protocol_lock/exact_duplicate_excluded_20261102/
+	artifacts/real_fold_scribbles/
+	artifacts/real_receipt_adaptation/
+	artifacts/release_audit/
+	artifacts/release_candidates/
+	artifacts/saved_faithful_audit/
+	artifacts/small_print_revision/
+	artifacts/sri_ternak_adaptive_v68/
+	artifacts/sri_ternak_adaptive_v69/
+	artifacts/sri_ternak_adaptive_v70/
+	artifacts/test_evidence_20261103/
+	artifacts/training_adaptive_thermal_v2/
+	artifacts/training_adaptive_thermal_v2_smoke/
+	artifacts/training_artifact_crease_isolation_dev_v1/
+	artifacts/training_artifact_mask_smoke/
+	artifacts/training_artifact_mask_v1/checkpoint_0000250.pt
+	artifacts/training_artifact_mask_v1/checkpoint_0000500.pt
+	artifacts/training_artifact_mask_v1/checkpoint_0000750.pt
+	artifacts/training_artifact_mask_v1/training_log.jsonl
+	artifacts/training_artifact_mask_v2/
+	artifacts/training_artifact_mask_v2_smoke/
+	artifacts/training_artifact_mask_v3/
+	artifacts/training_artifact_mask_v4/
+	artifacts/training_candidate_20261102/
+	artifacts/training_crease_refinement_v6/
+	artifacts/training_crease_refinement_v6_retry/
+	artifacts/training_exact_duplicate_excluded_20261102/
+	artifacts/training_exact_duplicate_excluded_20261102_snapshot/
+	artifacts/training_exact_excluded_resume_12000_20261102/
+	artifacts/training_exact_excluded_resume_15000_20261102/
+	artifacts/training_fold_text_dev_v1/
+	artifacts/training_foreground_dev_v4/
+	artifacts/training_foreground_dev_v5/
+	artifacts/training_generalization_v2/
+	artifacts/training_generalization_v2_smoke/
+	artifacts/training_long_candidate_20261102/
+	artifacts/training_low_resolution_dev_v1/
+	artifacts/training_low_resolution_dev_v2/
+	artifacts/training_natural_finetune/
+	artifacts/training_natural_finetune_amp/
+	artifacts/training_natural_finetune_amp100/
+	artifacts/training_natural_finetune_final/
+	artifacts/training_natural_finetune_low_lr/
+	artifacts/training_production_generalist_v1/
+	artifacts/training_real_receipt_adaptation_v1/
+	artifacts/training_real_receipt_adaptation_v1_smoke/
+	artifacts/training_resume_smoke_20261102/
+	artifacts/training_rolling_smoke_20261102/
+	artifacts/training_space_efficient_feasibility/
+	artifacts/training_space_efficient_pilot/
+	artifacts/training_text_dev_v3/
+	artifacts/training_thermal_dev_v2/
+	artifacts/training_uninterrupted_smoke_20261102/
+	artifacts/validation_blend_selection/checkpoint_0000250_b14336154d20/
+	artifacts/validation_blend_selection/checkpoint_0000500_7004b6ef93c1/
+	artifacts/validation_blend_selection/checkpoint_0000500_87c401bc007a/
+	artifacts/validation_blend_selection/checkpoint_0000500_9337fd9b16aa/
+	artifacts/validation_blend_selection/checkpoint_0010500/
+	artifacts/validation_blend_selection/checkpoint_0010500_052f259e19cb/
+	artifacts/validation_restoration/adaptive_thermal_v2_selection.json
+	artifacts/validation_restoration/checkpoint_43000_locked_validation_20261102/
+	artifacts/validation_restoration/exact_excluded_6000_batched/
+	artifacts/validation_restoration/exact_excluded_6000_exploratory_test/
+	artifacts/validation_restoration/exact_excluded_6000_full_gpu/
+	artifacts/validation_restoration/training_adaptive_thermal_v2_checkpoint_0000250/
+	artifacts/validation_restoration/training_adaptive_thermal_v2_checkpoint_0000500/
+	artifacts/validation_restoration/training_adaptive_thermal_v2_checkpoint_0000750/
+	artifacts/validation_restoration/training_adaptive_thermal_v2_checkpoint_0001000/
+	artifacts/validation_restoration/training_candidate_20261102_checkpoint_0000500/
+	artifacts/validation_restoration/training_crease_refinement_v6_retry_checkpoint_0000250/
+	artifacts/validation_restoration/training_exact_duplicate_excluded_20261102_snapshot_checkpoint_snapshot/
+	artifacts/validation_restoration/training_foreground_dev_v4_checkpoint_0000250/
+	artifacts/validation_restoration/training_foreground_dev_v4_checkpoint_0000500/
+	artifacts/validation_restoration/training_foreground_dev_v5_checkpoint_0000250/
+	artifacts/validation_restoration/training_foreground_dev_v5_checkpoint_0000500/
+	artifacts/validation_restoration/training_foreground_dev_v5_checkpoint_0001000/
+	artifacts/validation_restoration/training_generalization_v2_checkpoint_0000250/
+	artifacts/validation_restoration/training_generalization_v2_checkpoint_0000500/
+	artifacts/validation_restoration/training_generalization_v2_checkpoint_0000750/
+	artifacts/validation_restoration/training_generalization_v2_checkpoint_0001000/
+	artifacts/validation_restoration/training_natural_finetune_final_checkpoint_0010500/
+	artifacts/validation_restoration/training_production_generalist_v1_checkpoint_0000500/
+	artifacts/validation_restoration/training_real_receipt_adaptation_v1_checkpoint_0000250/
+	artifacts/validation_restoration/training_real_receipt_adaptation_v1_checkpoint_0000500/
+	artifacts/validation_restoration/training_text_dev_v3_checkpoint_0000250/
+	artifacts/validation_restoration/training_text_dev_v3_checkpoint_0000500/
+	artifacts/validation_restoration/training_thermal_dev_v2_checkpoint_0000250/
+	artifacts/validation_restoration/training_thermal_dev_v2_checkpoint_0000500/
+	artifacts/validation_restoration/training_thermal_dev_v2_checkpoint_0000750/
+	artifacts/validation_restoration/training_thermal_dev_v2_checkpoint_0001000/
+	output/
+	scripts/run_full95_overnight_20261107.cmd
+	tmp/
+
+no changes added to commit (use "git add" and/or "git commit -a")
+pytest exit 1 
+confirmatory exit 1 20:42:45.87 
+=== confirmatory end Sat 07/11/2026 20:42:54.19 === 
+=== confirmatory start Sat 07/11/2026 21:01:10.70 === 
+Already on 'app-update-20261107'
+M	artifacts/readiness/dsdnet_adapter_smoke_test.json
+M	artifacts/readiness/dsdnet_training_preflight.json
+M	artifacts/system_verification/system_verification.json
+M	tests/test_photo_crop.py
+warning: in the working copy of 'tests/test_photo_crop.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 6b216a2] Photos: cut by the print when the paper cannot be told from a white background; app also reads the DSDNet restoration view; confirmatory evaluation
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+pytest exit 0 
+confirmatory exit 0  1:08:02.61 
+=== confirmatory end Sun 08/11/2026  1:08:11.50 === 

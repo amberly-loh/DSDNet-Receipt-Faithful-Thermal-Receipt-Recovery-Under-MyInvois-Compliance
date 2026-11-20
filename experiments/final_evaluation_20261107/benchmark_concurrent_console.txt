@@ -1,0 +1,220 @@
+{
+  "generated_utc": "2026-11-07T02:43:51.272553+00:00",
+  "scope": "concurrent local Flask test-client and SQLite regression benchmark with synthetic records",
+  "environment": {
+    "python": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.26200-SP0"
+  },
+  "settings": {
+    "record_count": 250,
+    "requests_per_level": 64,
+    "concurrency_levels": [
+      1,
+      4,
+      8
+    ],
+    "selection_size": 50,
+    "database": "temporary isolated SQLite database",
+    "authentication": "one synthetic registered account; one client session per worker thread"
+  },
+  "results": {
+    "history_250_records": [
+      {
+        "workers": 1,
+        "requests": 64,
+        "statuses": [
+          200
+        ],
+        "failures": 0,
+        "wall_seconds": 1.676956599985715,
+        "throughput_requests_per_second": 38.16437467764233,
+        "response_bytes": {
+          "minimum": 245631,
+          "maximum": 245631
+        },
+        "latency_seconds": {
+          "mean": 0.02474942187564011,
+          "median": 0.022352400003001094,
+          "p95_nearest_rank": 0.04962350003188476,
+          "maximum": 0.07599240000126883
+        }
+      },
+      {
+        "workers": 4,
+        "requests": 64,
+        "statuses": [
+          200
+        ],
+        "failures": 0,
+        "wall_seconds": 1.653380699979607,
+        "throughput_requests_per_second": 38.708568450562765,
+        "response_bytes": {
+          "minimum": 245631,
+          "maximum": 245631
+        },
+        "latency_seconds": {
+          "mean": 0.08508889999939129,
+          "median": 0.08411389999673702,
+          "p95_nearest_rank": 0.12148319999687374,
+          "maximum": 0.14888160000555217
+        }
+      },
+      {
+        "workers": 8,
+        "requests": 64,
+        "statuses": [
+          200
+        ],
+        "failures": 0,
+        "wall_seconds": 2.0718282000161707,
+        "throughput_requests_per_second": 30.890592183029693,
+        "response_bytes": {
+          "minimum": 245631,
+          "maximum": 245631
+        },
+        "latency_seconds": {
+          "mean": 0.19911120468714216,
+          "median": 0.19996250001713634,
+          "p95_nearest_rank": 0.2761460999608971,
+          "maximum": 0.307635199977085
+        }
+      }
+    ],
+    "dashboard_250_records": [
+      {
+        "workers": 1,
+        "requests": 64,
+        "statuses": [
+          200
+        ],
+        "failures": 0,
+        "wall_seconds": 5.460156699991785,
+        "throughput_requests_per_second": 11.721275325321027,
+        "response_bytes": {
+          "minimum": 5970,
+          "maximum": 5970
+        },
+        "latency_seconds": {
+          "mean": 0.08263432656076475,
+          "median": 0.07515255000907928,
+          "p95_nearest_rank": 0.17634469998301938,
+          "maximum": 0.21273999998811632
+        }
+      },
+      {
+        "workers": 4,
+        "requests": 64,
+        "statuses": [
+          200
+        ],
+        "failures": 0,
+        "wall_seconds": 2.5006656000041403,
+        "throughput_requests_per_second": 25.593186070098312,
+        "response_bytes": {
+          "minimum": 5970,
+          "maximum": 5970
+        },
+        "latency_seconds": {
+          "mean": 0.12451640156359645,
+          "median": 0.11520845000632107,
+          "p95_nearest_rank": 0.23012690001633018,
+          "maximum": 0.2841900000348687
+        }
+      },
+      {
+        "workers": 8,
+        "requests": 64,
+        "statuses": [
+          200
+        ],
+        "failures": 0,
+        "wall_seconds": 2.1198772999923676,
+        "throughput_requests_per_second": 30.1904265875343,
+        "response_bytes": {
+          "minimum": 5970,
+          "maximum": 5970
+        },
+        "latency_seconds": {
+          "mean": 0.20059867811687582,
+          "median": 0.19761765000293963,
+          "p95_nearest_rank": 0.3262664999929257,
+          "maximum": 0.3977761000278406
+        }
+      }
+    ],
+    "selection_summary_50_records": [
+      {
+        "workers": 1,
+        "requests": 64,
+        "statuses": [
+          200
+        ],
+        "failures": 0,
+        "wall_seconds": 46.06559130002279,
+        "throughput_requests_per_second": 1.3893233147311916,
+        "response_bytes": {
+          "minimum": 115,
+          "maximum": 115
+        },
+        "latency_seconds": {
+          "mean": 0.717598359377007,
+          "median": 0.6395717000123113,
+          "p95_nearest_rank": 1.6253861999721266,
+          "maximum": 2.0247418000362813
+        }
+      },
+      {
+        "workers": 4,
+        "requests": 64,
+        "statuses": [
+          200
+        ],
+        "failures": 0,
+        "wall_seconds": 15.694948599964846,
+        "throughput_requests_per_second": 4.07774511603965,
+        "response_bytes": {
+          "minimum": 115,
+          "maximum": 115
+        },
+        "latency_seconds": {
+          "mean": 0.9466939234343954,
+          "median": 0.9721650999854319,
+          "p95_nearest_rank": 1.3960480999667197,
+          "maximum": 1.6145787999848835
+        }
+      },
+      {
+        "workers": 8,
+        "requests": 64,
+        "statuses": [
+          200
+        ],
+        "failures": 0,
+        "wall_seconds": 12.947237299988046,
+        "throughput_requests_per_second": 4.9431394912379565,
+        "response_bytes": {
+          "minimum": 115,
+          "maximum": 115
+        },
+        "latency_seconds": {
+          "mean": 1.5122239890597484,
+          "median": 1.4977944499987643,
+          "p95_nearest_rank": 1.9575772999669425,
+          "maximum": 2.0577897999901325
+        }
+      }
+    ]
+  },
+  "failures": 0,
+  "provenance": {
+    "script": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\scripts\\benchmark_concurrent_api.py",
+    "script_sha256": "a926c023cdf861b8a8fdbb63b1837060d670e9e58cac6c0e96f552ab25be85a4",
+    "application_sha256": "39876ca59c629eeeb6982372a28ccc5e489dc626c7660144017206e3b195ccd2",
+    "configuration_sha256": "6aff5af86f8c5fcd82c66237a6554b6d0ec7b56f276311dbbdd5609af84841ec"
+  },
+  "limitations": [
+    "This does not include network transport, a browser, OCR, restoration, or multiple hosts.",
+    "Synthetic data and a test client do not establish production capacity or an SLA.",
+    "Human usability and accessibility remain separate participant-based evaluations."
+  ]
+}

@@ -1,0 +1,352 @@
+{
+  "partition": "validation",
+  "formal_test_evidence": false,
+  "unit_of_analysis": "source group (three degradation variants averaged per source)",
+  "test": "one-sided paired Wilcoxon signed-rank with Holm family-wise correction",
+  "interval": "10,000-draw paired source bootstrap CI for mean benefit",
+  "records": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\checkpoint_43000_locked_validation_20261102\\records.csv",
+  "all_baseline_metric_comparisons_significant": false,
+  "comparisons": [
+    {
+      "baseline": "A_direct",
+      "metric": "ssim",
+      "direction": "higher",
+      "source_groups": 86,
+      "proposed_mean": 0.9167030215519982,
+      "baseline_mean": 0.6353268789011135,
+      "mean_benefit": 0.2813761426508851,
+      "benefit_95pct_bootstrap_ci": [
+        0.26648477269516735,
+        0.2955260245137647
+      ],
+      "wilcoxon_statistic": 3741.0,
+      "p_value_one_sided": 3.9945493573866575e-16,
+      "holm_adjusted_p": 7.989098714773314e-15,
+      "significantly_better": true
+    },
+    {
+      "baseline": "A_direct",
+      "metric": "l1",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.03595425745710557,
+      "baseline_mean": 0.05287420386183783,
+      "mean_benefit": 0.01691994640473228,
+      "benefit_95pct_bootstrap_ci": [
+        0.013949565975105417,
+        0.020024931989688934
+      ],
+      "wilcoxon_statistic": 3625.0,
+      "p_value_one_sided": 2.096365674457314e-14,
+      "holm_adjusted_p": 1.637749811985402e-13,
+      "significantly_better": true
+    },
+    {
+      "baseline": "A_direct",
+      "metric": "stroke_recall",
+      "direction": "higher",
+      "source_groups": 86,
+      "proposed_mean": 0.882716781563481,
+      "baseline_mean": 0.53330178996217,
+      "mean_benefit": 0.34941499160131106,
+      "benefit_95pct_bootstrap_ci": [
+        0.30704692617041435,
+        0.3923047948297763
+      ],
+      "wilcoxon_statistic": 3318.0,
+      "p_value_one_sided": 2.999332396873403e-15,
+      "holm_adjusted_p": 4.0219696988347264e-14,
+      "significantly_better": true
+    },
+    {
+      "baseline": "A_direct",
+      "metric": "deleted_stroke_rate",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.0591436835527979,
+      "baseline_mean": 0.408558675154109,
+      "mean_benefit": 0.34941499160131106,
+      "benefit_95pct_bootstrap_ci": [
+        0.3067745478027669,
+        0.39275476495962536
+      ],
+      "wilcoxon_statistic": 3318.0,
+      "p_value_one_sided": 2.999332396873403e-15,
+      "holm_adjusted_p": 4.0219696988347264e-14,
+      "significantly_better": true
+    },
+    {
+      "baseline": "A_direct",
+      "metric": "false_stroke_rate",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.06187837301983894,
+      "baseline_mean": 0.09018990894284042,
+      "mean_benefit": 0.028311535923001487,
+      "benefit_95pct_bootstrap_ci": [
+        0.015614600717986963,
+        0.04163028689249676
+      ],
+      "wilcoxon_statistic": 2890.0,
+      "p_value_one_sided": 5.66847437713115e-06,
+      "holm_adjusted_p": 1.700542313139345e-05,
+      "significantly_better": true
+    },
+    {
+      "baseline": "B_otsu",
+      "metric": "ssim",
+      "direction": "higher",
+      "source_groups": 86,
+      "proposed_mean": 0.9167030215519982,
+      "baseline_mean": 0.5198093181743763,
+      "mean_benefit": 0.3968937033776223,
+      "benefit_95pct_bootstrap_ci": [
+        0.36364018087492717,
+        0.4324318033624436
+      ],
+      "wilcoxon_statistic": 3741.0,
+      "p_value_one_sided": 3.9945493573866575e-16,
+      "holm_adjusted_p": 7.989098714773314e-15,
+      "significantly_better": true
+    },
+    {
+      "baseline": "B_otsu",
+      "metric": "l1",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.03595425745710557,
+      "baseline_mean": 0.15881712809578774,
+      "mean_benefit": 0.12286287063868216,
+      "benefit_95pct_bootstrap_ci": [
+        0.1074307507448707,
+        0.13906603877416823
+      ],
+      "wilcoxon_statistic": 3740.0,
+      "p_value_one_sided": 4.1376292981910976e-16,
+      "holm_adjusted_p": 7.989098714773314e-15,
+      "significantly_better": true
+    },
+    {
+      "baseline": "B_otsu",
+      "metric": "stroke_recall",
+      "direction": "higher",
+      "source_groups": 86,
+      "proposed_mean": 0.882716781563481,
+      "baseline_mean": 0.7193671385564274,
+      "mean_benefit": 0.16334964300705374,
+      "benefit_95pct_bootstrap_ci": [
+        0.13830573133827065,
+        0.18826671377324494
+      ],
+      "wilcoxon_statistic": 3269.0,
+      "p_value_one_sided": 1.8197220133171134e-14,
+      "holm_adjusted_p": 1.637749811985402e-13,
+      "significantly_better": true
+    },
+    {
+      "baseline": "B_otsu",
+      "metric": "deleted_stroke_rate",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.0591436835527979,
+      "baseline_mean": 0.22249332655985163,
+      "mean_benefit": 0.16334964300705374,
+      "benefit_95pct_bootstrap_ci": [
+        0.13846822689672744,
+        0.18798207980601062
+      ],
+      "wilcoxon_statistic": 3269.0,
+      "p_value_one_sided": 1.8197220133171134e-14,
+      "holm_adjusted_p": 1.637749811985402e-13,
+      "significantly_better": true
+    },
+    {
+      "baseline": "B_otsu",
+      "metric": "false_stroke_rate",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.06187837301983894,
+      "baseline_mean": 0.10856065974392537,
+      "mean_benefit": 0.04668228672408645,
+      "benefit_95pct_bootstrap_ci": [
+        0.026267229308673774,
+        0.06581650573957266
+      ],
+      "wilcoxon_statistic": 3106.0,
+      "p_value_one_sided": 5.18667386440909e-08,
+      "holm_adjusted_p": 2.074669545763636e-07,
+      "significantly_better": true
+    },
+    {
+      "baseline": "B_sauvola",
+      "metric": "ssim",
+      "direction": "higher",
+      "source_groups": 86,
+      "proposed_mean": 0.9167030215519982,
+      "baseline_mean": 0.7766949467620959,
+      "mean_benefit": 0.1400080747899027,
+      "benefit_95pct_bootstrap_ci": [
+        0.12432855796005755,
+        0.15607391733996978
+      ],
+      "wilcoxon_statistic": 3726.0,
+      "p_value_one_sided": 6.759134713375933e-16,
+      "holm_adjusted_p": 1.0814615541401492e-14,
+      "significantly_better": true
+    },
+    {
+      "baseline": "B_sauvola",
+      "metric": "l1",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.03595425745710557,
+      "baseline_mean": 0.08705372808189411,
+      "mean_benefit": 0.051099470624788514,
+      "benefit_95pct_bootstrap_ci": [
+        0.03858677881664975,
+        0.06431569433672919
+      ],
+      "wilcoxon_statistic": 3509.0,
+      "p_value_one_sided": 8.606731612484258e-13,
+      "holm_adjusted_p": 4.303365806242129e-12,
+      "significantly_better": true
+    },
+    {
+      "baseline": "B_sauvola",
+      "metric": "stroke_recall",
+      "direction": "higher",
+      "source_groups": 86,
+      "proposed_mean": 0.882716781563481,
+      "baseline_mean": 0.41205154474886385,
+      "mean_benefit": 0.47066523681461736,
+      "benefit_95pct_bootstrap_ci": [
+        0.42985683938359953,
+        0.510915735970115
+      ],
+      "wilcoxon_statistic": 3321.0,
+      "p_value_one_sided": 2.6813131325564844e-15,
+      "holm_adjusted_p": 4.0219696988347264e-14,
+      "significantly_better": true
+    },
+    {
+      "baseline": "B_sauvola",
+      "metric": "deleted_stroke_rate",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.0591436835527979,
+      "baseline_mean": 0.5298089203674152,
+      "mean_benefit": 0.47066523681461736,
+      "benefit_95pct_bootstrap_ci": [
+        0.43178981442401865,
+        0.5097972979973018
+      ],
+      "wilcoxon_statistic": 3321.0,
+      "p_value_one_sided": 2.6813131325564844e-15,
+      "holm_adjusted_p": 4.0219696988347264e-14,
+      "significantly_better": true
+    },
+    {
+      "baseline": "B_sauvola",
+      "metric": "false_stroke_rate",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.06187837301983894,
+      "baseline_mean": 0.009739625527766168,
+      "mean_benefit": -0.05213874749207278,
+      "benefit_95pct_bootstrap_ci": [
+        -0.07095479576000738,
+        -0.03563061196697074
+      ],
+      "wilcoxon_statistic": 38.0,
+      "p_value_one_sided": 0.9999999999999967,
+      "holm_adjusted_p": 0.9999999999999967,
+      "significantly_better": false
+    },
+    {
+      "baseline": "C_perceptual",
+      "metric": "ssim",
+      "direction": "higher",
+      "source_groups": 86,
+      "proposed_mean": 0.9167030215519982,
+      "baseline_mean": 0.7429068955839551,
+      "mean_benefit": 0.17379612596804345,
+      "benefit_95pct_bootstrap_ci": [
+        0.15795363350893554,
+        0.1902519565032592
+      ],
+      "wilcoxon_statistic": 3741.0,
+      "p_value_one_sided": 3.9945493573866575e-16,
+      "holm_adjusted_p": 7.989098714773314e-15,
+      "significantly_better": true
+    },
+    {
+      "baseline": "C_perceptual",
+      "metric": "l1",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.03595425745710557,
+      "baseline_mean": 0.055832540497879134,
+      "mean_benefit": 0.019878283040773565,
+      "benefit_95pct_bootstrap_ci": [
+        0.016063660639027474,
+        0.023530835851573846
+      ],
+      "wilcoxon_statistic": 3529.0,
+      "p_value_one_sided": 4.616030378090301e-13,
+      "holm_adjusted_p": 2.769618226854181e-12,
+      "significantly_better": true
+    },
+    {
+      "baseline": "C_perceptual",
+      "metric": "stroke_recall",
+      "direction": "higher",
+      "source_groups": 86,
+      "proposed_mean": 0.882716781563481,
+      "baseline_mean": 0.6092892137118374,
+      "mean_benefit": 0.27342756785164385,
+      "benefit_95pct_bootstrap_ci": [
+        0.23846522930936706,
+        0.3097187628155739
+      ],
+      "wilcoxon_statistic": 3321.0,
+      "p_value_one_sided": 2.6813131325564844e-15,
+      "holm_adjusted_p": 4.0219696988347264e-14,
+      "significantly_better": true
+    },
+    {
+      "baseline": "C_perceptual",
+      "metric": "deleted_stroke_rate",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.0591436835527979,
+      "baseline_mean": 0.3325712514044417,
+      "mean_benefit": 0.2734275678516439,
+      "benefit_95pct_bootstrap_ci": [
+        0.23730644701657655,
+        0.3103327024953446
+      ],
+      "wilcoxon_statistic": 3321.0,
+      "p_value_one_sided": 2.6813131325564844e-15,
+      "holm_adjusted_p": 4.0219696988347264e-14,
+      "significantly_better": true
+    },
+    {
+      "baseline": "C_perceptual",
+      "metric": "false_stroke_rate",
+      "direction": "lower",
+      "source_groups": 86,
+      "proposed_mean": 0.06187837301983894,
+      "baseline_mean": 0.055985319003804365,
+      "mean_benefit": -0.005893054016034577,
+      "benefit_95pct_bootstrap_ci": [
+        -0.021155596706682184,
+        0.0068599873215759175
+      ],
+      "wilcoxon_statistic": 2475.0,
+      "p_value_one_sided": 0.004620932565338709,
+      "holm_adjusted_p": 0.009241865130677419,
+      "significantly_better": false
+    }
+  ],
+  "warning": "Exploratory validation evidence only; the existing test partition has previously been inspected and is not a fresh independent test."
+}

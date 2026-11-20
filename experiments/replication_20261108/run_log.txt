@@ -1,0 +1,8 @@
+=== start Sun 08/11/2026 13:10:55.09 === 
+warning: in the working copy of 'scripts/replication_20261108.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 227e50d] Independent replication on the 53 never-used test receipts
+ 2 files changed, 95 insertions(+)
+ create mode 100644 scripts/replication_20261108.py
+ create mode 100644 scripts/run_replication_20261108.cmd
+replication exit 0 15:09:47.71 
+=== end Sun 08/11/2026 15:09:54.59 === 

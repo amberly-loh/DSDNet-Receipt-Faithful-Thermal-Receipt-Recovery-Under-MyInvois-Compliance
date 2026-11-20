@@ -51,6 +51,8 @@ class FieldRecord:
     box: Any = None
     hint: str | None = None
     suggested: str | None = None
+    options: list | None = None
+    estimated: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -494,6 +496,8 @@ def route_fields(
                 box=box,
                 hint=payload.get("hint"),
                 suggested=payload.get("suggested"),
+                options=payload.get("options"),
+                estimated=payload.get("estimated"),
             )
         )
     return records

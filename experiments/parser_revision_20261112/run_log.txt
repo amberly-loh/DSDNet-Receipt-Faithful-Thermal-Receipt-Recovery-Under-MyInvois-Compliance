@@ -1,0 +1,27 @@
+=== start Thu 12/11/2026  0:04:06.04 === 
+warning: in the working copy of 'pyproject.toml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/inference_worker.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/preprocessing.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/semantic.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/web_app.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/static/app.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/static/phone.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/static/styles.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/templates/index.html', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'web/templates/phone.html', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/parser_revision_20261112.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/field_review.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_field_review.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_phone_crop.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_terms.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 f11834e] Shared field parser revision (chosen on validation only): review of date and total after the evaluated extractor; app: ClearReceipt name, terms and privacy, phone crop check, UI polish
+ 16 files changed, 1551 insertions(+), 100 deletions(-)
+ create mode 100644 scripts/parser_revision_20261112.py
+ create mode 100644 scripts/run_parser_revision_20261112.cmd
+ create mode 100644 src/dsdnet_receipt/field_review.py
+ create mode 100644 tests/test_field_review.py
+ create mode 100644 tests/test_phone_crop.py
+ create mode 100644 tests/test_terms.py
+pytest exit 0 
+parser revision exit 0  0:24:17.74 
+=== end Thu 12/11/2026  0:24:24.72 === 

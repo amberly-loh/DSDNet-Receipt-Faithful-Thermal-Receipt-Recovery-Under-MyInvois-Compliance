@@ -1,0 +1,66 @@
+{
+  "partition": "test",
+  "formal_test_evidence": false,
+  "interpretation": "Exploratory only: test partition previously inspected; not independent confirmation.",
+  "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_exact_duplicate_excluded_20261102_snapshot\\checkpoint_snapshot.pt",
+  "checkpoint_iteration": 6000,
+  "manifest": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\exact_duplicate_excluded_20261102\\generation_manifest.jsonl",
+  "crop_size": 128,
+  "methods": {
+    "A_direct": {
+      "sources": 92,
+      "variants": 276,
+      "mean_psnr": 20.322378499085623,
+      "mean_ssim": 0.6464692152639907,
+      "mean_l1": 0.051924093842133756,
+      "mean_validation_objective": 0.12263025078933562,
+      "mean_stroke_recall": 0.5170441730782934,
+      "mean_deleted_stroke_rate": 0.4394775660521414,
+      "mean_false_stroke_rate": 0.08118340577078755
+    },
+    "B_otsu": {
+      "sources": 92,
+      "variants": 276,
+      "mean_psnr": 11.841015004259297,
+      "mean_ssim": 0.5511421989448826,
+      "mean_l1": 0.14812249251135573,
+      "mean_validation_objective": 0.23789405272237923,
+      "mean_stroke_recall": 0.7346862434864024,
+      "mean_deleted_stroke_rate": 0.22183549564403227,
+      "mean_false_stroke_rate": 0.10500175375170404
+    },
+    "B_sauvola": {
+      "sources": 92,
+      "variants": 276,
+      "mean_psnr": 15.920466565835431,
+      "mean_ssim": 0.7734110673732478,
+      "mean_l1": 0.08020827609661392,
+      "mean_validation_objective": 0.12552606262196436,
+      "mean_stroke_recall": 0.40008434630352374,
+      "mean_deleted_stroke_rate": 0.5564373928269112,
+      "mean_false_stroke_rate": 0.010013909209248184
+    },
+    "C_perceptual": {
+      "sources": 92,
+      "variants": 276,
+      "mean_psnr": 20.761832887637546,
+      "mean_ssim": 0.753114231681443,
+      "mean_l1": 0.05298752347052384,
+      "mean_validation_objective": 0.10236467713423525,
+      "mean_stroke_recall": 0.6001400197914609,
+      "mean_deleted_stroke_rate": 0.35638171933897383,
+      "mean_false_stroke_rate": 0.05606951025295815
+    },
+    "Proposed_DSDNet_Receipt": {
+      "sources": 92,
+      "variants": 276,
+      "mean_psnr": 21.104504398575763,
+      "mean_ssim": 0.8783105652004564,
+      "mean_l1": 0.05501138743694763,
+      "mean_validation_objective": 0.07934927439685636,
+      "mean_stroke_recall": 0.785448402645698,
+      "mean_deleted_stroke_rate": 0.17107333648473672,
+      "mean_false_stroke_rate": 0.02931544029796045
+    }
+  }
+}

@@ -543,7 +543,8 @@ function showReceipt(record, {keepView = false} = {}) {
     const evidence = new Map((currentReceipt.audit?.fields || []).map(field => [field.name, field]));
     for (const [name, elementId] of [['merchant','merchantEvidence'],['transaction_date','dateEvidence'],['receipt_invoice_number','numberEvidence'],['total_amount','totalEvidence']]) {
       const field = evidence.get(name), confidence = field?.ocr_confidence;
-      $(elementId).textContent = field?.value ? `${confidence == null ? 'Located in receipt' : `${(Number(confidence) * 100).toFixed(1)}% scanner score (not a guarantee)`} · verify against original` : (field?.suggested ? `Year partly hidden · receipt shows ${field.hint}; only ${field.suggested.slice(0,4)} fits the digits read · check and accept` : field?.hint ? `Not fully read · receipt shows ${field.hint} (year unreadable) · enter the full date` : 'Not read automatically · enter if shown');
+      $(elementId).textContent = field?.estimated ? field.estimated : field?.value ? `${confidence == null ? 'Located in receipt' : `${(Number(confidence) * 100).toFixed(1)}% scanner score (not a guarantee)`} · verify against original` : (field?.suggested ? `Year partly hidden · receipt shows ${field.hint}; only ${field.suggested.slice(0,4)} fits the digits read · check and accept` : field?.hint ? `Not fully read · receipt shows ${field.hint} (year unreadable) · enter the full date` : 'Not read automatically · enter if shown');
+      renderFieldOptions(name, elementId, field);
       if (name === 'transaction_date') { const btn = $('dateSuggestButton'); btn.classList.toggle('hidden', !(field?.suggested && !$('dateField').value)); btn.dataset.value = field?.suggested || ''; btn.textContent = field?.suggested ? `Use ${field.suggested}` : ''; }
     }
     $('runtimeStatus').textContent = `${Number(currentReceipt.runtime_seconds).toFixed(2)} seconds`; $('recordId').textContent = currentReceipt.public_id;
@@ -1012,3 +1013,27 @@ $('closePhoneButton').onclick = $('donePhoneButton').onclick = () => $('phoneDia
 $('endPhoneButton').onclick = async () => { try { await api('/api/phone/pair', {method: 'DELETE'}); } finally { clearInterval(phonePoll); clearInterval(phoneWatch); $('phoneChip').classList.add('hidden'); renderPhoneStatus(null); $('phoneQr').textContent = 'Pairing ended.'; } };
 $('phoneChip').onclick = () => { const last = $('phoneChip').dataset.last; if (last && !$('phoneChip').classList.contains('busy')) openReceipt(last); else openPhoneDialog(); };
 $('phoneDialog').addEventListener('close', () => clearInterval(phonePoll));
+
+
+// Other likely values for a field, shown under it; one click puts the value in the field.
+const FIELD_INPUTS = {merchant: 'merchantField', transaction_date: 'dateField', receipt_invoice_number: 'numberField', total_amount: 'totalField'};
+function renderFieldOptions(name, evidenceId, field) {
+  const evidence = $(evidenceId); const input = $(FIELD_INPUTS[name]);
+  if (!evidence || !input) return;
+  input.classList.toggle('estimated', Boolean(field?.estimated));
+  let box = document.getElementById(`${evidenceId}Options`);
+  if (!box) { box = document.createElement('div'); box.id = `${evidenceId}Options`; box.className = 'field-options'; evidence.insertAdjacentElement('afterend', box); }
+  const options = (field?.options || []).filter(option => option && option.value);
+  box.classList.toggle('hidden', !options.length);
+  box.innerHTML = options.length ? `<span class="field-options-label">Other possible values:</span>${options.map(option => `<button type="button" class="field-option" data-value="${escapeHtml(option.value)}" title="${escapeHtml(option.reason || '')}">${escapeHtml(name === 'transaction_date' ? formatOptionDate(option.value) : option.value)}</button>`).join('')}` : '';
+  for (const button of box.querySelectorAll('.field-option')) {
+    button.onclick = () => {
+      const previous = input.value;
+      input.value = button.dataset.value;
+      input.classList.remove('estimated');
+      input.dispatchEvent(new Event('input', {bubbles: true}));
+      if (previous && previous !== button.dataset.value) { button.dataset.value = previous; button.textContent = name === 'transaction_date' ? formatOptionDate(previous) : previous; button.title = 'the value shown before'; }
+    };
+  }
+}
+function formatOptionDate(value) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : value; }

@@ -1,0 +1,78 @@
+{
+  "full_manifest": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\FYP datasets\\External\\SROIE-Malaysia\\sroie_protocol_manifest.csv",
+  "full_manifest_sha256": "23f881704f3f6fab7dad50d08a190f0d83d06e1802d86914b6bcb092b09fbb7f",
+  "generated_manifest": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\generation_manifest_611_sources.jsonl",
+  "generated_manifest_sha256": "83ca768c7dd5e77c0f72828f9ebe51ff94163fae7044fd1b5a87bd28d71ebd8f",
+  "full_counts": {
+    "train": 691,
+    "validation": 148,
+    "test": 148
+  },
+  "generated_counts": {
+    "train": 430,
+    "validation": 86,
+    "test": 95
+  },
+  "missing_generated_counts": {
+    "train": 261,
+    "validation": 62,
+    "test": 53
+  },
+  "generated_variant_count": 1833,
+  "variant_count_per_generated_source": {
+    "3": 611
+  },
+  "duplicate_source_ids": 0,
+  "missing_full_manifest_hashes": 0,
+  "source_partition_mismatches": [],
+  "exact_hash_cross_partition_duplicates": [
+    {
+      "sha256": "8dcbd4a1cd262db07f58da70bd95785cc60af0a307ab8083d1d05130026e64e7",
+      "sources": [
+        "SROIE-MY-TEST-0010",
+        "SROIE-MY-TEST-0013"
+      ],
+      "partitions": [
+        "test",
+        "train"
+      ]
+    },
+    {
+      "sha256": "489f7ad676d5731c6fd56242e56cf3bbcaae9a63656dd8247c16c521754b8f6a",
+      "sources": [
+        "SROIE-MY-TEST-0153",
+        "SROIE-MY-TRAIN-0239"
+      ],
+      "partitions": [
+        "train",
+        "validation"
+      ]
+    },
+    {
+      "sha256": "f6335f9be62df520e485548ceefb21605bac5a9b08ec3766148c61f570a02b1e",
+      "sources": [
+        "SROIE-MY-TEST-0156",
+        "SROIE-MY-TRAIN-0235"
+      ],
+      "partitions": [
+        "test",
+        "train"
+      ]
+    },
+    {
+      "sha256": "f2427e0f37a587c00138aad881eac500224c8a9175957f52e783cfb036159e44",
+      "sources": [
+        "SROIE-MY-TRAIN-0017",
+        "SROIE-MY-TRAIN-0019"
+      ],
+      "partitions": [
+        "test",
+        "train"
+      ]
+    }
+  ],
+  "limitations": [
+    "Audit uses stored hashes; it does not establish absence of visually near-duplicate receipts.",
+    "The test set has previously been inspected."
+  ]
+}

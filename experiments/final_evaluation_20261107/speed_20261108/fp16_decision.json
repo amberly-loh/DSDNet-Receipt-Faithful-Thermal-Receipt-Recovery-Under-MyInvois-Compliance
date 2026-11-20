@@ -1,0 +1,18 @@
+{
+ "fast_fp32": {
+  "fa": 0.17777777777777776,
+  "cer": 0.44367750654022753,
+  "word_f1": 0.3592381924524325,
+  "seconds": 12.086283213327018,
+  "failed": 0
+ },
+ "fast_fp16": {
+  "fa": 0.2,
+  "cer": 0.4453261675625354,
+  "word_f1": 0.3532099606598342,
+  "seconds": 10.970974926669928,
+  "failed": 0
+ },
+ "adopt": true,
+ "rule": "field accuracy not lower; CER not higher by more than 0.005; no extra failures"
+}

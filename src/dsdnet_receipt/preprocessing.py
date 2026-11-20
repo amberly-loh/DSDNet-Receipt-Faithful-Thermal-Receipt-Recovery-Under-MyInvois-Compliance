@@ -136,11 +136,26 @@ def _print_block(image: np.ndarray) -> dict[str, Any] | None:
     gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY) if small.ndim == 3 else small
     h, w = gray.shape
     ink = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 25, 18)
-    count, labels, stats, _ = cv2.connectedComponentsWithStats(ink, 8)
+    count, labels, stats, centroids = cv2.connectedComponentsWithStats(ink, 8)
+    # Print sits on paper; wood grain, fabric or a coloured mat also leaves
+    # small dark streaks, but on a darker, coloured surface. Such marks are
+    # not print.
+    surround_colour = surround_light = None
+    if small.ndim == 3:
+        saturation = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)[:, :, 1]
+        surround_colour = cv2.blur(saturation, (15, 15))
+        surround_light = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
     keep = np.zeros(count, np.uint8)
     for i in range(1, count):
         x, y, bw, bh, area = stats[i]
         if 4 <= bh <= h * 0.06 and 1 <= bw <= w * 0.08 and 6 <= area <= 0.8 * bw * bh + 1:
+            if surround_colour is not None:
+                cx, cy = int(centroids[i][0]), int(centroids[i][1])
+                cy, cx = min(h - 1, cy), min(w - 1, cx)
+                # coloured AND darker than paper (wood, a mat); tinted paper
+                # and coloured ink on paper stay bright around the mark
+                if surround_colour[cy, cx] > 50 and surround_light[cy, cx] < 170:
+                    continue
             keep[i] = 255
     marks = keep[labels]
     joined = cv2.dilate(marks, cv2.getStructuringElement(cv2.MORPH_RECT, (max(9, w // 60), max(5, h // 120))))
@@ -179,7 +194,10 @@ def _keeps_print(corners: list, block: dict[str, Any] | None, needed: float = 0.
         return True
     polygon = np.asarray(corners, np.float32).reshape(-1, 1, 2)
     points = block["points"][:: max(1, len(block["points"]) // 4000)]
-    inside = sum(cv2.pointPolygonTest(polygon, (float(x), float(y)), False) >= 0 for x, y in points)
+    # marks just outside the outline are the paper's own edge and its shadow
+    (_, _), (rw, rh), _ = cv2.minAreaRect(polygon)
+    slack = 0.03 * min(rw, rh)
+    inside = sum(cv2.pointPolygonTest(polygon, (float(x), float(y)), True) >= -slack for x, y in points)
     return inside / max(1, len(points)) >= needed
 
 
@@ -292,6 +310,10 @@ def _crop_photographed_paper(image: np.ndarray, _turned: bool = False) -> tuple[
         return image, {"status": "not_detected"}
     top_y, bottom_y = float(ys[0]), float(ys[-1])
     margin = 0.012 * typical
+    # a little paper above and below the band, so the first and last printed
+    # rows (a logo, the digits under a barcode) are not cut
+    reach = 0.012 * (bottom_y - top_y)
+    top_y, bottom_y = max(0.0, top_y - reach), min(float(h_r - 1), bottom_y + reach)
     corners = np.array([
         [left_line[0] * top_y + left_line[1] - margin, top_y],
         [right_line[0] * top_y + right_line[1] + margin, top_y],

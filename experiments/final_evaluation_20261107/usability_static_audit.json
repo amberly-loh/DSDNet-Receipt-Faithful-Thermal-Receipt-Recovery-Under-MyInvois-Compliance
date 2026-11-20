@@ -1,0 +1,13 @@
+{
+  "kind": "static HTML heuristic review only; no browser state, assistive technology or human participants",
+  "duplicate_ids": {},
+  "controls_without_explicit_label": [],
+  "buttons_without_text_or_accessible_name": [],
+  "controls_checked": 44,
+  "buttons_checked": 57,
+  "limitations": [
+    "Scripts can dynamically add or change elements.",
+    "An accessible name does not prove usability or accessibility conformance.",
+    "Placeholders are not counted as explicit labels."
+  ]
+}

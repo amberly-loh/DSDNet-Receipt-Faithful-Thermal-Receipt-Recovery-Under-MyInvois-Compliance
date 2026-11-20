@@ -1,0 +1,26 @@
+{
+  "exclusion_rule": "exclude all sources in exact SHA-256 duplicate groups spanning partitions",
+  "excluded_source_ids": [
+    "SROIE-MY-TEST-0010",
+    "SROIE-MY-TEST-0013",
+    "SROIE-MY-TEST-0153",
+    "SROIE-MY-TEST-0156",
+    "SROIE-MY-TRAIN-0017",
+    "SROIE-MY-TRAIN-0019",
+    "SROIE-MY-TRAIN-0235",
+    "SROIE-MY-TRAIN-0239"
+  ],
+  "counts": {
+    "train": 426,
+    "validation": 85,
+    "test": 92
+  },
+  "variant_count": 1809,
+  "manifest_sha256": "18ffa22e16cd11d9bb6f4d518424f15018cb8e9e2b07334244509a9759ffdb57",
+  "config_sha256": "b4f08f270368194994518239c8947f891dca852a1c392e829319de0280530ccb",
+  "limitations": [
+    "Exact byte duplicates only; near-duplicate and shared-transaction leakage remain unassessed.",
+    "All existing test partitions have been inspected; this is not a fresh independent test.",
+    "Controlled degradation exists for a subset of the full dataset."
+  ]
+}

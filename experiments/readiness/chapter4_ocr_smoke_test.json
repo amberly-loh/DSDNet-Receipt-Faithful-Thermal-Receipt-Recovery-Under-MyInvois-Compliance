@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "sample": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\FYP datasets\\External\\CORD-v2\\images\\validation\\CORD-VALIDATION-0000.png",
+  "python": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+  "opencv": "4.8.1",
+  "paddlepaddle": "2.5.2",
+  "paddleocr": "2.7.0.3",
+  "ocr_protocol_status": "ok",
+  "recognized_lines": 12,
+  "recognized_text_preview": "1 REAL GANACHE\n16,500\n1 EGG TART\n13,000\n1 PIZZA TOAST\n16,000\nTOTAL\n45,500\nCASH\n50,000\n4,500\nCHANGE",
+  "error": null,
+  "known_dependency_override": "PaddleOCR 2.7.0.3 metadata requests OpenCV<=4.6.0.66; Chapter 4 records OpenCV 4.8.1.78."
+}

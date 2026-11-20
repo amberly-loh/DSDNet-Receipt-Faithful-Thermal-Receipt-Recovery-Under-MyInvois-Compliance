@@ -1,0 +1,4 @@
+{
+ "written": "2026-11-12 21:22:22",
+ "doc": "Second audit, revised presentation (13 Nov 2026). Rater A's first session of support_audit2_20261113 (89 yes, 1 no, 10 can't tell) is kept as a pilot: the rater reported that the 60x60-pixel close-up alone did not show whether ink under the ring was printed text or a blob. Same 100 items, same seed, same hidden rule labels and same decision rule; only the picture changes: a 160x160-pixel wide view beside the close-up, and 'No' now names stains and blobs explicitly. Two practice items chosen by intensity (darkest stroke; blank paper), not by the rule. Both raters answer this version; the decision rule (mean Cohen's kappa of the two raters against the rule at least 0.40) is unchanged, and the pilot is reported."
+}

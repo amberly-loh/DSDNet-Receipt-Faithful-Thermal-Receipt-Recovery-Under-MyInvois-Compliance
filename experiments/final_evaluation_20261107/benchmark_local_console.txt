@@ -1,0 +1,105 @@
+{
+  "generated_utc": "2026-11-07T02:42:18.478776+00:00",
+  "scope": "isolated local Flask test-client and SQLite benchmark with synthetic records",
+  "record_count": 250,
+  "environment": {
+    "python": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.26200-SP0"
+  },
+  "settings": {
+    "request_repeats": 30,
+    "csv_xlsx_repeats": 10,
+    "selection_size": 50,
+    "database": "temporary isolated SQLite database",
+    "client": "single-process Flask test client"
+  },
+  "endpoints": {
+    "history_250_records": {
+      "requests": 30,
+      "statuses": [
+        200
+      ],
+      "response_bytes_min": 243381,
+      "response_bytes_max": 243381,
+      "latency_seconds": {
+        "mean": 0.010621816662993904,
+        "median": 0.010265949968015775,
+        "p95_nearest_rank": 0.0123180000227876,
+        "minimum": 0.009024200029671192,
+        "maximum": 0.012824899982661009
+      }
+    },
+    "dashboard_250_records": {
+      "requests": 30,
+      "statuses": [
+        200
+      ],
+      "response_bytes_min": 5916,
+      "response_bytes_max": 5916,
+      "latency_seconds": {
+        "mean": 0.01517071333170558,
+        "median": 0.012692100019194186,
+        "p95_nearest_rank": 0.02654460002668202,
+        "minimum": 0.009392199979629368,
+        "maximum": 0.03086929995333776
+      }
+    },
+    "csv_export_250_records": {
+      "requests": 10,
+      "statuses": [
+        200
+      ],
+      "response_bytes_min": 33324,
+      "response_bytes_max": 33324,
+      "latency_seconds": {
+        "mean": 0.08399724999326282,
+        "median": 0.07976464999956079,
+        "p95_nearest_rank": 0.11814089998370036,
+        "minimum": 0.03297350002685562,
+        "maximum": 0.21027509996201843
+      }
+    },
+    "xlsx_export_250_records": {
+      "requests": 10,
+      "statuses": [
+        200
+      ],
+      "response_bytes_min": 17908,
+      "response_bytes_max": 17908,
+      "latency_seconds": {
+        "mean": 0.36525728000560775,
+        "median": 0.34456835000310093,
+        "p95_nearest_rank": 0.5425366000272334,
+        "minimum": 0.21983270003693178,
+        "maximum": 0.5731539000407793
+      }
+    },
+    "selection_summary_50_records": {
+      "requests": 30,
+      "statuses": [
+        200
+      ],
+      "response_bytes_min": 115,
+      "response_bytes_max": 115,
+      "latency_seconds": {
+        "mean": 0.6834433800036398,
+        "median": 0.5328384000167716,
+        "p95_nearest_rank": 1.23651840002276,
+        "minimum": 0.33330300002126023,
+        "maximum": 1.7276488000061363
+      }
+    }
+  },
+  "failures": {},
+  "provenance": {
+    "script": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\scripts\\benchmark_local_api.py",
+    "script_sha256": "90784fea4e19dd7bf93eee913919a13fbfbad4eb46e307c2da76a6086ad79583",
+    "application_sha256": "39876ca59c629eeeb6982372a28ccc5e489dc626c7660144017206e3b195ccd2",
+    "configuration_sha256": "6aff5af86f8c5fcd82c66237a6554b6d0ec7b56f276311dbbdd5609af84841ec"
+  },
+  "limitations": [
+    "No network transport, browser rendering, OCR, restoration, or concurrent users are measured.",
+    "Synthetic records do not represent a production data distribution.",
+    "Results establish local regression performance only and are not a capacity or SLA claim."
+  ]
+}

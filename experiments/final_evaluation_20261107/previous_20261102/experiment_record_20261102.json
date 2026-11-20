@@ -1,0 +1,25 @@
+{
+  "run_kind": "non-formal development candidate",
+  "iterations": 500,
+  "optimizer_updates": 499,
+  "mean_iteration_seconds": 0.28281288560060786,
+  "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\checkpoint_0000500.pt",
+  "checkpoint_sha256": "c2e893950aa86a8549a2d163e5b139eaddcdca71d2c6a8dd3504e639b0f60b6a",
+  "trainer_sha256": "10930e48a74a3d3024c608efce0096005c9fb42a8938ce4079063beadc8c47d0",
+  "config_sha256": "57c13a42e186c3e264fea99d5b6bcd3e3fba2b089e832b1ac6857e12e9bdc622",
+  "manifest_sha256": "83ca768c7dd5e77c0f72828f9ebe51ff94163fae7044fd1b5a87bd28d71ebd8f",
+  "actual_source_groups": {
+    "train": 430,
+    "validation": 86,
+    "test": 95
+  },
+  "validation_summary": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\training_candidate_20261102_checkpoint_0000500\\summary.json",
+  "automated_test_results": "71 passed in 10.26 seconds; test_core.py, test_identity_blur_kernel.py, test_inference_worker.py",
+  "limitations": [
+    "500 iterations is not the planned one million; first mixed precision step skipped its optimiser update",
+    "configuration states 691/148/148 source groups; actual manifest contains 430/86/95",
+    "validation crops are 128x128 synthetic data; original test partition was previously examined",
+    "PSNR is infinite for some baseline crops and is not used for a finite aggregate comparison",
+    "field-level acceptance thresholds and risk-coverage evidence are not established"
+  ]
+}

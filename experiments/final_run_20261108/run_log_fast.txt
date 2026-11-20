@@ -1,0 +1,15 @@
+=== start Sun 08/11/2026 11:34:29.26 === 
+warning: in the working copy of 'src/dsdnet_receipt/inference_worker.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/fast_preset_20261108.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/profile_faithful_20261108.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/smoke_server_path_20261108.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 720fdaf] Server worker: allow the GPU text-reader helper (non-daemon worker) and multi-threaded image steps with the GPU reader; smoke test; Fast-preset measurement
+ 5 files changed, 219 insertions(+), 7 deletions(-)
+ create mode 100644 scripts/fast_preset_20261108.py
+ create mode 100644 scripts/profile_faithful_20261108.py
+ create mode 100644 scripts/run_fast_20261108.cmd
+ create mode 100644 scripts/smoke_server_path_20261108.py
+pytest exit 0 
+smoke exit 0 11:36:16.32 
+fast exit 0 12:24:24.89 
+=== end Sun 08/11/2026 12:24:32.10 === 

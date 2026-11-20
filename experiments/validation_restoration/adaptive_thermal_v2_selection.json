@@ -1,0 +1,63 @@
+{
+  "decision": "retain_incumbent",
+  "selected_checkpoint": "artifacts/training_foreground_dev_v4/checkpoint_0000500.pt",
+  "rejected_experiment": "artifacts/training_adaptive_thermal_v2",
+  "partition_used": "validation_only",
+  "held_out_test_used": false,
+  "validation_sources": 20,
+  "validation_variants": 60,
+  "selection_reason": "No adaptive checkpoint produced a significant joint improvement in fidelity, stroke recovery, and false-stroke control. Later checkpoints recovered more strokes but worsened L1/SSIM and introduced more false ink.",
+  "incumbent": {
+    "iteration": 500,
+    "psnr": 24.466047254036447,
+    "ssim": 0.917911989045155,
+    "l1": 0.03320760792897393,
+    "validation_objective": 0.04962521011994293,
+    "stroke_recall": 0.8332369010317706,
+    "deleted_stroke_rate": 0.06676309896822946,
+    "false_stroke_rate": 0.03767414055559239
+  },
+  "adaptive_candidates": [
+    {
+      "iteration": 250,
+      "ssim": 0.9175166765389479,
+      "l1": 0.03318021427839994,
+      "validation_objective": 0.04967687897061037,
+      "stroke_recall": 0.8355103727855605,
+      "deleted_stroke_rate": 0.0644896272144395,
+      "false_stroke_rate": 0.03833782909729079,
+      "decision": "reject_no_joint_improvement"
+    },
+    {
+      "iteration": 500,
+      "ssim": 0.917789485435517,
+      "l1": 0.03332597834523768,
+      "validation_objective": 0.049768081258134284,
+      "stroke_recall": 0.8379225230362388,
+      "deleted_stroke_rate": 0.06207747696376106,
+      "false_stroke_rate": 0.03775830926256638,
+      "decision": "reject_no_joint_improvement"
+    },
+    {
+      "iteration": 750,
+      "ssim": 0.9165588042283602,
+      "l1": 0.03419371317528809,
+      "validation_objective": 0.05088195232961605,
+      "stroke_recall": 0.8486531345657481,
+      "deleted_stroke_rate": 0.05134686543425182,
+      "false_stroke_rate": 0.04282022477639543,
+      "decision": "reject_false_ink_and_fidelity_regression"
+    },
+    {
+      "iteration": 1000,
+      "ssim": 0.9162230891975935,
+      "l1": 0.03420650119272371,
+      "validation_objective": 0.050961883353205006,
+      "stroke_recall": 0.8474774453502203,
+      "deleted_stroke_rate": 0.05252255464977958,
+      "false_stroke_rate": 0.04262205053317653,
+      "decision": "reject_false_ink_and_fidelity_regression"
+    }
+  ],
+  "deployment_policy": "The app remains pinned to the incumbent. Experimental weights are never selected by recency or training completion alone."
+}

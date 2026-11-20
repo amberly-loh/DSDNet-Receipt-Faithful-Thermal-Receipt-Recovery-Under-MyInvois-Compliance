@@ -1,0 +1,3 @@
+{'key': 'SROIE-MY-TRAIN-0128/V01', 'status': 200, 'seconds': 32.83201090001967, 'lines': 75, 'error': None, 'total': '7.60'}
+{'key': 'SROIE-MY-TRAIN-0128/V02', 'status': 200, 'seconds': 19.439907399995718, 'lines': 92, 'error': None, 'total': '7.60'}
+{'key': 'SROIE-MY-TRAIN-0128/V03', 'status': 200, 'seconds': 24.92253999999957, 'lines': 117, 'error': None, 'total': '7.95'}

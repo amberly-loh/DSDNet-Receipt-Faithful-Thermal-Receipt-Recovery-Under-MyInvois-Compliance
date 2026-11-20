@@ -1,0 +1,76 @@
+[
+  {
+    "source": "Screenshot 2026-07-13 080718.png",
+    "saved_in_isolated_database": true,
+    "runtime_seconds": 43.178252199999406,
+    "native_refinement": {
+      "applied": true,
+      "synthetic_glyph_rendering": false,
+      "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_low_resolution_dev_v2\\checkpoint_0000500.pt",
+      "checkpoint_sha256": "32f00f66dc59acf4feb3500aa78bac3de4ffaade8f55f90ea8ffe53a29d6503b",
+      "model_output_scale": 2,
+      "background_policy": "pixels >=235 unchanged from interpolated source-based view",
+      "change_bounds": {
+        "maximum_darkening": 45,
+        "maximum_lightening": 15
+      },
+      "scope": "source-bounded development checkpoint; not pristine reconstruction"
+    },
+    "ocr_characters": 970
+  },
+  {
+    "source": "Invoice_20240316_0039.jpg",
+    "saved_in_isolated_database": true,
+    "runtime_seconds": 64.79970989999856,
+    "native_refinement": {},
+    "ocr_characters": 1692
+  },
+  {
+    "source": "Invoice_20240316_0035.jpg",
+    "saved_in_isolated_database": true,
+    "runtime_seconds": 47.92769759999646,
+    "native_refinement": {},
+    "ocr_characters": 666
+  },
+  {
+    "source": "Document_20250512_0027.jpg",
+    "saved_in_isolated_database": true,
+    "runtime_seconds": 35.95292389999668,
+    "native_refinement": {},
+    "ocr_characters": 680
+  },
+  {
+    "source": "Invoice_20241101_0003.jpg",
+    "saved_in_isolated_database": true,
+    "runtime_seconds": 25.768855299997085,
+    "native_refinement": {
+      "applied": false,
+      "synthetic_glyph_rendering": false
+    },
+    "ocr_characters": 1385
+  },
+  {
+    "source": "Invoice_20241101_0021.jpg",
+    "saved_in_isolated_database": true,
+    "runtime_seconds": 20.01082260000112,
+    "native_refinement": {
+      "applied": false,
+      "synthetic_glyph_rendering": false
+    },
+    "ocr_characters": 1131
+  },
+  {
+    "source": "Document_20240511_0052.jpg",
+    "saved_in_isolated_database": true,
+    "runtime_seconds": 45.20457239999814,
+    "native_refinement": {},
+    "ocr_characters": 835
+  },
+  {
+    "source": "Receipt_20240316_0053.jpg",
+    "saved_in_isolated_database": true,
+    "runtime_seconds": 16.468479499999376,
+    "native_refinement": {},
+    "ocr_characters": 359
+  }
+]

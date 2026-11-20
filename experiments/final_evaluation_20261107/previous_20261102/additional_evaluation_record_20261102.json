@@ -1,0 +1,49 @@
+{
+  "restoration_comparison": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\training_candidate_20261102_checkpoint_0000500\\paired_significance.json",
+  "comparison_sha256": "a7277c9360f0f1f9eb20c70f6ba3cb39496eae588ada64816613ce8ba8f0c284",
+  "full_test_suite": {
+    "command": "python -m pytest -q",
+    "passed": 111,
+    "warnings": 1,
+    "seconds": 26.87,
+    "warning": "requests dependency version compatibility warning"
+  },
+  "algorithm_unrolling_test": {
+    "command": "python -m pytest tests/test_dsdnet_unrolling.py -q",
+    "passed": 1,
+    "seconds": 7.66,
+    "scope": "random 32x32 input, eight stages, four maxout branches, output compared to pinned implementation"
+  },
+  "field_reference_validation": {
+    "partition": "validation",
+    "receipts": 148,
+    "method": "reference OCR text and boxes; excludes image recognition",
+    "results": {
+      "date": {
+        "correct": 124,
+        "total": 125
+      },
+      "total": {
+        "correct": 94,
+        "total": 148
+      }
+    }
+  },
+  "field_image_ocr_pilot": {
+    "receipts": 10,
+    "date": {
+      "correct": 5,
+      "total": 7
+    },
+    "total": {
+      "correct": 6,
+      "total": 10
+    },
+    "method": "PaddleOCR on original images, first 10 validation receipts; development pilot"
+  },
+  "limits": [
+    "Not evidence of production quality or independent test",
+    "Field parser uses 148-source validation split in SROIE manifest, not the 86-source synthetic restoration validation set",
+    "OCR pilot uses a small deterministic subset and does not establish field acceptance calibration"
+  ]
+}

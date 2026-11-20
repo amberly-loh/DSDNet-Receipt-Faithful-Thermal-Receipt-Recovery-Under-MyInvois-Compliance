@@ -1,0 +1,60 @@
+{
+  "scope": "exploratory previously inspected test partition; not independent confirmatory evidence",
+  "frozen_checkpoint_iteration": 6000,
+  "source_groups": 92,
+  "variants": 276,
+  "crop_size": [
+    128,
+    128
+  ],
+  "environment": {
+    "python": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "pytorch": "2.1.2+cu118",
+    "gpu_name": "NVIDIA GeForce RTX 3050 Laptop GPU"
+  },
+  "files": {
+    "checkpoint": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_exact_duplicate_excluded_20261102_snapshot\\checkpoint_snapshot.pt",
+      "sha256": "ce43390fce403f2eca6c111b23c610a002043f7d4bd4d24c5fedb5392b068f2a"
+    },
+    "generation_manifest": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\exact_duplicate_excluded_20261102\\generation_manifest.jsonl",
+      "sha256": "18ffa22e16cd11d9bb6f4d518424f15018cb8e9e2b07334244509a9759ffdb57"
+    },
+    "training_config": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\exact_duplicate_excluded_20261102\\training_config.json",
+      "sha256": "b4f08f270368194994518239c8947f891dca852a1c392e829319de0280530ccb"
+    },
+    "evaluation_script": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\scripts\\evaluate_restoration_validation.py",
+      "sha256": "1b191823b6aa8359947a10c3b7bb4958134ce6460fab6f97d05940931ee73a76"
+    },
+    "baseline_code": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\src\\dsdnet_receipt\\baselines.py",
+      "sha256": "6b20ff9d6b62efe804282db57942000bd699f75b78ae38423ed5263b4f4b10e9"
+    },
+    "records": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_exploratory_test\\records.csv",
+      "sha256": "7f099e171601cd76e833645b9f7c3cbc4cd03c2cddf42433df1ad732fb0a4501"
+    },
+    "summary": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_exploratory_test\\summary.json",
+      "sha256": "957a48b135ad08659ef3b40da5cb52111fec2d1ec7d6561b2f81646aaacdb5af"
+    },
+    "paired_significance": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_exploratory_test\\paired_significance.json",
+      "sha256": "2af7dd2269fb11cbf5625296e01328f263d04c1bb0cb43732566d0df45bf94d9"
+    },
+    "significance_script": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\scripts\\compare_validation_significance.py",
+      "sha256": "ebfb640c1201dcc44c8da1ba6096a4c511eaf86864da297fd5abffaa970aae0e"
+    }
+  },
+  "limitations": [
+    "Test partition previously inspected; not a fresh independent test.",
+    "Known exact-byte cross-partition duplicates excluded; potential near duplicates not resolved.",
+    "Synthetic centre crops do not prove full-receipt or human usability performance.",
+    "Model trained for 6000 iterations, not complete one-million-iteration run."
+  ]
+}

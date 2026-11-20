@@ -1,0 +1,16 @@
+{
+ "images": 165,
+ "mean_seconds": 20.165288739393915,
+ "median_seconds": 19.660280500000226,
+ "p95_seconds": 26.346310699998867,
+ "max_seconds": 38.865527499991,
+ "met_nfr1_15s": false,
+ "preset": "fast",
+ "primary_only": true,
+ "field_accuracy_image_mean": 0.4747474747474747,
+ "by_severity": {
+  "light": 18.642702121819656,
+  "moderate": 19.523662874544176,
+  "severe": 22.329501221817917
+ }
+}

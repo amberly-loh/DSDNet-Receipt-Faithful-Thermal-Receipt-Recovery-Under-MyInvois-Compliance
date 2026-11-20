@@ -1,0 +1,109 @@
+{
+  "generated_utc": "2026-11-02T03:51:28.370028+00:00",
+  "environment": {
+    "python": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "torch": "2.1.2+cu118",
+    "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU"
+  },
+  "files": {
+    "validation_summary": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_full_gpu\\summary.json",
+      "sha256": "45cffe6f40b3a76c01e00726ca82a12a3bfdf563ecb1ad302f424e7ecdcad2ad"
+    },
+    "validation_records": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_full_gpu\\records.csv",
+      "sha256": "cf51427292c6542a710a4bb7acfa6ef231374f00cfb4f4300909585ab5301224"
+    },
+    "validation_statistics": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_full_gpu\\paired_significance.json",
+      "sha256": "f85fbb70d63f5570ff4993f3c66e5e7f2b0c8497bcf9cbf090d4ffe738f6429e"
+    },
+    "validation_provenance": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_full_gpu\\provenance_and_performance.json",
+      "sha256": "d7e26f4ae14e7d770733adee2668904d3d1aa42a992138b0597993b52b6396d8"
+    },
+    "exploratory_test_summary": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_exploratory_test\\summary.json",
+      "sha256": "957a48b135ad08659ef3b40da5cb52111fec2d1ec7d6561b2f81646aaacdb5af"
+    },
+    "exploratory_test_records": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_exploratory_test\\records.csv",
+      "sha256": "7f099e171601cd76e833645b9f7c3cbc4cd03c2cddf42433df1ad732fb0a4501"
+    },
+    "exploratory_test_provenance": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\validation_restoration\\exact_excluded_6000_exploratory_test\\provenance.json",
+      "sha256": "78bee93ff3292a46b659368fa9597c87e887cc6477f84759b53f9059b80c6b63"
+    },
+    "data_partition_audit": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\dataset_partition_audit.json",
+      "sha256": "57265fd0eb16d555e7c0fe897957b31bc9c134a8833c53ec98623ffcec0b7a53"
+    },
+    "near_duplicate_candidates": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\near_duplicate_candidate_audit.json",
+      "sha256": "fafd9534b1c2c4e73864fe014545876dc0778b988e49597008de038f149b113d"
+    },
+    "split_preparation": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\exact_duplicate_excluded_20261102\\preparation_record.json",
+      "sha256": "248f13159fc6e8434f13983f06f95c8e17b1a446784089495ea4f4079e88e458"
+    },
+    "synthetic_e2e": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\e2e_synthetic_20261102\\results.json",
+      "sha256": "2a7739427b5b6a72234dad619f4ed3b8d886e27022b75eec3202e57ca28d2a82"
+    },
+    "usability_static": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\usability_static_audit.json",
+      "sha256": "efb2d8e94c57a1dd2ddcafd834da497814f93223a76a8b9d03fda65ec8bc4a4a"
+    },
+    "regression_junit": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\post_export_fix_regression.xml",
+      "sha256": "3d642e2cb560e5e205ca011afcf73c9c63df941ac1074ba52a03ef8cf3906139"
+    },
+    "regression_console": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\post_export_fix_regression.log",
+      "sha256": "0a9ca4d89ae83ef7dea80bb46fe5a7d2f5dfd5ed12d3d3a947896aaa9685a43d"
+    },
+    "image_ocr_field_results": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\field_image_ocr_validation_148.json",
+      "sha256": "0bbf945d87edcde34c611a8f681004f64eb5d4f868c5e890ad7df2d21837e47e"
+    },
+    "field_reference_results": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\field_reference_validation.json",
+      "sha256": "74b1c290af79ff79257490ee2ae08b10e03884c715356cdf75cc9a7fb3464523"
+    },
+    "ocr_confidence_analysis": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\ocr_confidence_coverage_exploratory.json",
+      "sha256": "493b76cd63c1b80037b3a96c8427fdd6ebcf0aee16963062c71965b5c0ac4794"
+    },
+    "ocr_confidence_predictions": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\field_predictions_validation_20261102.jsonl",
+      "sha256": "c3178401fb06506e90752c3d1cb5b5c4e4c49adc291c4744c4e0dc5111a33538"
+    },
+    "ocr_confidence_analysis_code": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\scripts\\analyse_ocr_confidence_coverage_exploratory.py",
+      "sha256": "59d0b0f12e27ad88bfe1bbfeeb103f0aa5a920a41e7cd670c2a1b46b20af8dbf"
+    },
+    "training_resume_manifest": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_exact_excluded_resume_12000_20261102\\run_manifest.json",
+      "sha256": "2baae9ae88aa00800475f000ac19e9a6f1ca046d3966037577789f331fe2579f"
+    },
+    "current_application_code": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\src\\dsdnet_receipt\\web_app.py",
+      "sha256": "1329319e77ff8bdd1437cd29b53aa12a6d06a8a163dca75e63db9e5dffeadbfd"
+    },
+    "security_tests": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\tests\\test_evaluation_security.py",
+      "sha256": "8dca1801980ed6b5757e8412792209daa22382de6546e5521421cb6d8a698171"
+    }
+  },
+  "status": {
+    "functional_and_integration": "automated synthetic checks completed; not exhaustive",
+    "security_privacy": "local regression checks completed; no independent security audit",
+    "usability": "static checks completed; no human participant study",
+    "performance": "synthetic 3-receipt CPU smoke and fixed-crop timings; no production load benchmark",
+    "baselines": "85-source validation plus previously inspected 92-source exploratory test at 6000 iterations",
+    "training": "one-million-iteration run ongoing, not complete",
+    "risk_coverage": "exploratory OCR confidence analysis completed; source-support threshold and independent validation not established"
+  },
+  "warning": "Do not represent exploratory results as independent confirmation or completed formal protocol."
+}

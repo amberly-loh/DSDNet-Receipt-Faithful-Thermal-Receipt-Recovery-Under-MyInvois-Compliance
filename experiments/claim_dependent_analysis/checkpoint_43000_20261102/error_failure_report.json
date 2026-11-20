@@ -1,0 +1,143 @@
+{
+  "sources": 86,
+  "objective_improved_count": 86,
+  "objective_worsened_count": 0,
+  "recall_improved_count": 79,
+  "false_stroke_improved_count": 62,
+  "mixed_recall_gain_false_stroke_cost_count": 23,
+  "worst_proposed_objective_sources": [
+    {
+      "source_id": "SROIE-MY-TEST-0030",
+      "proposed_objective": 0.17610516995285028,
+      "proposed_ssim": 0.6966368158611617,
+      "proposed_stroke_recall": 0.8661386138613861,
+      "proposed_false_stroke_rate": 0.20674892368376743
+    },
+    {
+      "source_id": "SROIE-MY-TRAIN-0052",
+      "proposed_objective": 0.15325129471159774,
+      "proposed_ssim": 0.7131616899402539,
+      "proposed_stroke_recall": 0.8153108465608465,
+      "proposed_false_stroke_rate": 0.13773663697104668
+    },
+    {
+      "source_id": "SROIE-MY-TRAIN-0054",
+      "proposed_objective": 0.13657275858212423,
+      "proposed_ssim": 0.7577522062913121,
+      "proposed_stroke_recall": 0.8532792427315754,
+      "proposed_false_stroke_rate": 0.12554352854103057
+    },
+    {
+      "source_id": "SROIE-MY-TEST-0027",
+      "proposed_objective": 0.11987001574310123,
+      "proposed_ssim": 0.7772515502436725,
+      "proposed_stroke_recall": 0.624222466154409,
+      "proposed_false_stroke_rate": 0.24683857903013853
+    },
+    {
+      "source_id": "SROIE-MY-TEST-0315",
+      "proposed_objective": 0.11422880616758763,
+      "proposed_ssim": 0.7161191514643775,
+      "proposed_stroke_recall": 0.8317914213624894,
+      "proposed_false_stroke_rate": 0.0711418229680816
+    },
+    {
+      "source_id": "SROIE-MY-TRAIN-0230",
+      "proposed_objective": 0.10729954377040933,
+      "proposed_ssim": 0.8170474178976975,
+      "proposed_stroke_recall": 0.9661531279178338,
+      "proposed_false_stroke_rate": 0.05562984755282157
+    },
+    {
+      "source_id": "SROIE-MY-TEST-0238",
+      "proposed_objective": 0.10109605386200231,
+      "proposed_ssim": 0.8049402860630214,
+      "proposed_stroke_recall": 0.9609728900968708,
+      "proposed_false_stroke_rate": 0.007039623021003899
+    },
+    {
+      "source_id": "SROIE-MY-TEST-0327",
+      "proposed_objective": 0.09293465377645349,
+      "proposed_ssim": 0.7688697434089254,
+      "proposed_stroke_recall": 0.8063330506078598,
+      "proposed_false_stroke_rate": 0.0539734736380576
+    },
+    {
+      "source_id": "SROIE-MY-TRAIN-0057",
+      "proposed_objective": 0.091995186830431,
+      "proposed_ssim": 0.8420045911030479,
+      "proposed_stroke_recall": 0.9031318281136197,
+      "proposed_false_stroke_rate": 0.09943818977194496
+    },
+    {
+      "source_id": "SROIE-MY-TEST-0322",
+      "proposed_objective": 0.0876006006561343,
+      "proposed_ssim": 0.8385547812468683,
+      "proposed_stroke_recall": 0.833438751844824,
+      "proposed_false_stroke_rate": 0.07888040712468186
+    }
+  ],
+  "largest_false_stroke_cost_sources": [
+    {
+      "source_id": "SROIE-MY-TEST-0047",
+      "false_stroke_change": 0.12514241536458334,
+      "recall_improvement": 0.0,
+      "objective_improvement": 0.05451190566434057
+    },
+    {
+      "source_id": "SROIE-MY-TEST-0116",
+      "false_stroke_change": 0.113309191702432,
+      "recall_improvement": 0.36707427536231885,
+      "objective_improvement": 0.0841475312319261
+    },
+    {
+      "source_id": "SROIE-MY-TEST-0027",
+      "false_stroke_change": 0.08675326913548334,
+      "recall_improvement": 0.562019758507135,
+      "objective_improvement": 0.047207223172349586
+    },
+    {
+      "source_id": "SROIE-MY-TRAIN-0116",
+      "false_stroke_change": 0.08205471803461759,
+      "recall_improvement": 0.4848069453963902,
+      "objective_improvement": 0.06792468898630773
+    },
+    {
+      "source_id": "SROIE-MY-TRAIN-0128",
+      "false_stroke_change": 0.07207459861179277,
+      "recall_improvement": 0.45293100738645287,
+      "objective_improvement": 0.08101761747105136
+    },
+    {
+      "source_id": "SROIE-MY-TRAIN-0189",
+      "false_stroke_change": 0.06494661921708189,
+      "recall_improvement": 0.14609053497942392,
+      "objective_improvement": 0.06509996944295574
+    },
+    {
+      "source_id": "SROIE-MY-TEST-0030",
+      "false_stroke_change": 0.06340043774202084,
+      "recall_improvement": 0.6972937293729373,
+      "objective_improvement": 0.06277838598316046
+    },
+    {
+      "source_id": "SROIE-MY-TEST-0316",
+      "false_stroke_change": 0.03760629251700683,
+      "recall_improvement": 0.20501893939393945,
+      "objective_improvement": 0.05649634825174451
+    },
+    {
+      "source_id": "SROIE-MY-TRAIN-0075",
+      "false_stroke_change": 0.03044902678743497,
+      "recall_improvement": 0.29702162382700925,
+      "objective_improvement": 0.058159337523931105
+    },
+    {
+      "source_id": "SROIE-MY-TRAIN-0052",
+      "false_stroke_change": 0.030182813659985083,
+      "recall_improvement": 0.7572751322751323,
+      "objective_improvement": 0.07121086342950517
+    }
+  ],
+  "negative_objective_sources": []
+}

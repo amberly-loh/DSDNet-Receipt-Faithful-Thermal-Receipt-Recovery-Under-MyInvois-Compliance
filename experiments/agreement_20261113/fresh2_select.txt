@@ -1,0 +1,2 @@
+43 photos listed in C:\Users\Amberly\Desktop\FYP\Task 7\receipt_recovery\fresh_test_2_20261113\labels.csv
+copied 43 photos; excluded {'scanned_in_app': 136, 'duplicate_or_first_test': 2, 'screenshot': 127, 'sroie_dataset': 342}

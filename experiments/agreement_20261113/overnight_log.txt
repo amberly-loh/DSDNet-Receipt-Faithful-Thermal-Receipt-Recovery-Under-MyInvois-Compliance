@@ -1,0 +1,28 @@
+=== start Fri 13/11/2026  5:00:49.99 === 
+stopping 32464
+stopping 9376
+stopping 4572
+stopping 19416
+stopping 20892
+stopping 1896
+stopping 2024
+warning: in the working copy of 'src/dsdnet_receipt/web_app.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/fresh_test2_20261113.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/fresh_test_20261113.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/reading_agreement_run_20261113.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/dsdnet_receipt/reading_agreement.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_reading_agreement.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 dc10c34] Reading agreement: keep the merchant, date and total that most independent readings agree on; overnight evaluation scripts
+ 7 files changed, 770 insertions(+), 1 deletion(-)
+ create mode 100644 OVERNIGHT_20261113.cmd
+ create mode 100644 scripts/fresh_test2_20261113.py
+ create mode 100644 scripts/fresh_test_20261113.py
+ create mode 100644 scripts/reading_agreement_run_20261113.py
+ create mode 100644 src/dsdnet_receipt/reading_agreement.py
+ create mode 100644 tests/test_reading_agreement.py
+pytest exit 0 
+select exit 0 
+main exit 0  9:35:07.10 
+fresh2 exit 0  9:54:18.76 
+fast exit 0 10:51:21.38 
+=== end Fri 13/11/2026 10:51:32.77 === 

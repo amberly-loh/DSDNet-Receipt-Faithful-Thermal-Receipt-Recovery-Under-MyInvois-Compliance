@@ -1,0 +1,18 @@
+{
+ "fast_base": {
+  "fa": 0.17777777777777776,
+  "cer": 0.44367750654022753,
+  "word_f1": 0.3592381924524325,
+  "seconds": 18.21376639332933,
+  "failed": 0
+ },
+ "fast_lowres": {
+  "fa": 0.17777777777777778,
+  "cer": 0.44627320055332576,
+  "word_f1": 0.35492850844788815,
+  "seconds": 14.178864086671577,
+  "failed": 0
+ },
+ "adopt": true,
+ "rule": "field accuracy not lower; CER not higher by more than 0.005; no extra failures"
+}

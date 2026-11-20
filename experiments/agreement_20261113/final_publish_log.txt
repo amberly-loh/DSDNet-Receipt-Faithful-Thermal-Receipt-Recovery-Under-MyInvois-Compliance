@@ -1,0 +1,9 @@
+=== start Sat 14/11/2026  7:48:05.63 === 
+warning: in the working copy of 'tests/test_phone_rescan.py', LF will be replaced by CRLF the next time Git touches it
+[app-update-20261107 84f862e] Test that a phone rescan replaces only its own bad scan; README notes the DSDNet source
+ 3 files changed, 90 insertions(+)
+ create mode 100644 FINAL_PUBLISH_20261114.cmd
+ create mode 100644 tests/test_phone_rescan.py
+pytest exit 0 
+publish exit 0 
+=== end Sat 14/11/2026  7:49:28.89 === 

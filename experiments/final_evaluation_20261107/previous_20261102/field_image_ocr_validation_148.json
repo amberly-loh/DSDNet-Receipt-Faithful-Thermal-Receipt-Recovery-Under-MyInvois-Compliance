@@ -1,0 +1,15 @@
+{
+  "partition": "validation",
+  "receipts": 148,
+  "method": "PaddleOCR on original images",
+  "date": {
+    "correct": 103,
+    "total": 125
+  },
+  "total": {
+    "correct": 83,
+    "total": 148
+  },
+  "source_log": "field_ocr_validation.log",
+  "warning": "One JPEG decoder warning was emitted. The aggregate log does not identify the source. Pillow loaded all 148 images without exception."
+}

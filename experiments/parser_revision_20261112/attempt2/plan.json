@@ -1,0 +1,20 @@
+{
+ "written": "2026-11-12 00:43:17",
+ "doc": "Parser revision: one-time test run of the shared field parser revision (12 November 2026).\n\nDisclosed post-evaluation revision. Chapter 5 (error analysis, 5.6) found the total amount to be the\nfield that limits every method: the shared field rule picked the wrong one of several amounts\n(subtotal, rounding, cash) or missed a total printed on a separate line from its label. A review\nstep for the date and the total was then written from receipts scanned in the application (not from\nany evaluation receipt) and checked once on the 40 validation sources only\n(artifacts/dev_validation_20261108; no test receipt involved):\n\n    validation, 120 images      field accuracy        high-risk accuracy\n    D (DSDNet alone)            0.289 -> 0.367        0.325 -> 0.442\n    P (proposed system)         0.317 -> 0.406        0.383 -> 0.517\n\nIt was adopted on that basis and frozen (src/dsdnet_receipt/field_review.py). The review runs after the\nevaluated extractor (fields.extract_fields, unchanged) and keeps the box and confidence of the line each\nnew value was read from. For this run it is the shared field parser of every method: A, B-Otsu,\nB-Sauvola, C, D, P (inside the application) and the D_rq3 evidence for RQ2/RQ3.\n\nThis script repeats the locked evaluation loop (scripts/final_run_20261108.py) unchanged apart from the\nparser: the 40 validation sources (RQ2/RQ3 calibration and selection), the 95 locked test sources\n(primary 41-95) and the 53 replication sources. AC1, AC2/AC3, AC4 and NFR1 decision rules are\nunchanged. Results are reported whatever they show, beside the locked, replication and 9 November\nrevision results, which are retained.\n",
+ "parts": [
+  "locked: 40 validation sources (D_rq3) + 95 test sources, all methods",
+  "replication: 53 test sources, all methods"
+ ],
+ "attempt": "2 (attempt 1 failed before any field was scored; see the note at the top of this script)",
+ "decision_rules": {
+  "written": null,
+  "seed": 20261107,
+  "test_sources": "all 95, seeded order",
+  "primary_rq1": "seeded positions 41-95 (55 sources)",
+  "secondary_rq1": "all 95 sources",
+  "rq1_rule": "AC1: field accuracy and page CER both better than the baseline: one-sided Wilcoxon on source means, Holm over the five baselines per metric, p_holm < 0.05 and 95% bootstrap CI of the benefit above 0",
+  "rq2_rule": "AC2/AC3 as in Chapter 3: pixel support AUC and Trace-F1 with source-cluster 95% CIs; Brier, ECE and reliability of the composite field score against OCR-only; human-versus-rule agreement from the independent perceptual audit (Cohen's kappa). Supported when the AUC CI lower bound exceeds 0.5, composite Brier and ECE are not worse than OCR-only, and kappa is at least 0.40 (moderate agreement)",
+  "rq3_rule": "AC4: proposed (support-gated) UAR not greater than Baseline E at the matched coverage points 25, 40, 50, 60 and 75 percent, 50 percent highlighted; Chapter 3/4 policies and weights unchanged",
+  "nfr1_rule": "mean end-to-end processing time of the proposed system per test image <= 15 s on the development laptop"
+ }
+}

@@ -1,0 +1,1354 @@
+{
+  "source_count": 987,
+  "decoded_count": 987,
+  "decode_errors": [],
+  "max_phash_hamming_distance": 4,
+  "cross_partition_candidate_count": 192,
+  "candidates": [
+    {
+      "source_a": "SROIE-MY-TEST-0021",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0034",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0022",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0046",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0022",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0544",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0026",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0034",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0026",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0057",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0026",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0293",
+      "partition_b": "test",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0026",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 0
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0026",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0523",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0026",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0538",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0027",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0531",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0029",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0054",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0029",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0430",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0030",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TEST-0298",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0031",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0038",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0083",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TEST-0086",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0085",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0142",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0101",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0610",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0124",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0202",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0185",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0052",
+      "partition_b": "validation",
+      "phash_distance": 0
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0189",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TEST-0190",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0189",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0034",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0189",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0054",
+      "partition_b": "validation",
+      "phash_distance": 0
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0189",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0430",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0190",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TEST-0284",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0190",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TEST-0297",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0190",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0054",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0190",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0059",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0190",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0429",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0190",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0440",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0190",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0462",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0192",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TEST-0340",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0192",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0288",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0192",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0425",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0192",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0439",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0192",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0527",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0192",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0541",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0197",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TEST-0339",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0199",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0317",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0218",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0345",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0238",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0071",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0283",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TEST-0296",
+      "partition_b": "test",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0283",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TEST-0322",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0284",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0033",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0284",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0430",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0285",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0034",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0285",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0054",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0285",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0057",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0285",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0293",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0285",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0285",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0538",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0286",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0034",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0286",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0054",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0286",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0057",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0286",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0293",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0286",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0286",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0538",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0293",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0054",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0293",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0057",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0293",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0293",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0293",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0295",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0033",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0297",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0054",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0297",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0430",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0301",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TEST-0343",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0302",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TEST-0309",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0302",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0474",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0302",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0497",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0305",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TEST-0309",
+      "partition_b": "test",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0305",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0496",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0305",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0497",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0306",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TEST-0309",
+      "partition_b": "test",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0306",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0496",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0306",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0497",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0309",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0470",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0309",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0480",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0309",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0482",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0309",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0487",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0309",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0490",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0309",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0496",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0309",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0497",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0309",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0500",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0310",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0480",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0310",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0487",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0311",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0504",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0312",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0481",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0312",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0504",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0322",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0536",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0328",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0430",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0332",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0534",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0336",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0527",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0337",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TEST-0340",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0337",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0045",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0337",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0426",
+      "partition_b": "test",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0337",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0439",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0337",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0523",
+      "partition_b": "test",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0337",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0536",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0337",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0537",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0337",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0541",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0340",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0523",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TEST-0340",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0527",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0031",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0034",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0031",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0057",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0031",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0293",
+      "partition_b": "test",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0031",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 0
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0031",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0523",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0031",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0538",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0032",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0034",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0033",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0429",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0033",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0431",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0034",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0037",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0034",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0054",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0034",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0056",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0034",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0059",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0034",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0036",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0057",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0036",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0284",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0036",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0293",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0036",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0037",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0054",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0037",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0057",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0037",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0293",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0037",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0037",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0538",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0045",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0426",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0045",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0045",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0523",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0046",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0425",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0047",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0295",
+      "partition_b": "test",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0054",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0059",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0054",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0287",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0054",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0430",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0054",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0440",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0056",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0057",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0056",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0293",
+      "partition_b": "test",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0056",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 0
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0056",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0523",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0056",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0538",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0057",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0286",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0057",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0287",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0057",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0293",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0057",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0537",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0059",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0430",
+      "partition_b": "test",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0236",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0238",
+      "partition_b": "train",
+      "phash_distance": 0
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0284",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0292",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0286",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0293",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0286",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0286",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0524",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0287",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0293",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0287",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0288",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0426",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0288",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0523",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0288",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0527",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0292",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0524",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0293",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0460",
+      "partition_b": "validation",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0294",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0438",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0296",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0524",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0297",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0298",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0302",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0308",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0310",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0544",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0368",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0372",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0425",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0426",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0426",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0433",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0426",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0439",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0429",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0430",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0439",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0523",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0460",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0462",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0460",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0523",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0460",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0537",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0470",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0496",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0470",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0497",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0473",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0497",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0476",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0495",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0477",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0504",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0481",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0503",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0481",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0505",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0482",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0496",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0482",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0497",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0482",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0504",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0483",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0495",
+      "partition_b": "test",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0485",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0495",
+      "partition_b": "test",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0490",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0496",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0490",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0497",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0504",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0505",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0523",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0527",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0523",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0537",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0523",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0538",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0523",
+      "partition_a": "test",
+      "source_b": "SROIE-MY-TRAIN-0541",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0527",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0541",
+      "partition_b": "train",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0537",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0538",
+      "partition_b": "validation",
+      "phash_distance": 0
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0604",
+      "partition_a": "train",
+      "source_b": "SROIE-MY-TRAIN-0605",
+      "partition_b": "validation",
+      "phash_distance": 4
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0605",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0610",
+      "partition_b": "train",
+      "phash_distance": 2
+    },
+    {
+      "source_a": "SROIE-MY-TRAIN-0607",
+      "partition_a": "validation",
+      "source_b": "SROIE-MY-TRAIN-0610",
+      "partition_b": "train",
+      "phash_distance": 4
+    }
+  ],
+  "warning": "Perceptual hash candidates are not confirmed duplicates; manual inspection is required. Threshold and resizing may miss near duplicates."
+}

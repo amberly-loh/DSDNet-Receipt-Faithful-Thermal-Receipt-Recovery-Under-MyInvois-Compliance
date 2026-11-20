@@ -1,0 +1,696 @@
+{
+  "generated_utc": "2026-11-03T07:34:27.435075+00:00",
+  "scope": "Executed local development/validation test register; not a production certification or participant usability study",
+  "total_cases": 52,
+  "summary": {
+    "Functional": {
+      "cases": 12,
+      "pass": 12,
+      "fail": 0
+    },
+    "Integration": {
+      "cases": 8,
+      "pass": 8,
+      "fail": 0
+    },
+    "Usability (static/applicable)": {
+      "cases": 6,
+      "pass": 6,
+      "fail": 0
+    },
+    "Privacy/Security": {
+      "cases": 10,
+      "pass": 10,
+      "fail": 0
+    },
+    "Performance": {
+      "cases": 8,
+      "pass": 8,
+      "fail": 0
+    },
+    "Baseline/Proposed Experiment": {
+      "cases": 8,
+      "pass": 8,
+      "fail": 0
+    }
+  },
+  "cases": [
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-01",
+      "Test Description": "Reject empty and unsupported image inputs",
+      "Preconditions": "Application validation functions available",
+      "Test Steps": "Submit empty byte array and unsupported image payload",
+      "Test Data": "Empty array; unsupported payload",
+      "Expected Result": "Input is rejected without creating a receipt",
+      "Actual Result": "Both invalid inputs were rejected safely",
+      "Status": "Pass",
+      "Evidence": "tests.test_core::test_empty_and_unsupported_images_are_rejected"
+    },
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-02",
+      "Test Description": "Correct a receipt captured at a quarter turn",
+      "Preconditions": "Default preprocessing configuration loaded",
+      "Test Steps": "Create rotated synthetic receipt; call preprocess; inspect orientation",
+      "Test Data": "Quarter-turn portrait receipt",
+      "Expected Result": "Output is returned in upright portrait orientation",
+      "Actual Result": "Orientation corrected and dimensions were valid",
+      "Status": "Pass",
+      "Evidence": "tests.test_core::test_preprocessing_corrects_quarter_turn_receipt"
+    },
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-03",
+      "Test Description": "Avoid rotating a creased portrait receipt sideways",
+      "Preconditions": "Preprocessor loaded",
+      "Test Steps": "Process portrait receipt containing a dominant crease",
+      "Test Data": "Creased portrait synthetic image",
+      "Expected Result": "Text-row evidence dominates the crease during orientation selection",
+      "Actual Result": "Portrait orientation was retained",
+      "Status": "Pass",
+      "Evidence": "tests.test_core::test_preprocessing_does_not_turn_creased_portrait_receipt_sideways"
+    },
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-04",
+      "Test Description": "Extract standard date, invoice number and payable total",
+      "Preconditions": "Field parser loaded",
+      "Test Steps": "Pass OCR text to extract_fields and compare normalized values",
+      "Test Data": "INVOICE NO: INV-1001; DATE: 19/10/2026; TOTAL RM 102.50",
+      "Expected Result": "2026-10-19; INV-1001; 102.50",
+      "Actual Result": "All three normalized values matched",
+      "Status": "Pass",
+      "Evidence": "tests.test_core::test_target_field_extraction"
+    },
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-05",
+      "Test Description": "Reject invalid calendar dates while preserving later valid values",
+      "Preconditions": "Field parser loaded",
+      "Test Steps": "Parse text containing 31/02/2026 and a later valid date",
+      "Test Data": "Invalid and valid date candidates",
+      "Expected Result": "Invalid calendar candidate is rejected; valid candidate remains eligible",
+      "Actual Result": "Expected candidate selection was observed",
+      "Status": "Pass",
+      "Evidence": "tests.test_core::test_invalid_date_does_not_hide_a_later_valid_date"
+    },
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-06",
+      "Test Description": "Select payable total instead of cash or change",
+      "Preconditions": "Field parser loaded",
+      "Test Steps": "Parse receipt text containing TOTAL, CASH and CHANGE",
+      "Test Data": "Multiple monetary values",
+      "Expected Result": "Payable total is selected",
+      "Actual Result": "TOTAL was selected; cash/change were not mislabelled",
+      "Status": "Pass",
+      "Evidence": "tests.test_core::test_total_prefers_payable_and_does_not_use_cash_or_change_as_total"
+    },
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-07",
+      "Test Description": "Preserve header, signature and large logos during crop",
+      "Preconditions": "Content crop functions loaded",
+      "Test Steps": "Run crop tests on table, signature, handwriting and logo layouts",
+      "Test Data": "Synthetic structured documents",
+      "Expected Result": "No relevant edge content is removed",
+      "Actual Result": "Header, signature, handwriting, scripts and logo remained inside crop",
+      "Status": "Pass",
+      "Evidence": "tests.test_crop_content_retention"
+    },
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-08",
+      "Test Description": "Preserve source-supported text while suppressing paper shading",
+      "Preconditions": "Faithful view functions loaded",
+      "Test Steps": "Generate faithful view and inspect supported dark pixels",
+      "Test Data": "Synthetic faded text plus broad shading",
+      "Expected Result": "Source-supported ink retained; broad shading reduced; no typeset text",
+      "Actual Result": "Preservation and suppression assertions passed",
+      "Status": "Pass",
+      "Evidence": "tests.test_core::test_faithful_content_view_suppresses_paper_shading_without_drawing_text"
+    },
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-09",
+      "Test Description": "Validate review form fields and values",
+      "Preconditions": "Authenticated test client and owned receipt",
+      "Test Steps": "Submit missing merchant/date/amount and malformed values",
+      "Test Data": "Missing and invalid review fields",
+      "Expected Result": "HTTP validation response names each invalid field; record is not verified",
+      "Actual Result": "Field-specific errors returned and invalid review rejected",
+      "Status": "Pass",
+      "Evidence": "tests.test_web_app::test_review_rejects_missing_required_fields_and_invalid_values"
+    },
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-10",
+      "Test Description": "Complete account and owned-receipt workflow",
+      "Preconditions": "Isolated test database",
+      "Test Steps": "Register; log in; create/read/update receipt; export and delete",
+      "Test Data": "Synthetic user and receipt",
+      "Expected Result": "Only the owner completes the workflow successfully",
+      "Actual Result": "Full owned-receipt workflow passed",
+      "Status": "Pass",
+      "Evidence": "tests.test_web_app::test_account_and_owned_receipt_workflow"
+    },
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-11",
+      "Test Description": "Support guest workflow and isolate guest selection",
+      "Preconditions": "Fresh anonymous client",
+      "Test Steps": "Create guest session; validate selection; attempt cross-session access",
+      "Test Data": "Guest receipt IDs",
+      "Expected Result": "Guest can use permitted functions and cannot access another session",
+      "Actual Result": "Guest workflow and isolation assertions passed",
+      "Status": "Pass",
+      "Evidence": "tests.test_web_app::test_guest_selection_validation_and_isolation"
+    },
+    {
+      "Category": "Functional",
+      "Test Case ID": "FUN-12",
+      "Test Description": "Generate readable audit PDF and accounting workbook",
+      "Preconditions": "Owned synthetic receipt with audit fields",
+      "Test Steps": "Request audit PDF and XLSX endpoints; inspect content and MIME",
+      "Test Data": "One controlled receipt",
+      "Expected Result": "Fixed report is readable; workbook includes accounting evidence and MyInvois boundary",
+      "Actual Result": "Both document-generation tests passed",
+      "Status": "Pass",
+      "Evidence": "tests.test_intensive::test_audit_pdf_is_fixed_readable_report; test_receipt_workbook_has_accounting_evidence_and_myinvois_boundary"
+    },
+    {
+      "Category": "Integration",
+      "Test Case ID": "INT-01",
+      "Test Description": "Expose eight unrolled DSDNet stages and four maxout branches",
+      "Preconditions": "Pinned model configuration and PyTorch environment",
+      "Test Steps": "Run adapter forward pass and inspect stage/branch tensors",
+      "Test Data": "Controlled 128 x 128 tensor",
+      "Expected Result": "Eight stages match pinned forward; four branches available",
+      "Actual Result": "Architecture integration matched expected tensors",
+      "Status": "Pass",
+      "Evidence": "tests.test_dsdnet_unrolling::test_eight_stage_adapter_matches_pinned_forward_and_exposes_branches"
+    },
+    {
+      "Category": "Integration",
+      "Test Case ID": "INT-02",
+      "Test Description": "Contain native inference crash and recover worker",
+      "Preconditions": "Inference worker enabled",
+      "Test Steps": "Force native crash; submit a second receipt",
+      "Test Data": "Crash sentinel then valid image",
+      "Expected Result": "First job fails safely; fresh worker handles next job",
+      "Actual Result": "Crash contained and subsequent job completed",
+      "Status": "Pass",
+      "Evidence": "tests.test_inference_worker::test_native_crash_is_contained_and_next_receipt_gets_fresh_worker"
+    },
+    {
+      "Category": "Integration",
+      "Test Case ID": "INT-03",
+      "Test Description": "Continue batch after one invalid image",
+      "Preconditions": "Batch worker available",
+      "Test Steps": "Submit bad image followed by valid image",
+      "Test Data": "Malformed image; valid synthetic receipt",
+      "Expected Result": "Bad item reports error without cancelling following item",
+      "Actual Result": "Following item completed successfully",
+      "Status": "Pass",
+      "Evidence": "tests.test_inference_worker::test_bad_image_does_not_interrupt_following_batch_item"
+    },
+    {
+      "Category": "Integration",
+      "Test Case ID": "INT-04",
+      "Test Description": "Return busy response for simultaneous scan",
+      "Preconditions": "One inference job already active",
+      "Test Steps": "Submit another scan concurrently",
+      "Test Data": "Two scan requests",
+      "Expected Result": "Second request returns controlled busy response rather than blocking",
+      "Actual Result": "Busy response returned immediately",
+      "Status": "Pass",
+      "Evidence": "tests.test_inference_worker::test_concurrent_scan_returns_busy_instead_of_blocking_http_threads"
+    },
+    {
+      "Category": "Integration",
+      "Test Case ID": "INT-05",
+      "Test Description": "Replace timed-out inference worker",
+      "Preconditions": "Timeout configured",
+      "Test Steps": "Start non-terminating job; wait for timeout; submit new job",
+      "Test Data": "Timeout sentinel then valid job",
+      "Expected Result": "Hung worker is terminated and replaced",
+      "Actual Result": "Timeout handled and worker replaced",
+      "Status": "Pass",
+      "Evidence": "tests.test_inference_worker::test_timed_out_worker_is_stopped_and_replaced"
+    },
+    {
+      "Category": "Integration",
+      "Test Case ID": "INT-06",
+      "Test Description": "Deduplicate identical OCR views without losing text",
+      "Preconditions": "OCR multi-view merge enabled",
+      "Test Steps": "Supply identical OCR view records and merge",
+      "Test Data": "Repeated regions and readings",
+      "Expected Result": "Duplicate call removed; unique text retained",
+      "Actual Result": "Exactly one recognition retained per identical view",
+      "Status": "Pass",
+      "Evidence": "tests.test_ocr_duplicate_views::test_identical_ocr_views_are_recognized_once_without_losing_text"
+    },
+    {
+      "Category": "Integration",
+      "Test Case ID": "INT-07",
+      "Test Description": "Enforce arithmetic consistency gate",
+      "Preconditions": "Extracted subtotal/total values available",
+      "Test Steps": "Provide inconsistent monetary fields and route review decision",
+      "Test Data": "Subtotal does not equal reported total",
+      "Expected Result": "Mismatch is reported and automatic verification blocked",
+      "Actual Result": "Arithmetic inconsistency was reported",
+      "Status": "Pass",
+      "Evidence": "tests.test_intensive::test_arithmetic_consistency_gate_reports_mismatch"
+    },
+    {
+      "Category": "Integration",
+      "Test Case ID": "INT-08",
+      "Test Description": "Protect barcode region through restoration",
+      "Preconditions": "Barcode detector and restoration fusion loaded",
+      "Test Steps": "Restore image with barcode and compare protected region",
+      "Test Data": "Synthetic barcode plus text",
+      "Expected Result": "Barcode pixels are sourced from original region",
+      "Actual Result": "Barcode region was restored from original source",
+      "Status": "Pass",
+      "Evidence": "tests.test_core::test_barcode_region_is_restored_from_original_source"
+    },
+    {
+      "Category": "Usability (static/applicable)",
+      "Test Case ID": "USA-01",
+      "Test Description": "Detect duplicate HTML element IDs",
+      "Preconditions": "Current index.html available",
+      "Test Steps": "Parse all elements with id and count duplicates",
+      "Test Data": "29 controls; 37 buttons",
+      "Expected Result": "No duplicate IDs",
+      "Actual Result": "Duplicate ID map was {}",
+      "Status": "Pass",
+      "Evidence": "usability_static_audit.json"
+    },
+    {
+      "Category": "Usability (static/applicable)",
+      "Test Case ID": "USA-02",
+      "Test Description": "Check explicit labels for interactive fields",
+      "Preconditions": "Current index.html available",
+      "Test Steps": "Inspect input/select/textarea for label or accessible name",
+      "Test Data": "29 controls",
+      "Expected Result": "No unlabeled controls",
+      "Actual Result": "Unlabeled control list was []",
+      "Status": "Pass",
+      "Evidence": "usability_static_audit.json"
+    },
+    {
+      "Category": "Usability (static/applicable)",
+      "Test Case ID": "USA-03",
+      "Test Description": "Check accessible names for buttons",
+      "Preconditions": "Current index.html available",
+      "Test Steps": "Inspect button text, aria-label, aria-labelledby and title",
+      "Test Data": "37 buttons",
+      "Expected Result": "Every button has a visible or accessible name",
+      "Actual Result": "Unnamed button list was []",
+      "Status": "Pass",
+      "Evidence": "usability_static_audit.json"
+    },
+    {
+      "Category": "Usability (static/applicable)",
+      "Test Case ID": "USA-04",
+      "Test Description": "Return field-specific registration errors",
+      "Preconditions": "Fresh registration form",
+      "Test Steps": "Submit missing, malformed and inconsistent registration values",
+      "Test Data": "Invalid name/email/password/confirmation",
+      "Expected Result": "Each invalid field receives a specific error",
+      "Actual Result": "Field-specific responses passed automated assertions",
+      "Status": "Pass",
+      "Evidence": "tests.test_web_app::test_registration_returns_field_specific_errors"
+    },
+    {
+      "Category": "Usability (static/applicable)",
+      "Test Case ID": "USA-05",
+      "Test Description": "Limit receipt image choices to faithful, original and comparison",
+      "Preconditions": "Receipt detail view rendered",
+      "Test Steps": "Inspect available image-view controls",
+      "Test Data": "Current detail page",
+      "Expected Result": "No obsolete clean-view control; three intended choices present",
+      "Actual Result": "Faithful, original and compare controls only",
+      "Status": "Pass",
+      "Evidence": "tests.test_web_app::test_receipt_view_has_only_faithful_original_and_compare"
+    },
+    {
+      "Category": "Usability (static/applicable)",
+      "Test Case ID": "USA-06",
+      "Test Description": "Refresh one stale CSRF token transparently",
+      "Preconditions": "Authenticated frontend with stale token",
+      "Test Steps": "Trigger protected request and observe retry",
+      "Test Data": "One stale CSRF token",
+      "Expected Result": "Client refreshes token once and retries without loop",
+      "Actual Result": "Single refresh/retry path passed",
+      "Status": "Pass",
+      "Evidence": "tests.test_web_app::test_frontend_refreshes_stale_csrf_token_once"
+    },
+    {
+      "Category": "Privacy/Security",
+      "Test Case ID": "SEC-01",
+      "Test Description": "Apply security headers and restrict anonymous access",
+      "Preconditions": "Application test client",
+      "Test Steps": "Request public and protected routes anonymously; inspect headers",
+      "Test Data": "Anonymous session",
+      "Expected Result": "Security headers present; protected data denied",
+      "Actual Result": "Header and access assertions passed",
+      "Status": "Pass",
+      "Evidence": "tests.test_evaluation_security::test_security_headers_and_anonymous_access"
+    },
+    {
+      "Category": "Privacy/Security",
+      "Test Case ID": "SEC-02",
+      "Test Description": "Prevent cross-user read, update and deletion",
+      "Preconditions": "Two registered accounts and one owned receipt",
+      "Test Steps": "Attempt receipt operations from non-owner account",
+      "Test Data": "User A receipt; User B session",
+      "Expected Result": "All cross-user operations are denied",
+      "Actual Result": "Read/change/delete attempts were denied",
+      "Status": "Pass",
+      "Evidence": "tests.test_evaluation_security::test_cross_user_data_cannot_be_read_changed_or_deleted"
+    },
+    {
+      "Category": "Privacy/Security",
+      "Test Case ID": "SEC-03",
+      "Test Description": "Store passwords as hashes",
+      "Preconditions": "Registration endpoint and database",
+      "Test Steps": "Register account; inspect stored credential",
+      "Test Data": "Synthetic strong password",
+      "Expected Result": "Stored value is a password hash and not plaintext",
+      "Actual Result": "Stored credential passed hash checks",
+      "Status": "Pass",
+      "Evidence": "tests.test_evaluation_security::test_passwords_stored_hashed"
+    },
+    {
+      "Category": "Privacy/Security",
+      "Test Case ID": "SEC-04",
+      "Test Description": "Require CSRF token for mutations",
+      "Preconditions": "Authenticated or guest session",
+      "Test Steps": "POST mutation without valid X-CSRF-Token",
+      "Test Data": "Missing/invalid CSRF token",
+      "Expected Result": "Request is rejected",
+      "Actual Result": "Mutation was rejected",
+      "Status": "Pass",
+      "Evidence": "tests.test_web_app::test_mutation_requires_csrf"
+    },
+    {
+      "Category": "Privacy/Security",
+      "Test Case ID": "SEC-05",
+      "Test Description": "Neutralise spreadsheet formula injection",
+      "Preconditions": "Export endpoint and synthetic malicious values",
+      "Test Steps": "Export CSV/XLSX fields beginning with formula characters",
+      "Test Data": "=, +, -, @ formula-like strings",
+      "Expected Result": "Exported cell is treated as text",
+      "Actual Result": "CSV and Excel outputs were neutralised",
+      "Status": "Pass",
+      "Evidence": "tests.test_intensive::test_excel_and_csv_exports_neutralise_formula_injection"
+    },
+    {
+      "Category": "Privacy/Security",
+      "Test Case ID": "SEC-06",
+      "Test Description": "Deny non-admin access to admin resources",
+      "Preconditions": "Registered non-admin user",
+      "Test Steps": "Request and mutate admin endpoints",
+      "Test Data": "Non-admin session",
+      "Expected Result": "All admin operations denied",
+      "Actual Result": "Non-admin access was denied",
+      "Status": "Pass",
+      "Evidence": "tests.test_intensive::test_non_admin_cannot_read_or_change_admin_resources"
+    },
+    {
+      "Category": "Privacy/Security",
+      "Test Case ID": "SEC-07",
+      "Test Description": "Maintain tamper-evident event chain",
+      "Preconditions": "Application events generated",
+      "Test Steps": "Read event chain and verify linked hashes",
+      "Test Data": "Synthetic account/receipt events",
+      "Expected Result": "Chain verifies and security headers remain present",
+      "Actual Result": "Chain and headers passed",
+      "Status": "Pass",
+      "Evidence": "tests.test_intensive::test_security_headers_and_tamper_evident_event_chain"
+    },
+    {
+      "Category": "Privacy/Security",
+      "Test Case ID": "SEC-08",
+      "Test Description": "Expose receipt file-integrity state to owner",
+      "Preconditions": "Owned receipt and stored files",
+      "Test Steps": "Request integrity information as owner",
+      "Test Data": "Controlled receipt files",
+      "Expected Result": "Owner receives consistent integrity result",
+      "Actual Result": "Integrity state was visible to owner",
+      "Status": "Pass",
+      "Evidence": "tests.test_intensive::test_receipt_file_integrity_is_visible_to_owner"
+    },
+    {
+      "Category": "Privacy/Security",
+      "Test Case ID": "SEC-09",
+      "Test Description": "Reject invalid upload and oversized/empty bulk request safely",
+      "Preconditions": "Upload endpoints available",
+      "Test Steps": "Submit invalid file, empty bulk list and over-limit list",
+      "Test Data": "Malformed upload and boundary-size lists",
+      "Expected Result": "Requests fail safely without partial mutation",
+      "Actual Result": "All boundary cases passed",
+      "Status": "Pass",
+      "Evidence": "tests.test_intensive::test_invalid_upload_empty_bulk_and_bulk_limit_are_safe"
+    },
+    {
+      "Category": "Privacy/Security",
+      "Test Case ID": "SEC-10",
+      "Test Description": "Scan source/config/tests for common secrets and dangerous constructs",
+      "Preconditions": "Current source tree and environment",
+      "Test Steps": "Run pattern scan, AST scan and pip check",
+      "Test Data": "57 files",
+      "Expected Result": "No hits; no dangerous constructs; dependencies consistent",
+      "Actual Result": "0 secret hits; 0 dangerous constructs; pip check exit 0",
+      "Status": "Pass",
+      "Evidence": "source_privacy_audit.json"
+    },
+    {
+      "Category": "Performance",
+      "Test Case ID": "PER-01",
+      "Test Description": "Measure history endpoint with 250 records",
+      "Preconditions": "Temporary SQLite DB and guest session",
+      "Test Steps": "Issue 30 GET /api/receipts requests",
+      "Test Data": "250 synthetic records",
+      "Expected Result": "All HTTP 200; record p95 latency",
+      "Actual Result": "30/30 HTTP 200; p95 0.0110 s",
+      "Status": "Pass",
+      "Evidence": "local_api_performance.json"
+    },
+    {
+      "Category": "Performance",
+      "Test Case ID": "PER-02",
+      "Test Description": "Measure dashboard endpoint with 250 records",
+      "Preconditions": "Temporary SQLite DB and guest session",
+      "Test Steps": "Issue 30 GET /api/dashboard requests",
+      "Test Data": "250 synthetic records",
+      "Expected Result": "All HTTP 200; record p95 latency",
+      "Actual Result": "30/30 HTTP 200; p95 0.0121 s",
+      "Status": "Pass",
+      "Evidence": "local_api_performance.json"
+    },
+    {
+      "Category": "Performance",
+      "Test Case ID": "PER-03",
+      "Test Description": "Measure CSV export",
+      "Preconditions": "Temporary SQLite DB populated",
+      "Test Steps": "Issue 10 GET /api/export.csv requests",
+      "Test Data": "250 synthetic records",
+      "Expected Result": "All exports HTTP 200",
+      "Actual Result": "10/10 HTTP 200; p95 0.0197 s",
+      "Status": "Pass",
+      "Evidence": "local_api_performance.json"
+    },
+    {
+      "Category": "Performance",
+      "Test Case ID": "PER-04",
+      "Test Description": "Measure Excel export",
+      "Preconditions": "Temporary SQLite DB populated",
+      "Test Steps": "Issue 10 GET /api/export.xlsx requests",
+      "Test Data": "250 synthetic records",
+      "Expected Result": "All exports HTTP 200",
+      "Actual Result": "10/10 HTTP 200; p95 0.0663 s",
+      "Status": "Pass",
+      "Evidence": "local_api_performance.json"
+    },
+    {
+      "Category": "Performance",
+      "Test Case ID": "PER-05",
+      "Test Description": "Measure summary of 50 selected receipts",
+      "Preconditions": "Temporary SQLite DB populated",
+      "Test Steps": "Issue 30 selection-summary requests",
+      "Test Data": "50 selected IDs from 250 records",
+      "Expected Result": "All requests HTTP 200",
+      "Actual Result": "30/30 HTTP 200; p95 0.1877 s",
+      "Status": "Pass",
+      "Evidence": "local_api_performance.json"
+    },
+    {
+      "Category": "Performance",
+      "Test Case ID": "PER-06",
+      "Test Description": "Exercise history endpoint at eight concurrent workers",
+      "Preconditions": "Synthetic registered account; 250 records",
+      "Test Steps": "Run 64 requests through eight clients",
+      "Test Data": "8 workers; 64 requests",
+      "Expected Result": "Zero failures; record p95 and throughput",
+      "Actual Result": "0 failures; p95 0.1758 s; 49.18 req/s",
+      "Status": "Pass",
+      "Evidence": "concurrent_api_performance.json"
+    },
+    {
+      "Category": "Performance",
+      "Test Case ID": "PER-07",
+      "Test Description": "Exercise dashboard endpoint at eight concurrent workers",
+      "Preconditions": "Synthetic registered account; 250 records",
+      "Test Steps": "Run 64 requests through eight clients",
+      "Test Data": "8 workers; 64 requests",
+      "Expected Result": "Zero failures",
+      "Actual Result": "0 failures; p95 0.1483 s; 54.44 req/s",
+      "Status": "Pass",
+      "Evidence": "concurrent_api_performance.json"
+    },
+    {
+      "Category": "Performance",
+      "Test Case ID": "PER-08",
+      "Test Description": "Exercise selection summary at eight concurrent workers",
+      "Preconditions": "Synthetic registered account; 250 records",
+      "Test Steps": "Run 64 selection requests through eight clients",
+      "Test Data": "8 workers; 50 IDs/request",
+      "Expected Result": "Zero failures",
+      "Actual Result": "0 failures; p95 0.6500 s; 16.44 req/s",
+      "Status": "Pass",
+      "Evidence": "concurrent_api_performance.json"
+    },
+    {
+      "Category": "Baseline/Proposed Experiment",
+      "Test Case ID": "EXP-01",
+      "Test Description": "Compare proposed method with direct degraded input",
+      "Preconditions": "Locked 86-source, 258-variant validation set",
+      "Test Steps": "Evaluate both methods on identical variants and aggregate by source",
+      "Test Data": "Light/moderate/severe variants",
+      "Expected Result": "Report paired metrics without claiming independent test evidence",
+      "Actual Result": "Proposed objective improved on all 86 sources",
+      "Status": "Pass",
+      "Evidence": "claim_dependent_analysis.json"
+    },
+    {
+      "Category": "Baseline/Proposed Experiment",
+      "Test Case ID": "EXP-02",
+      "Test Description": "Compare proposed method with global Otsu",
+      "Preconditions": "Same locked validation set",
+      "Test Steps": "Run Otsu and proposed method on identical variants",
+      "Test Data": "86 sources; 258 variants",
+      "Expected Result": "Report SSIM, L1, objective and stroke metrics",
+      "Actual Result": "Proposed maintained higher SSIM across all three severity levels",
+      "Status": "Pass",
+      "Evidence": "table_severity_robustness.csv"
+    },
+    {
+      "Category": "Baseline/Proposed Experiment",
+      "Test Case ID": "EXP-03",
+      "Test Description": "Compare proposed method with Sauvola",
+      "Preconditions": "Same locked validation set",
+      "Test Steps": "Run Sauvola and proposed method on identical variants",
+      "Test Data": "86 sources; 258 variants",
+      "Expected Result": "Report fidelity/recall and false-stroke trade-off",
+      "Actual Result": "Proposed had higher SSIM and recall; Sauvola retained lower false-stroke rate",
+      "Status": "Pass",
+      "Evidence": "table_severity_robustness.csv"
+    },
+    {
+      "Category": "Baseline/Proposed Experiment",
+      "Test Case ID": "EXP-04",
+      "Test Description": "Compare proposed method with perceptual baseline",
+      "Preconditions": "Same locked validation set",
+      "Test Steps": "Run perceptual baseline and proposed method on identical variants",
+      "Test Data": "86 sources; 258 variants",
+      "Expected Result": "Report paired results by degradation severity",
+      "Actual Result": "Proposed had higher SSIM and recall at light, moderate and severe levels",
+      "Status": "Pass",
+      "Evidence": "table_severity_robustness.csv"
+    },
+    {
+      "Category": "Baseline/Proposed Experiment",
+      "Test Case ID": "EXP-05",
+      "Test Description": "Evaluate retained-stage depth",
+      "Preconditions": "Iteration-43,000 checkpoint loaded",
+      "Test Steps": "Collect outputs after stages 1, 2, 4, 6 and 8; aggregate by source",
+      "Test Data": "1,290 stage/source-variant rows",
+      "Expected Result": "Identify whether full depth improves balanced objective",
+      "Actual Result": "Stage 8 achieved objective 0.0526 and SSIM 0.9167; stage 2 recall gain coincided with false-stroke rate 0.9682",
+      "Status": "Pass",
+      "Evidence": "table_stage_ablation.csv"
+    },
+    {
+      "Category": "Baseline/Proposed Experiment",
+      "Test Case ID": "EXP-06",
+      "Test Description": "Evaluate blur-kernel sensitivity",
+      "Preconditions": "Iteration-43,000 checkpoint loaded",
+      "Test Steps": "Scale applied kernel by 0.50, 0.75, 1.00, 1.25 and 1.50",
+      "Test Data": "1,290 kernel/source-variant rows",
+      "Expected Result": "Identify stable operating factor and trade-offs",
+      "Actual Result": "Factor 1.00 minimized objective (0.0526) and maximized SSIM (0.9167); factors 1.25/1.50 slightly reduced false strokes but worsened fidelity",
+      "Status": "Pass",
+      "Evidence": "table_kernel_sensitivity.csv"
+    },
+    {
+      "Category": "Baseline/Proposed Experiment",
+      "Test Case ID": "EXP-07",
+      "Test Description": "Quantify robustness by degradation severity",
+      "Preconditions": "Locked grouped validation outputs",
+      "Test Steps": "Aggregate light/moderate/severe metrics per source; run Friedman and paired Wilcoxon tests",
+      "Test Data": "86 paired sources per severity",
+      "Expected Result": "Report degradation trend and corrected significance",
+      "Actual Result": "SSIM fell 0.9410 to 0.8825 and objective rose 0.0390 to 0.0686; Friedman p<0.001",
+      "Status": "Pass",
+      "Evidence": "severity_statistical_tests.csv"
+    },
+    {
+      "Category": "Baseline/Proposed Experiment",
+      "Test Case ID": "EXP-08",
+      "Test Description": "Analyse mixed and negative source-level findings",
+      "Preconditions": "Source-level direct/proposed metrics",
+      "Test Steps": "Compute recall and false-stroke changes per source",
+      "Test Data": "86 source groups",
+      "Expected Result": "Count improvements and trade-off cases",
+      "Actual Result": "Objective improved 86/86; recall improved 79/86; 23 sources gained recall at a false-stroke cost",
+      "Status": "Pass",
+      "Evidence": "error_failure_report.json"
+    }
+  ],
+  "execution_evidence": {
+    "pytest": {
+      "result": "116 passed in 14.13 s",
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\test_evidence_20261103\\pytest_results.xml",
+      "sha256": "8aa606ed40c6905e39f0016d6200e3e0b8502ff3d0a833c1d192ee16fd3cf062"
+    },
+    "usability_static": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\usability_static_audit.json",
+      "sha256": "efb2d8e94c57a1dd2ddcafd834da497814f93223a76a8b9d03fda65ec8bc4a4a"
+    },
+    "source_privacy": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\source_privacy_audit.json",
+      "sha256": "f51874deb6ef13dedf61abe24e16b0a3e0b801d0619e407c30ae6167c546bb78"
+    },
+    "local_performance": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\local_api_performance.json",
+      "sha256": "35f9434d221e36b9a80965a554a4796fa0e9a9dabe333f21530664f76783462a"
+    },
+    "concurrent_performance": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_candidate_20261102\\concurrent_api_performance.json",
+      "sha256": "25f3812400e5b44b88148c13b04a8d58e9a5879af27a39037a778bd7f92f2525"
+    },
+    "claim_analysis": {
+      "path": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\claim_dependent_analysis\\checkpoint_43000_20261102\\claim_dependent_analysis.json",
+      "sha256": "e85161f21735a4606170cd4b110b0f31819789827ddfc11184d432a0ba6f8b43"
+    }
+  },
+  "limitations": [
+    "Usability evidence is a static interface heuristic plus automated workflow checks; it is not a participant study or accessibility certification.",
+    "Performance evidence uses a local Flask test client, temporary SQLite database and synthetic records; it is not a production load test or SLA.",
+    "Privacy/security evidence is automated regression and narrow source scanning; it is not a penetration test or data-protection impact assessment.",
+    "Restoration comparisons use the already examined locked development-validation partition; they are not a fresh independent test set."
+  ]
+}

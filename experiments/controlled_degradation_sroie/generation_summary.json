@@ -1,0 +1,7 @@
+{
+  "formal_status": "controlled Malaysian corpus generated; formal use still requires the exact Chapter 4 OCR environment and a trained checkpoint",
+  "partition_rule": "Chapter 3 deterministic 70:15:15 source partition; variants inherit source partition",
+  "sources_requested": 611,
+  "variants_added_this_run": 2,
+  "variants_expected": 1833
+}

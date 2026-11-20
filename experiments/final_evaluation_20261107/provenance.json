@@ -1,0 +1,52 @@
+{
+  "generated": "2026-11-07T07:43:35.889436+00:00",
+  "python": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "torch": "2.1.2+cu118",
+  "cuda": "11.8",
+  "cuda_available": true,
+  "device": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "paddleocr": "2.7.0.3",
+  "paddlepaddle": "2.5.2",
+  "opencv": "4.6.0",
+  "git_head": "6a810f958f3a94e1f20c1e5dbb5724dcba5bc988",
+  "git_branch": "app-update-20261107",
+  "uncommitted_code_files": 7,
+  "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_generalization_v2\\checkpoint_0000500.pt",
+  "checkpoint_sha256": "bbc08796873d93a74414c83193f0701009ef857b4a6548c32c5b95b1c537dcf2",
+  "manifest": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\protocol_lock\\generation_manifest_611_sources.jsonl",
+  "manifest_sha256": "83ca768c7dd5e77c0f72828f9ebe51ff94163fae7044fd1b5a87bd28d71ebd8f",
+  "references": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\FYP datasets\\External\\SROIE-Malaysia\\sroie_protocol_manifest.csv",
+  "references_sha256": "23f881704f3f6fab7dad50d08a190f0d83d06e1802d86914b6bcb092b09fbb7f",
+  "default_config_sha256": "6aff5af86f8c5fcd82c66237a6554b6d0ec7b56f276311dbbdd5609af84841ec",
+  "ocr_settings": {
+    "engine": "PaddleOCR",
+    "required_version": "2.7.0.3",
+    "ocr_version": "PP-OCRv3",
+    "strict_version": true,
+    "language": "en",
+    "use_doc_orientation_classify": false,
+    "use_doc_unwarping": false,
+    "use_textline_orientation": false,
+    "enable_mkldnn": true,
+    "cpu_threads": 6
+  },
+  "dsdnet_settings": {
+    "source_commit": "8a2822e44ea1e00970ed429a8230e4116034e2f9",
+    "stages": 8,
+    "maxout_branches": 4,
+    "prior_channels": 16,
+    "data_channels": 16,
+    "tile_size": 128,
+    "tile_overlap": 32,
+    "tile_batch_size": 2,
+    "restoration_blend_alpha": 1.0,
+    "evidence_support_calibration": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\formal_run\\support_calibration.json",
+    "checkpoint": "C:\\Users\\Amberly\\Desktop\\FYP\\Task 7\\receipt_recovery\\artifacts\\training_generalization_v2\\checkpoint_0000500.pt"
+  },
+  "preprocessing": {
+    "max_long_edge": 1600,
+    "boundary_detection": true,
+    "orientation_correction": true
+  }
+}

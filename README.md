@@ -1,7 +1,7 @@
 # DSDNet-Receipt (ClearReceipt)
 
 **DSDNet-Receipt: Evidence-Aware Thermal Receipt Recovery in the Malaysian MyInvois Context**
-Final Year Project, Amberly Loh. Version 1.1.0.
+Final Year Project, Amberly Loh. Version 1.2.0.
 
 DSDNet-Receipt recovers faded thermal receipts and reads the details that matter for accounting and
 MyInvois: merchant, date, receipt number, total and line items. It adapts the DSDNet restoration
@@ -11,7 +11,7 @@ saved. The desktop app is shown to users as **ClearReceipt**.
 
 The app runs entirely on your own computer. Receipts, images and records stay in a local SQLite
 database and are never uploaded anywhere. This repository is code only. Datasets, receipt images and
-trained model weights are not included.
+trained model weights are not included; they are kept in a separate private repository.
 
 ## What the app does
 
@@ -57,6 +57,8 @@ own at the configured paths.
 | `tests/` | Automated tests (`pytest tests`) |
 | `scripts/` | App launch scripts and the final evaluation scripts |
 | `configs/` | Configuration |
+| `experiments/` | Machine-readable outputs of every experiment and test run, and the Appendix A test register (see `experiments/README.md`) |
+| `DATASET_REGISTER.md` | Datasets, splits and the locked manifest hash |
 
 ## Evaluation
 
