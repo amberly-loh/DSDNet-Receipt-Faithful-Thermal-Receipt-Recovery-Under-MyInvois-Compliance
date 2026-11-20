@@ -76,7 +76,10 @@ def main() -> None:
     points = report["variants"]["pre"]["matched_coverage"]
     xs = [p["coverage"] * 100 for p in points]
     fig, ax = plt.subplots(figsize=(5.4, 3.1))
-    for key, label, colour, marker in (("P", "Proposed", C_PRO, "o"),
+    # The legend carries the method name used in the manuscript. A generic
+    # "Proposed" label forces the reader to map figure to method, so the label
+    # is the pipeline name itself.
+    for key, label, colour, marker in (("P", "DSDNet-Receipt", C_PRO, "o"),
                                        ("E", "Baseline E", C_E, "s"),
                                        ("F", "Baseline F", C_F, "^")):
         ys = [p[f"uar_{key}"] * 100 for p in points]
